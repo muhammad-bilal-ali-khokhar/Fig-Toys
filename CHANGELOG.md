@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.27
+## v0.1.28
+
+- Released on: 2026-08-17
+
+- feat: content updates via typed manifest, applied from Settings
+- revert: remove content-update approval flow, keep installer-based updates
 
 - Released on: 2026-08-17
 
