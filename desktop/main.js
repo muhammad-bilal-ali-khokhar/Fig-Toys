@@ -865,8 +865,10 @@ if (!app.requestSingleInstanceLock()) {
         }
       });
       if (applied) {
-        // Restart the app so the backend/frontend respawn from the new bundle.
-        // The database and user data live in separate paths and are untouched.
+        // Clear the renderer HTTP cache so stale JS/CSS chunks from the old
+        // bundle don't persist after the relaunch.
+        const { session } = require("electron");
+        await session.defaultSession.clearCache();
         setTimeout(() => {
           app.relaunch();
           app.exit(0);
