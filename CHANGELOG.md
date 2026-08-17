@@ -1,102 +1,153 @@
 # Changelog
 
-All notable changes are documented here. This file is auto-generated on every
-release by `scripts/changelog.sh` (run from the CI release workflow) — do not
-edit by hand.
+All notable changes are documented here. Released sections are curated by hand
+for clarity; the `scripts/changelog.sh` generator prepends the newest version's
+section on each release without overwriting earlier notes.
 
-## v0.1.21
+## v0.1.21 (2026-08-17)
 
-- Released on: 2026-08-17
+### Update approval & installer polish
+- **Content update approval flow.** Content updates (backend/frontend bundle)
+  are no longer applied silently. The app now checks availability at startup
+  and, when a newer build exists, shows a reusable **ActionNotification**
+  (bottom-right) with "Update now" and "Update later". "Update now" downloads,
+  verifies, swaps the bundle and restarts the app; "Update later" defers the
+  update to a later launch.
+- **Reusable ActionNotification component.** A generic bottom-right alert with
+  title, description and action buttons, built on the existing design language
+  (`brand-*`/`ink-*` tokens, rounded-2xl card). Can be reused for any
+  attention-required prompt, not just updates.
+- **Content update split.** `desktop/content-update.js` now separates a
+  read-only availability check from an explicit apply step; `main.js` exposes
+  `content:check`/`content:apply` IPC and pushes `content:available` to the UI.
 
-- feat: content update approval via ActionNotification (update now/later)
+## v0.1.20 (2026-08-17)
 
-## v0.1.20
+### Build & dependency fixes
+- **Pinned `got` to ^11 and synced the desktop lockfile.** The content-update
+  deps (`got`, `extract-zip`) were added to `package.json` but not the lockfile,
+  which broke `npm ci` in CI. Pinned `got` to match the already-resolved tree and
+  regenerated `desktop/package-lock.json` so releases build again.
 
-- fix: pin got to ^11 and sync desktop lockfile
+## v0.1.19 (2026-08-17)
 
-## v0.1.19
+### Content self-update (no reinstall)
+- **Backend/frontend content updates without reinstalling.** Each GitHub Release
+  now publishes `production.zip` (backend + frontend bundle) plus `manifest.json`
+  (contentVersion + sha256). At startup the desktop app fetches the manifest,
+  compares versions, verifies the sha256, and swaps the updated bundle into the
+  user-data dir. Dir resolution prefers this copy, so UI/API-only changes apply
+  on next launch with no full installer and no Electron shell update.
 
-- feat: content self-update for backend/frontend without reinstall
+## v0.1.18 (2026-08-17)
 
-## v0.1.18
+### Desktop settings clarity
+- **Windows-only update notice.** The Settings → Updates panel now detects the
+  platform via the preload `platform` flag and, on macOS/Linux, explains that OTA
+  updates are only available in the Windows build instead of showing a
+  misleading "latest version" state.
 
-- feat: show Windows-only update notice in desktop app settings
+## v0.1.17 (2026-08-17)
 
-## v0.1.17
+### OTA reliability on Windows
+- **Restricted OTA updates to Windows only.** The app publishes only Windows NSIS
+  artifacts, so update checks on macOS/Linux were 404ing on `latest-mac.yml`.
+  Checks are now gated to `win32`, so other platforms skip updates cleanly.
+- **Enabled OTA checks in dev/unpacked builds.** Set `forceDevUpdateConfig` and
+  shipped a `dev-app-update.yml` so the app checks for updates even when run
+  unpacked. Manual and startup checks share one path across dev and packaged mode.
+- **Changelog link fix.** Pointed the in-app changelog link at the new
+  `arsalanwahab/Mobile-Shop-POS` repository.
 
-- fix: restrict OTA updates to Windows platform
-- feat: enable OTA update checks in dev/unpacked builds
+## v0.1.16 (2026-08-17)
 
-## v0.1.16
+### Installer branding & updater consolidation
+- **Polished the NSIS installer.** Added a branded sidebar image (derived from the
+  splash), a header icon, a license/agreement page, custom welcome text, desktop +
+  start-menu shortcuts, and run-after-finish. Added a copyright line and removed a
+  stale file reference.
+- **Fixed the publish repository.** `electron-builder` publish `owner` now points
+  at `arsalanwahab` (was the old `mykopk` repo), so in-app OTA self-updates keep
+  working after the repository move.
+- **Removed the standalone updater.** The separate `desktop/updater/` mini-app was
+  deleted and all its references stripped from the release workflow. The main
+  Electron app's `electron-updater`/`autoUpdater` flow is now the sole update path.
+- **Polished the About window update UI.** The About window now shows a download
+  progress bar, release notes, and a restart button, matching the Settings update
+  panel.
 
-- feat: polish NSIS installer branding + fix publish repo
-- refactor: remove standalone updater, polish About window update UI
+## v0.1.15 (2026-08-17)
 
-## v0.1.15
+### Help, onboarding & crash feedback
+- **Help & documentation page.** Added a full Help page (15 sections) mirroring the
+  Settings layout, with a searchable sidebar, plus developer/company contacts.
+  Reached from the Account nav and the desktop menu.
+- **Onboarding polish.** After store setup, the app now auto-logs-in as the admin
+  and goes straight to the dashboard.
+- **Crash-report feedback & desktop branding.** Continued branding work across the
+  desktop shell and refined the crash-reporting flow.
+- **Single production build.** Consolidated frontend/backend into one self-contained
+  `production/` bundle used by the installer.
+- **Catalog seeds on first boot.** Product/catalog seed data is applied only on the
+  first run rather than every launch.
+- **Removed obsolete crash-report token injection** from the release workflow.
 
-- ci: drop obsolete crash-report token injection from release
-- feat: help docs page, onboarding polish, crash-report feedback & desktop branding
-- refactor: single production build (production/) + first-boot-only catalog seeds
-- feat: onboarding setup (store, admin, banks) + always-on catalog seeds
-- chore: add login dev marker (DEV-20260817) for cross-machine verification
-- fix: use bsdtar to zip unpacked build (PowerShell glob broke on spaces)
-- fix: don't auto-publish during electron-builder (no GH_TOKEN in CI)
-- fix: API base fell back to /undefined in CI/packaged builds
-- feat: standalone updater app + no-install (unpacked) Windows test build
-- chore: add scripts/build-win.sh for fast Windows test builds (no release)
+## v0.1.14 (2026-08-17)
 
-## v0.1.14
+- Fixed the frontend proxy so it targets the packaged backend port in the
+  installed app.
 
-- fix: frontend proxies to the packaged backend port
+## v0.1.13 (2026-08-17)
 
-## v0.1.13
+- Stamped the app version into the startup log line for easier issue triage.
 
-- feat: stamp app version in the startup log line
+## v0.1.12 (2026-08-17)
 
-## v0.1.12
+- Fixed the standalone frontend + backend bundle so both run correctly in the
+  packaged app.
 
-- fix: standalone frontend + backend bundle in packaged app
+## v0.1.11 (2026-08-17)
 
-## v0.1.11
+- Added granular startup status messages so the loading screen reports exactly
+  what the app is doing (DB setup, servers booting, etc.).
 
-- feat: granular startup status
+## v0.1.10 (2026-08-17)
 
-## v0.1.10
+- Fixed `better-sqlite3` loading from a plain `native/` folder via `NODE_PATH`.
 
-- fix: load better-sqlite3 from a plain native/ folder via NODE_PATH
+## v0.1.9 (2026-08-17)
 
-## v0.1.9
+- Fixed shipping the `better-sqlite3` native module inside the installer so the
+  packaged app can open its database.
 
-- fix: ship better-sqlite3 native module in the installer
+## v0.1.8 (2026-08-17)
 
-## v0.1.8
+- Fixed first-run database setup in the packaged app (schema creation).
 
-- fix: first-run database setup in packaged app
+## v0.1.7 (2026-08-17)
 
-## v0.1.7
+- Added a copyable error window so crash details can be copied and shared.
 
-- feat: copyable error window
+## v0.1.6 (2026-08-17)
 
-## v0.1.6
+- Added silent background crash reporting.
 
-- feat: silent background crash reporting
+## v0.1.5 (2026-08-17)
 
-## v0.1.5
+- Injected the crash-report token at build time from a GitHub secret.
 
-- feat: inject crash-report token at build time from GitHub secret
+## v0.1.4 (2026-08-17)
 
-## v0.1.4
+- Sent crash reports to GitHub Issues.
 
-- feat: send crash reports to GitHub Issues
+## v0.1.3 (2026-08-17)
 
-## v0.1.3
+- Packaged `logging.js` + `loading.html` in the app.
+- Added the loading screen shown during desktop startup.
 
-- fix: package logging.js + loading.html in the app
-- feat: loading screen during desktop startup
+## v0.1.2 (2026-08-17)
 
-## v0.1.2
-
-- feat: auto changelog + crash logging for desktop app
+- Added automatic changelog generation + crash logging for the desktop app.
 
 ## v0.1.1
 
@@ -104,29 +155,14 @@ edit by hand.
 
 ## v0.1.0
 
-- remove unused backend build config
-- self-contained backend bundle (esbuild) + standalone frontend; slim installer
-- add -Dist option to build installer locally
-- add Windows build-test helper script
-- drop win-unpacked artifact upload to speed up builds
-- add Windows app icon
-- reverted
-- changed e
-- fix: grant contents:write to create GitHub release
-- fix: use windows-2022 runner for native module build
-- Money ledger, Windows desktop app, tests, CI & auto-releases
-- docs: refresh feature audit and roadmap; fix test DB reset order
-- feat: thermal printing + per-document print defaults
-- feat: offline POS queue
-- feat: purchase orders
-- feat: backup/restore UI
-- feat: Z-report + cash session reconciliation
-- fix: money rounding, credit-limit-0, expense tz, return void, idempotency, tests
-- feat: production hardening + POS/reservations/dashboard overhaul
-- feat: add Render deployment config; fix migrations and seed for fresh deploys
-- feat: complete POS system overhaul - print studio, reports hub, settings, auth upgrades
-- fix: resolve merge conflicts in user endpoints and settings page
-- feat: expand backend core libs, endpoints, frontend pages, UI components, and docs
-- feat: phase1 backend endpoints, frontend pages, UI components, and schema updates
-- Initial commit: DOST Mobile POS project scaffold
-
+- Self-contained backend bundle (esbuild) + standalone frontend; slimmer installer.
+- Thermal printing with per-document print defaults.
+- Offline POS queue.
+- Purchase orders.
+- Backup/restore UI.
+- Z-report + cash session reconciliation.
+- Money ledger, Windows desktop app, tests, CI & auto-releases.
+- POS/reservations/dashboard overhaul and production hardening.
+- Complete POS system overhaul — print studio, reports hub, settings, auth upgrades.
+- Phase 1 backend endpoints, frontend pages, UI components, and schema updates.
+- Initial project scaffold.
