@@ -4,7 +4,13 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.23 (2026-08-17)
+## v0.1.24
+
+- Released on: 2026-08-17
+
+- fix: backend crash after content update (better-sqlite3 not found)
+- feat: render release notes as formatted markdown in update panel
+- ci: stop regenerating changelog in build job; keep curated notes
 
 ### Installer download fix
 - **Fixed installer download 404.** `productName` ("Fig POS") contains a space;
