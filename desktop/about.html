@@ -415,6 +415,37 @@
       }
       .update-line.error { color: #d9534f; }
       .update-line.good { color: #2f9e44; }
+      .update-bar {
+        height: 8px;
+        border-radius: 6px;
+        background: var(--ink-100);
+        overflow: hidden;
+        display: none;
+      }
+      .update-bar.show { display: block; }
+      .update-bar .fill {
+        height: 100%;
+        width: 0%;
+        background: var(--brand-500);
+        border-radius: 6px;
+        transition: width 0.2s ease;
+      }
+      .update-notes {
+        display: none;
+        margin: 2px 0 0;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: var(--ink-50);
+        max-height: 120px;
+        overflow: auto;
+        font-size: 11px;
+        line-height: 1.55;
+        color: #565b68;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .update-notes.show { display: block; }
+      .update-notes b { color: #1a1a1f; }
       .spinner {
         display: inline-block;
         width: 14px; height: 14px;
@@ -486,6 +517,8 @@
           <div>
             <div class="update">
               <div class="update-line" id="updateLine">Checking for updates…</div>
+              <div class="update-bar" id="updateBar"><div class="fill" id="updateFill"></div></div>
+              <div class="update-notes" id="updateNotes"></div>
               <div id="updateActions">
                 <button class="btn btn-primary" id="btnCheck">Check for updates</button>
               </div>
@@ -540,19 +573,48 @@
         var line = document.getElementById("updateLine");
         var actions = document.getElementById("updateActions");
         var btnCheck = document.getElementById("btnCheck");
+        var updateBar = document.getElementById("updateBar");
+        var updateFill = document.getElementById("updateFill");
+        var updateNotes = document.getElementById("updateNotes");
 
         function setLine(text, cls) {
           line.textContent = text;
           line.className = "update-line" + (cls ? " " + cls : "");
         }
 
+        function setProgress(percent) {
+          updateFill.style.width = (percent || 0) + "%";
+          updateBar.classList.add("show");
+        }
+
+        function setNotes(notes) {
+          if (notes && notes.trim()) {
+            var text = notes.trim();
+            var html = "";
+            var lines = text.split("\n");
+            for (var i = 0; i < lines.length; i++) {
+              var l = lines[i];
+              if (/^#+\s/.test(l)) html += "<b>" + l.replace(/^#+\s*/, "") + "</b>\n";
+              else if (/^\s*[-*]\s/.test(l)) html += "• " + l.replace(/^\s*[-*]\s*/, "") + "\n";
+              else html += l + "\n";
+            }
+            updateNotes.innerHTML = html;
+            updateNotes.classList.add("show");
+          } else {
+            updateNotes.classList.remove("show");
+          }
+        }
+
         function render(state) {
           if (!state) return;
           if (state.checking) {
             setLine("Checking for updates…");
+            updateBar.classList.remove("show");
+            updateNotes.classList.remove("show");
             actions.innerHTML = '';
           } else if (state.available && !state.downloaded) {
-            setLine("Version " + (state.newVersion || "") + " is available.");
+            setLine("Version " + (state.version || state.newVersion || "") + " is available.");
+            setNotes(state.releaseNotes);
             actions.innerHTML = '<button class="btn btn-primary" id="btnDl"><span class="spinner" id="dlSpin" style="display:none"></span><span id="dlTxt">Download update</span></button>';
             var btnDl = document.getElementById("btnDl");
             if (btnDl) btnDl.addEventListener("click", function () {
@@ -561,10 +623,12 @@
               if (window.fig && window.fig.update) window.fig.update.download();
             });
           } else if (state.downloading) {
-            setLine("Downloading update…");
+            setLine("Downloading update… " + (state.progress || 0) + "%");
+            setProgress(state.progress || 0);
             actions.innerHTML = '<button class="btn btn-primary" disabled><span class="spinner"></span>Downloading…</button>';
           } else if (state.downloaded) {
-            setLine("Update ready. Restart to apply.");
+            setLine("Update ready. Restart to apply.", "good");
+            setProgress(100);
             actions.innerHTML = '<button class="btn btn-primary" id="btnInstall">Restart &amp; install</button>';
             var btnInstall = document.getElementById("btnInstall");
             if (btnInstall) btnInstall.addEventListener("click", function () {
@@ -572,10 +636,14 @@
             });
           } else if (state.error) {
             setLine("Update failed: " + state.error, "error");
+            updateBar.classList.remove("show");
+            updateNotes.classList.remove("show");
             actions.innerHTML = '';
             renderActions();
           } else {
             setLine("You are on the latest version.", "good");
+            updateBar.classList.remove("show");
+            updateNotes.classList.remove("show");
             actions.innerHTML = '';
             renderActions();
           }

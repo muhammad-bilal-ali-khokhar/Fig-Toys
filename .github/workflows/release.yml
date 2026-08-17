@@ -77,7 +77,6 @@ jobs:
             backend/package-lock.json
             frontend/package-lock.json
             desktop/package-lock.json
-            desktop/updater/package-lock.json
 
       - name: Install backend deps
         working-directory: backend
@@ -89,10 +88,6 @@ jobs:
 
       - name: Install desktop deps
         working-directory: desktop
-        run: npm ci
-
-      - name: Install updater deps
-        working-directory: desktop/updater
         run: npm ci
 
       - name: Build frontend
@@ -135,11 +130,6 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           tar -a -c -f "release/Fig.Mobile.POS-${VERSION}-no-install.zip" -C release/win-unpacked .
 
-      # Build the standalone updater exe (portable, single file).
-      - name: Build updater
-        working-directory: desktop/updater
-        run: npm run dist
-
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
@@ -149,7 +139,6 @@ jobs:
             desktop/release/latest.yml
             desktop/release/*.exe.blockmap
             desktop/release/*-no-install.zip
-            desktop/updater/release/Fig-POS-Updater-*.exe
           if-no-files-found: error
 
       - name: Generate changelog release notes
@@ -163,5 +152,4 @@ jobs:
             desktop/release/*.exe
             desktop/release/latest.yml
             desktop/release/*.exe.blockmap
-            desktop/updater/release/Fig-POS-Updater-*.exe
           body_path: .release-notes.md
