@@ -556,17 +556,21 @@ function hardenWindow(win) {
   if (!win || !win.webContents) return;
   const wc = win.webContents;
   lockZoom(win);
-  wc.on("before-input-event", (event, input) => {
-    const mod = input.meta || input.control;
-    if (input.type !== "keyDown") return;
-    const key = (input.key || "").toLowerCase();
-    if (mod && key === "r") event.preventDefault();
-    if (mod && key === "j") event.preventDefault();
-    if (mod && key === "i") event.preventDefault();
-  });
-  wc.on("devtools-opened", () => {
-    wc.closeDevTools();
-  });
+  // In development (npm run dev) keep developer tools usable; only harden the
+  // shortcuts/devtools for shipped (packaged) builds.
+  if (app.isPackaged) {
+    wc.on("before-input-event", (event, input) => {
+      const mod = input.meta || input.control;
+      if (input.type !== "keyDown") return;
+      const key = (input.key || "").toLowerCase();
+      if (mod && key === "r") event.preventDefault();
+      if (mod && key === "j") event.preventDefault();
+      if (mod && key === "i") event.preventDefault();
+    });
+    wc.on("devtools-opened", () => {
+      wc.closeDevTools();
+    });
+  }
 }
 
 function createLoadingWindow() {
@@ -621,6 +625,12 @@ function setupAppMenu() {
       label: "View",
       submenu: [
         { role: "reload" },
+        ...(DEV_ATTACH
+          ? [
+              { role: "forceReload" },
+              { role: "toggleDevTools" },
+            ]
+          : []),
         { type: "separator" },
         { role: "togglefullscreen" },
       ],
