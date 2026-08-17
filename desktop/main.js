@@ -101,6 +101,9 @@ function pushUpdateState() {
 }
 
 function checkForUpdates() {
+  // OTA self-update targets Windows (NSIS installer) only. On macOS/Linux
+  // there are no published artifacts, so attempting a check would 404.
+  if (process.platform !== "win32") return;
   updateState.checking = true;
   updateState.error = "";
   pushUpdateState();
@@ -801,7 +804,7 @@ if (!app.requestSingleInstanceLock()) {
     if (!updateState.checking) {
       if (app.isPackaged) {
         checkForUpdates();
-      } else {
+      } else if (process.platform === "win32") {
         autoUpdater.checkForUpdates().catch((err) =>
           logging.write(`OTA: manual check failed (silent): ${err.message}`)
         );
