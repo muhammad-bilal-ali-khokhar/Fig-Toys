@@ -553,27 +553,14 @@ function lockZoom(win) {
   });
 }
 
-// Disable developer access on a window: no DevTools, no reload/force-reload
-// (keyboard shortcuts, right-click menu, and the menu bar entries).
+// Lock zoom and keep developer access (DevTools, reload) available for
+// inspection. No devtools/reload are disabled.
 function hardenWindow(win) {
   if (!win || !win.webContents) return;
   const wc = win.webContents;
   lockZoom(win);
-  // Harden (disable devtools/reload shortcuts) for shipped builds UNLESS launched
-  // with --dev, so the owner can inspect the packaged app too.
-  if (app.isPackaged && !DEV_ATTACH) {
-    wc.on("before-input-event", (event, input) => {
-      const mod = input.meta || input.control;
-      if (input.type !== "keyDown") return;
-      const key = (input.key || "").toLowerCase();
-      if (mod && key === "r") event.preventDefault();
-      if (mod && key === "j") event.preventDefault();
-      if (mod && key === "i") event.preventDefault();
-    });
-    wc.on("devtools-opened", () => {
-      wc.closeDevTools();
-    });
-  }
+  // Devtools and reload are always available for inspection. (Keyboard shortcut
+  // Ctrl+Shift+I toggles DevTools; View menu also exposes it.)
 }
 
 function createLoadingWindow() {
@@ -628,12 +615,8 @@ function setupAppMenu() {
       label: "View",
       submenu: [
         { role: "reload" },
-        ...(DEV_ATTACH
-          ? [
-              { role: "forceReload" },
-              { role: "toggleDevTools" },
-            ]
-          : []),
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
         { type: "separator" },
         { role: "togglefullscreen" },
       ],
