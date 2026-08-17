@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.17
+## v0.1.18
 
 - Released on: 2026-08-17
+
+- feat: show Windows-only update notice in desktop app settings
+
+## v0.1.17
 
 - fix: restrict OTA updates to Windows platform
 - feat: enable OTA update checks in dev/unpacked builds
