@@ -1,16 +1,5 @@
 # Custom NSIS include for Fig POS installer polish.
 
-!macro customInit
-  # On update, read the existing install location from the registry so the
-  # installer overwrites in place instead of asking for a new directory.
-  ${ifNot} ${isUpdated}
-    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "InstallLocation"
-    ${if} $0 != ""
-      StrCpy $INSTDIR $0
-    ${endIf}
-  ${endIf}
-!macroend
-
 # Friendly welcome text on the assisted-installer welcome page.
 !macro customWelcomePage
   !define MUI_WELCOMEPAGE_TITLE "Welcome to Fig POS Setup"
