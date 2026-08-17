@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
@@ -882,7 +882,18 @@ if (!app.requestSingleInstanceLock()) {
     try {
       const applied = await contentUpdate.applyContentUpdate();
       if (applied) {
-        setTimeout(() => {
+        setTimeout(async () => {
+          // The renderer's HTTP cache may still hold JS chunks from the old
+          // frontend bundle; mixing old + new chunks causes "v is not a
+          // function" on route changes. Clear it so the new build loads clean.
+          try {
+            await session.defaultSession.clearCache();
+            await session.defaultSession.clearStorageData({
+              storages: ["cookies", "localstorage", "cachestorage"],
+            });
+          } catch (err) {
+            logging.error("content: cache clear failed " + (err && err.message ? err.message : err));
+          }
           app.relaunch();
           app.exit(0);
         }, 800);
