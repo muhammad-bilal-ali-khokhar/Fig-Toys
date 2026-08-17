@@ -34,6 +34,7 @@ export function Dropdown<T extends string>({
   align = "left",
   searchable = false,
   allowCustom = false,
+  defaultFilter = "",
   className = "",
   menuClassName = "",
 }: {
@@ -48,6 +49,7 @@ export function Dropdown<T extends string>({
   align?: "left" | "right";
   searchable?: boolean;
   allowCustom?: boolean;
+  defaultFilter?: string;
   className?: string;
   menuClassName?: string;
 }) {
@@ -137,7 +139,7 @@ export function Dropdown<T extends string>({
       setOpen(false);
       return;
     }
-    setFilter("");
+    setFilter(defaultFilter);
     setOpen(true);
   }
 

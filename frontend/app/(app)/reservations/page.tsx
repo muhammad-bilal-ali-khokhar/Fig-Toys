@@ -16,6 +16,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { PriceInput } from "@/components/ui/price-input";
 import { useToast } from "@/components/ui/toast";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
+import { ReservationModifyPicker } from "@/components/transactions/reservation-modify-picker";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { ChevronLeftIcon, PlusIcon, PrinterIcon, ReservationIcon, SmartphoneIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
@@ -557,6 +558,7 @@ export default function ReservationsPage() {
   }
 
   return (
+    <>
     <form
       className="flex h-full flex-col"
       onSubmit={(e) => {
@@ -935,20 +937,13 @@ export default function ReservationsPage() {
       </div>
     </form>
 
-    <ModifyPicker
+    <ReservationModifyPicker
       open={modifyPickerOpen}
       onClose={() => setModifyPickerOpen(false)}
-      type="SALE"
-      onSelect={(txn) => {
-        void (async () => {
-          try {
-            const detail = await apiRequest<ReservationDetail>(`/reservation/${txn.id}`);
-            loadForModify(detail);
-          } catch {
-            toast("Could not load the reservation", "error");
-          }
-        })();
+      onSelect={(reservation) => {
+        loadForModify(reservation);
       }}
     />
+    </>
   );
 }
