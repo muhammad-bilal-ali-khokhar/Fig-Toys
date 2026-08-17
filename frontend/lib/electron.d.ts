@@ -52,6 +52,17 @@ declare global {
         get: () => Promise<string>;
         copy: (text: string) => Promise<boolean>;
       };
+      content?: {
+        check: () => Promise<{
+          type: "content" | "full";
+          available: boolean;
+          contentVersion: string;
+          applied: string;
+          version: string;
+        } | null>;
+        apply: () => Promise<string | null>;
+        onStatus: (cb: (state: { applying: boolean; progress: number }) => void) => () => void;
+      };
       about?: {
         open: () => Promise<unknown>;
         close: () => Promise<boolean>;

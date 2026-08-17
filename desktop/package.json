@@ -6,7 +6,9 @@
   "author": "Fig POS",
   "main": "main.js",
   "dependencies": {
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.6.2",
+    "extract-zip": "^2.0.1",
+    "got": "^11.8.6"
   },
   "scripts": {
     "start": "electron .",

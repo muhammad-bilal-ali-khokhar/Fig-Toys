@@ -22,6 +22,30 @@ export function DesktopAppTab() {
   const [report, setReport] = useState<ReportConfig | null>(null);
   const [savingReport, setSavingReport] = useState(false);
   const [update, setUpdate] = useState<UpdateState | null>(null);
+  const [content, setContent] = useState<{
+    type: "content" | "full";
+    available: boolean;
+    contentVersion: string;
+    applied: string;
+    version: string;
+  } | null>(null);
+  const [contentChecking, setContentChecking] = useState(false);
+  const [contentApplying, setContentApplying] = useState(false);
+  const [contentProgress, setContentProgress] = useState(0);
+
+  const refreshContent = async () => {
+    setContentChecking(true);
+    try {
+      const c = await window.fig?.content?.check();
+      setContent(c ?? null);
+      return c ?? null;
+    } catch {
+      setContent(null);
+      return null;
+    } finally {
+      setContentChecking(false);
+    }
+  };
 
   useEffect(() => {
     if (!isElectron) return;
@@ -37,8 +61,15 @@ export function DesktopAppTab() {
       ?.status()
       .then(setUpdate)
       .catch(() => setUpdate(null));
+    void refreshContent();
     const off = window.fig?.update?.onStatus?.(setUpdate);
-    return () => off?.();
+    const offContent = window.fig?.content?.onStatus?.((s) => {
+      setContentProgress(s.progress ?? 0);
+    });
+    return () => {
+      off?.();
+      offContent?.();
+    };
   }, [isElectron]);
 
   if (!isElectron) {
@@ -172,16 +203,37 @@ export function DesktopAppTab() {
             <p className="text-xs text-ink-500">
               {update?.checking
                 ? "Checking for updates…"
-                : update?.downloading
-                  ? `Downloading update… ${update?.progress ?? 0}%`
-                  : update?.available
-                    ? `A new version (${update.version}) is available`
-                    : update?.downloaded
-                      ? "Update ready to install"
-                      : "You're on the latest version"}
+                : content?.available
+                  ? content.type === "full"
+                    ? `A new version (${update?.version || content.version}) is available`
+                    : `A new version (${content.version}) is available`
+                  : update?.downloading
+                    ? `Downloading update… ${update?.progress ?? 0}%`
+                    : update?.available
+                      ? `A new version (${update.version}) is available`
+                      : update?.downloaded
+                        ? "Update ready to install"
+                        : "You're on the latest version"}
             </p>
           </div>
         </div>
+
+        {content?.available && content.type === "content" && (
+          <div className="mb-3 rounded-2xl bg-ink-50 p-3">
+            <p className="text-xs text-ink-600">
+              An update to the app is available and will be applied here — no need to reinstall. Your
+              data and database are not affected.
+            </p>
+            {contentApplying && (
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-ink-100">
+                <div
+                  className="h-full rounded-full bg-brand-500 transition-all"
+                  style={{ width: `${contentProgress}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {update?.available && !update?.downloaded && (
           <div className="mb-3 rounded-2xl bg-ink-50 p-3">
@@ -216,13 +268,18 @@ export function DesktopAppTab() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="grey"
-            loading={update?.checking}
-            disabled={update?.downloading || update?.downloaded}
+            loading={update?.checking || contentChecking}
+            disabled={update?.downloading || update?.downloaded || contentApplying}
             onClick={async () => {
               try {
-                const s = await window.fig?.update?.check();
+                const [s, c] = await Promise.all([
+                  window.fig?.update?.check(),
+                  refreshContent(),
+                ]);
                 if (s) setUpdate(s);
-                if (s?.available) {
+                if (c?.available) {
+                  toast(`Update available. Version ${c.contentVersion}`, "success");
+                } else if (s?.available) {
                   toast(`Update available. Version ${s.version}`, "success");
                 } else {
                   toast("You're on the latest version", "success");
@@ -232,12 +289,35 @@ export function DesktopAppTab() {
               }
             }}
           >
-            {update?.available && !update?.downloaded ? "Check again" : "Check for updates"}
+            {update?.available || content?.available ? "Check again" : "Check for updates"}
           </Button>
-          {update?.available && !update?.downloaded && (
+          {content?.available && content.type === "content" && !contentApplying && (
+            <Button
+              loading={contentApplying}
+              disabled={update?.checking}
+              onClick={async () => {
+                setContentApplying(true);
+                try {
+                  const applied = await window.fig?.content?.apply();
+                  if (applied) {
+                    toast("Update applied. Restarting…", "success");
+                  } else {
+                    toast("Could not apply the update", "error");
+                    setContentApplying(false);
+                  }
+                } catch {
+                  toast("Could not apply the update", "error");
+                  setContentApplying(false);
+                }
+              }}
+            >
+              Download &amp; apply update
+            </Button>
+          )}
+          {update?.available && !update?.downloaded && content?.type !== "content" && (
             <Button
               loading={update?.downloading}
-              disabled={update?.checking}
+              disabled={update?.checking || contentApplying}
               onClick={async () => {
                 try {
                   const s = await window.fig?.update?.download();
@@ -272,8 +352,8 @@ export function DesktopAppTab() {
           </Button>
         </div>
         <p className="mt-2 rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
-          Updates are downloaded and installed automatically when you quit the app, so you always stay
-          on the latest version without any manual work.
+          App updates are downloaded and applied without reinstalling. When the app itself needs updating,
+          it installs automatically when you quit. Your data is never touched.
         </p>
       </div>
 

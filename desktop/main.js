@@ -8,6 +8,7 @@ const http = require("node:http");
 const path = require("node:path");
 const logging = require("./logging");
 const report = require("./report");
+const contentUpdate = require("./content-update");
 const { autoUpdater } = require("electron-updater");
 
 // Allow update checks to run even in unpacked/dev builds (needs a
@@ -29,13 +30,19 @@ const SRC_BACKEND = path.join(ROOT, "backend");
 const SRC_FRONTEND = path.join(ROOT, "frontend");
 
 // Production bundles live in <repo>/production (or <resources>/production in a
-// packaged app). Fall back to the source tree for development.
+// packaged app). A content update may have placed a newer copy in the user-data
+// dir, which is preferred when present. Fall back to the source tree for
+// development.
 function backendDir() {
+  const u = contentUpdate.appliedContentRoot();
+  if (u && fs.existsSync(path.join(u, "backend", "server.cjs"))) return path.join(u, "backend");
   return fs.existsSync(path.join(PROD_BACKEND, "server.cjs"))
     ? PROD_BACKEND
     : SRC_BACKEND;
 }
 function frontendDir() {
+  const u = contentUpdate.appliedContentRoot();
+  if (u && fs.existsSync(path.join(u, "frontend", "server.js"))) return path.join(u, "frontend");
   return fs.existsSync(path.join(PROD_FRONTEND, "server.js"))
     ? PROD_FRONTEND
     : SRC_FRONTEND;
@@ -43,6 +50,8 @@ function frontendDir() {
 // The bundled server.cjs, setup.cjs and schema.sql share one folder — the prod
 // bundle root in a packaged build, or the backend source tree in development.
 function bundleDir() {
+  const u = contentUpdate.appliedContentRoot();
+  if (u && fs.existsSync(path.join(u, "backend", "server.cjs"))) return path.join(u, "backend");
   return backendDir() === PROD_BACKEND
     ? PROD_BACKEND
     : SRC_BACKEND;
@@ -282,6 +291,8 @@ process.on("unhandledRejection", (reason) => {
 function userDataDir() {
   return app.getPath("userData");
 }
+
+contentUpdate.init(userDataDir);
 
 function runtimeFile() {
   return path.join(userDataDir(), "fig-runtime.json");
@@ -829,6 +840,43 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.handle("update:open-changelog", () => {
     shell.openExternal("https://github.com/arsalanwahab/Mobile-Shop-POS/releases/latest");
     return true;
+  });
+
+  // Content (backend/frontend) update flow, driven from the Settings → Updates
+  // panel. check reports the type of available update; apply downloads + swaps
+  // the bundle into the user-data dir and restarts the servers. Never touches
+  // the database/backups (those live in separate user-data paths).
+  ipcMain.handle("content:check", async () => {
+    try {
+      return await contentUpdate.checkContentUpdate();
+    } catch (err) {
+      logging.error("content: check failed " + (err && err.stack ? err.stack : err));
+      return null;
+    }
+  });
+
+  ipcMain.handle("content:apply", async () => {
+    try {
+      const applied = await contentUpdate.applyContentUpdate((pct) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) {
+            win.webContents.send("content:status", { applying: true, progress: pct });
+          }
+        }
+      });
+      if (applied) {
+        // Restart the app so the backend/frontend respawn from the new bundle.
+        // The database and user data live in separate paths and are untouched.
+        setTimeout(() => {
+          app.relaunch();
+          app.exit(0);
+        }, 800);
+      }
+      return applied;
+    } catch (err) {
+      logging.error("content: apply failed " + (err && err.stack ? err.stack : err));
+      return null;
+    }
   });
 
   ipcMain.handle("about:open", () => openAboutWindow());

@@ -113,6 +113,12 @@ jobs:
         working-directory: backend
         run: npm run build:production
 
+      # Content self-update bundle: typed manifest + production.zip published on
+      # the release so the app can swap backend/frontend without reinstalling.
+      - name: Zip content bundle + write typed manifest
+        working-directory: desktop
+        run: node scripts/make-content-bundle.mjs
+
       - name: Package installer
         working-directory: desktop
         run: npm run dist:win
@@ -148,4 +154,6 @@ jobs:
             desktop/release/*.exe
             desktop/release/latest.yml
             desktop/release/*.exe.blockmap
+            desktop/release/production.zip
+            desktop/release/manifest.json
           body_path: .release-notes.md
