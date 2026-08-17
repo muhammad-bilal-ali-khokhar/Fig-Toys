@@ -294,6 +294,27 @@ function userDataDir() {
 
 contentUpdate.init(userDataDir);
 
+// After a full installer update the bundled production/ is fresh but the old
+// content cache in <userData>/content/production/ may still exist and override
+// it.  Detect a shell-version change and wipe the stale content directory so
+// the app loads the new bundled frontend/backend.
+function clearStaleContentIfShellUpdated() {
+  const shellVersion = app.getVersion();
+  const marker = path.join(userDataDir(), "content", "shell-version.json");
+  try {
+    const prev = JSON.parse(fs.readFileSync(marker, "utf8"));
+    if (prev.version === shellVersion) return;
+  } catch {}
+  const contentDir = path.join(userDataDir(), "content");
+  try {
+    fs.rmSync(contentDir, { recursive: true, force: true });
+    logging.write("cleared stale content cache (shell " + shellVersion + ")");
+  } catch {}
+  fs.mkdirSync(contentDir, { recursive: true });
+  fs.writeFileSync(marker, JSON.stringify({ version: shellVersion }, null, 2));
+}
+clearStaleContentIfShellUpdated();
+
 function runtimeFile() {
   return path.join(userDataDir(), "fig-runtime.json");
 }
