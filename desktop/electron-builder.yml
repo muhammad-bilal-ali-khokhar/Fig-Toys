@@ -1,5 +1,6 @@
 appId: com.fig.pos
 productName: Fig POS
+copyright: Copyright © 2026 MYKO Pvt Ltd. All rights reserved.
 directories:
   output: release
   buildResources: build
@@ -17,7 +18,6 @@ files:
   - error.html
   - runtime.json
   - package.json
-  - fig-report-token.txt
 
 # Bundle the production builds (no source, no node_modules except the native
 # module bundled inside production/backend/native).
@@ -37,7 +37,7 @@ npmRebuild: true
 # blockmap so installed apps can self-update without re-downloading.
 publish:
   provider: github
-  owner: mykopk
+  owner: arsalanwahab
   repo: Mobile-Shop-POS
 
 # Windows is the only release target. macOS is not built or released.
@@ -51,3 +51,12 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Fig POS
+  license: build/license.txt
+  installerSidebar: build/installerSidebar.bmp
+  installerHeaderIcon: build/installerHeaderIcon.ico
+  include: build/installer.nsh
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true

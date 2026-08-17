@@ -1,0 +1,18 @@
+Fig POS — End User License Agreement
+
+Copyright (c) 2026 MYKO Pvt Ltd. All rights reserved.
+
+This software is provided for the use of licensed operators of Fig POS
+under the terms agreed with MYKO Pvt Ltd. Use of this software is subject
+to a paid subscription or service agreement. Unauthorised copying,
+redistribution, resale or reverse engineering is prohibited.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Fig POS is proudly built in Pakistan by MYKO Pvt Ltd.
