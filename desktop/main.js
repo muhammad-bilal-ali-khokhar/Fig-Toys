@@ -559,9 +559,9 @@ function hardenWindow(win) {
   if (!win || !win.webContents) return;
   const wc = win.webContents;
   lockZoom(win);
-  // In development (npm run dev) keep developer tools usable; only harden the
-  // shortcuts/devtools for shipped (packaged) builds.
-  if (app.isPackaged) {
+  // Harden (disable devtools/reload shortcuts) for shipped builds UNLESS launched
+  // with --dev, so the owner can inspect the packaged app too.
+  if (app.isPackaged && !DEV_ATTACH) {
     wc.on("before-input-event", (event, input) => {
       const mod = input.meta || input.control;
       if (input.type !== "keyDown") return;
