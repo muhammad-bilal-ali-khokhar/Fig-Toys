@@ -47,7 +47,7 @@ win:
   target:
     - nsis
   icon: build/icon.ico
-  artifactName: ${productName}-Setup-${version}.${ext}
+  artifactName: Fig-POS-Setup-${version}.${ext}
 
 nsis:
   oneClick: false
