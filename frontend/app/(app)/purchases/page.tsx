@@ -18,6 +18,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
+import { Sheet } from "@/components/ui/sheet";
+import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { Kbd } from "@/components/ui/kbd";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playPop, playSuccess } from "@/lib/sound";
@@ -93,6 +95,7 @@ export default function PurchasesPage() {
   const barcodeFieldRefs = useRef<(HTMLInputElement | null)[]>([]);
   const purchaseClientRef = useRef<string | null>(null);
   const [modifyId, setModifyId] = useState<string | null>(null);
+  const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -694,6 +697,9 @@ export default function PurchasesPage() {
           {flow === "ACCESSORY" ? "Accessories" : flow === "USED" ? "Used Phone" : "New Phone"}
         </button>
         <div className="flex items-center gap-2">
+          <Button variant="grey" onClick={() => setModifyPickerOpen(true)}>
+            Modify
+          </Button>
           <Link
             href="/reports/purchases"
             className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
@@ -1238,6 +1244,22 @@ export default function PurchasesPage() {
           onClose={() => setScannerOpen(false)}
         />
       )}
+
+      <ModifyPicker
+        open={modifyPickerOpen}
+        onClose={() => setModifyPickerOpen(false)}
+        type="PURCHASE"
+        onSelect={(txn) => {
+          void (async () => {
+            try {
+              const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`);
+              loadForModify(detail);
+            } catch {
+              toast("Could not load the purchase", "error");
+            }
+          })();
+        }}
+      />
     </div>
   );
 }

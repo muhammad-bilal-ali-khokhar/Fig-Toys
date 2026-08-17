@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
+import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { Kbd } from "@/components/ui/kbd";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
@@ -66,6 +67,7 @@ export default function SaleReturnsPage() {
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [modifyId, setModifyId] = useState<string | null>(null);
+  const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -465,6 +467,9 @@ export default function SaleReturnsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="grey" onClick={() => setModifyPickerOpen(true)}>
+            Modify
+          </Button>
           <Link
             href="/reports/sale-returns"
             className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
@@ -747,6 +752,22 @@ export default function SaleReturnsPage() {
           onClose={() => setScannerOpen(false)}
         />
       )}
+
+      <ModifyPicker
+        open={modifyPickerOpen}
+        onClose={() => setModifyPickerOpen(false)}
+        type="SALE_RETURN"
+        onSelect={(txn) => {
+          void (async () => {
+            try {
+              const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`);
+              loadForModify(detail);
+            } catch {
+              toast("Could not load the return", "error");
+            }
+          })();
+        }}
+      />
     </form>
   );
 }

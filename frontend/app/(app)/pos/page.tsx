@@ -24,6 +24,7 @@ import { PlusIcon, PosIcon, PrinterIcon, RefundIcon, ReservationIcon, XIcon } fr
 import { SearchInput } from "@/components/ui/search-input";
 import { TypePill } from "@/components/ui/type-pill";
 import { DirectPrint } from "@/components/print/direct-print";
+import { ModifyPicker } from "@/components/transactions/modify-picker";
 
 type SearchResult = {
   id: string;
@@ -157,6 +158,7 @@ export default function PosPage() {
   const [saleDate, setSaleDate] = useState(() => toISODate(new Date()));
   const [invoiceNo, setInvoiceNo] = useState("SAL-0001");
   const [modifyId, setModifyId] = useState<string | null>(null);
+  const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -810,6 +812,9 @@ export default function PosPage() {
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Invoice" : "Sale Invoice"}</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="grey" onClick={() => setModifyPickerOpen(true)}>
+            Modify
+          </Button>
           <Link href="/sale-returns">
             <Button variant="grey">
               <RefundIcon className="h-4 w-4" />
@@ -1461,6 +1466,22 @@ export default function PosPage() {
           </div>
         </div>
       </div>
+
+      <ModifyPicker
+        open={modifyPickerOpen}
+        onClose={() => setModifyPickerOpen(false)}
+        type="SALE"
+        onSelect={(txn) => {
+          void (async () => {
+            try {
+              const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`);
+              loadForModify(detail);
+            } catch {
+              toast("Could not load the sale", "error");
+            }
+          })();
+        }}
+      />
 
       <Sheet open={reservationPickOpen} title="Process reservation" onClose={() => setReservationPickOpen(false)}>
         <div className="max-h-[60vh] space-y-2 overflow-y-auto overscroll-none">

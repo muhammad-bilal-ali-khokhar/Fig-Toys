@@ -51,7 +51,6 @@ win:
 nsis:
   oneClick: false
   perMachine: false
-  installDir: "C:\\Wavlon Studio\\Fig POS"
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: Fig POS

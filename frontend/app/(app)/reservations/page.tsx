@@ -15,6 +15,7 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { Kbd } from "@/components/ui/kbd";
 import { PriceInput } from "@/components/ui/price-input";
 import { useToast } from "@/components/ui/toast";
+import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { ChevronLeftIcon, PlusIcon, PrinterIcon, ReservationIcon, SmartphoneIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
@@ -81,6 +82,7 @@ export default function ReservationsPage() {
   const [reserveNo, setReserveNo] = useState("RES-0001");
   const [flow, setFlow] = useState<"RESERVATION" | "CONSIGNMENT" | null>(null);
   const [modifyId, setModifyId] = useState<string | null>(null);
+  const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -510,9 +512,14 @@ export default function ReservationsPage() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="w-full max-w-2xl">
-          <p className="mb-8 text-center text-sm font-semibold uppercase tracking-wide text-ink-500">
-            What are you creating?
-          </p>
+          <div className="mb-8 flex items-center justify-between">
+            <p className="text-sm font-semibold uppercase tracking-wide text-ink-500">
+              What are you creating?
+            </p>
+            <Button variant="grey" onClick={() => setModifyPickerOpen(true)}>
+              Modify
+            </Button>
+          </div>
           <div className="grid gap-5 md:grid-cols-2">
             {options.map((o) =>
               o.featured ? (
@@ -927,5 +934,21 @@ export default function ReservationsPage() {
         </div>
       </div>
     </form>
+
+    <ModifyPicker
+      open={modifyPickerOpen}
+      onClose={() => setModifyPickerOpen(false)}
+      type="SALE"
+      onSelect={(txn) => {
+        void (async () => {
+          try {
+            const detail = await apiRequest<ReservationDetail>(`/reservation/${txn.id}`);
+            loadForModify(detail);
+          } catch {
+            toast("Could not load the reservation", "error");
+          }
+        })();
+      }}
+    />
   );
 }
