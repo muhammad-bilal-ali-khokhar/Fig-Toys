@@ -56,16 +56,37 @@ each release without overwriting earlier notes.
 # Render the section for the version being released. Only the newest section is
 # generated automatically; previously released sections are preserved verbatim
 # so hand-written notes survive future releases.
+#
+# The correct commit range depends on whether the target tag already exists:
+#   - Before tagging (release job): range = newestTag..HEAD
+#   - After tagging (build job):     range = previousTag..thisTag
+# This handles both because the build job re-runs the script after the tag is
+# pushed (otherwise it would report an empty range and "No notable changes").
 render_new_section() {
-  local version="$1" base="$2" range
-  range="${base:+"$base..HEAD"}"
-  [ -z "$range" ] && range="HEAD"
+  local version="$1" range
+  local tag="v$version"
+  local prev="" i
+
+  # Find the tag immediately before the target version (if any).
+  for i in "${!TAGS[@]}"; do
+    if [ "${TAGS[$i]}" = "$tag" ]; then
+      prev="${TAGS[$((i + 1))]:-}"
+      break
+    fi
+  done
+
+  if [ -n "$prev" ]; then
+    range="$prev..$tag"
+  elif [ -n "${TAGS[0]:-}" ] && [ "${TAGS[0]}" != "$tag" ]; then
+    range="${TAGS[0]}..HEAD"
+  else
+    range="HEAD"
+  fi
 
   echo "## v$version"
   echo
   echo "- Released on: $(date +%Y-%m-%d)"
   echo
-  # Group commits by conventional-commit type for readable release notes.
   local lines
   lines="$(commits_for "$range")"
   if [ -n "$lines" ]; then
@@ -80,8 +101,7 @@ render_new_section() {
   printf '%s' "$HEADER"
 
   if [ -n "$NEW_VERSION" ]; then
-    base="${TAGS[0]:-}"
-    render_new_section "$NEW_VERSION" "$base"
+    render_new_section "$NEW_VERSION"
   fi
 
   # Preserve all existing version sections (already-released notes stay as-is):
