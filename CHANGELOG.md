@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.32
+## v0.1.33
+
+- Released on: 2026-08-17
+
+- fix: clear renderer cache before relaunch after content update
 
 - Released on: 2026-08-17
 
