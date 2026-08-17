@@ -59,10 +59,13 @@ function bundleDir() {
     ? PROD_BACKEND
     : SRC_BACKEND;
 }
-// Native better-sqlite3 sits next to the bundle (prod: native/, source: none —
-// dev resolves it from backend/node_modules).
+// Native better-sqlite3 sits next to the *bundled* backend (prod: native/,
+// source: none — dev resolves it from backend/node_modules). It is compiled
+// for Electron's ABI and only ships with the installer, so it is never part of
+// a content update — always resolve it from the bundled production dir even
+// when a content update has swapped the backend into the user-data dir.
 function nativeDir() {
-  return path.join(bundleDir(), "native");
+  return path.join(PROD_BACKEND, "native");
 }
 
 const DEV_ATTACH = process.argv.includes("--dev");
