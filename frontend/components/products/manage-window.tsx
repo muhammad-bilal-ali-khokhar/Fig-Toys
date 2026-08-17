@@ -72,18 +72,13 @@ export function ManageWindow({
       />
 
       {tab === "category" ? (
-        <EntityList
+        <CategoryTreeList
           key={catKey}
-          items={categories ?? []}
+          categories={categories ?? []}
           onChanged={() => {
             setCatKey((k) => k + 1);
             onChanged?.();
           }}
-          path="/category"
-          noun="category"
-          placeholder="e.g. Refurbished"
-          hasType
-          renderExtra={(c) => <Badge variant="neutral">{c.type}</Badge>}
         />
       ) : tab === "brand" ? (
         <EntityList
@@ -111,6 +106,296 @@ export function ManageWindow({
         />
       )}
     </Sheet>
+  );
+}
+
+function CategoryTreeList({
+  categories,
+  onChanged,
+}: {
+  categories: Category[];
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const [type, setType] = useState<CategoryType>("ACCESSORY");
+  const [parentId, setParentId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const parentCategories = categories.filter((c) => !c.parentId);
+  const childrenMap = new Map<string, Category[]>();
+  for (const c of categories) {
+    if (c.parentId) {
+      const list = childrenMap.get(c.parentId) ?? [];
+      list.push(c);
+      childrenMap.set(c.parentId, list);
+    }
+  }
+
+  function toggleExpand(parentId: string) {
+    setExpandedParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentId)) next.delete(parentId);
+      else next.add(parentId);
+      return next;
+    });
+  }
+
+  async function add() {
+    if (!name.trim()) {
+      toast("Name is required", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiRequest("/category", {
+        method: "POST",
+        body: { name: name.trim(), type, parentId: parentId || null },
+      });
+      setName("");
+      setParentId("");
+      onChanged();
+      toast("Category added", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to add category", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function rename(cat: Category, nextName: string) {
+    if (!nextName.trim() || nextName.trim() === cat.name) return;
+    try {
+      await apiRequest(`/category/${cat.id}`, { method: "PUT", body: { name: nextName.trim() } });
+      onChanged();
+      toast("Category renamed", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to rename", "error");
+    }
+  }
+
+  async function toggleActive(cat: Category) {
+    try {
+      if (cat.active) {
+        await apiRequest(`/category/${cat.id}/deactivate`, { method: "POST" });
+        toast("Category deactivated", "success");
+      } else {
+        await apiRequest(`/category/${cat.id}`, { method: "PUT", body: { active: true } });
+        toast("Category reactivated", "success");
+      }
+      onChanged();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update", "error");
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await apiRequest(`/category/${deleteTarget.id}`, { method: "DELETE" });
+      setDeleteTarget(null);
+      onChanged();
+      toast("Category deleted", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete", "error");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function startAddSubcategory(parentCat: Category) {
+    setParentId(parentCat.id);
+    setType(parentCat.type);
+    setExpandedParents((prev) => new Set(prev).add(parentCat.id));
+  }
+
+  const totalProductCount = (cat: Category) => {
+    const children = childrenMap.get(cat.id) ?? [];
+    const childProductCount = children.reduce((sum, ch) => sum + (ch._count?.products ?? 0), 0);
+    return (cat._count?.products ?? 0) + childProductCount;
+  };
+
+  return (
+    <>
+      <div className="mt-5 flex items-end gap-2">
+        <div className="flex-1">
+          <label className="mb-1 block text-xs font-semibold text-ink-500">
+            New category {parentId ? `(under ${categories.find((c) => c.id === parentId)?.name ?? "..."})` : ""}
+          </label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Refurbished"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void add();
+            }}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-ink-500">Type</label>
+          <Dropdown
+            value={type}
+            options={[
+              { value: "PHONE", label: "Phone" },
+              { value: "ACCESSORY", label: "Accessory" },
+            ]}
+            onChange={(value) => setType(value as CategoryType)}
+            className="w-32"
+          />
+        </div>
+        {parentId && (
+          <button
+            type="button"
+            onClick={() => setParentId("")}
+            className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900"
+          >
+            Clear parent
+          </button>
+        )}
+        <Button onClick={add} loading={saving}>
+          Add
+        </Button>
+      </div>
+
+      <ScrollView className="mt-5">
+        <div className="space-y-2">
+          {parentCategories.map((parent) => {
+            const children = childrenMap.get(parent.id) ?? [];
+            const isExpanded = expandedParents.has(parent.id);
+            return (
+              <div key={parent.id}>
+                <div
+                  className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
+                    parent.active ? "bg-ink-50" : "bg-ink-50 opacity-50"
+                  }`}
+                >
+                  {children.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(parent.id)}
+                      className="shrink-0 text-xs text-ink-500 hover:text-ink-900 w-4"
+                    >
+                      {isExpanded ? "▼" : "▶"}
+                    </button>
+                  ) : (
+                    <span className="w-4" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="neutral">{parent.type}</Badge>
+                      <span className="text-sm font-medium text-ink-900">{parent.name}</span>
+                      {!parent.active && <span className="text-xs text-ink-500">(inactive)</span>}
+                    </div>
+                    <p className="mt-0.5 text-xs text-ink-500">
+                      {children.length > 0
+                        ? `${children.length} subcategor${children.length === 1 ? "y" : "ies"}, ${totalProductCount(parent)} product(s)`
+                        : `${parent._count?.products ?? 0} product(s)`}
+                    </p>
+                  </div>
+                  {parent.type === "ACCESSORY" && (
+                    <button
+                      type="button"
+                      onClick={() => startAddSubcategory(parent)}
+                      className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                    >
+                      + Subcategory
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = window.prompt("Rename category", parent.name);
+                      if (next) void rename(parent, next);
+                    }}
+                    className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(parent)}
+                    className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void toggleActive(parent)}
+                    className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                  >
+                    {parent.active ? "Deactivate" : "Activate"}
+                  </button>
+                </div>
+
+                {isExpanded && children.length > 0 && (
+                  <div className="ml-7 space-y-1.5 mt-1.5">
+                    {children.map((child) => (
+                      <div
+                        key={child.id}
+                        className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
+                          child.active ? "bg-white border border-ink-100" : "bg-white border border-ink-100 opacity-50"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-ink-900">{child.name}</span>
+                            {!child.active && <span className="text-xs text-ink-500">(inactive)</span>}
+                          </div>
+                          <p className="mt-0.5 text-xs text-ink-500">{child._count?.products ?? 0} product(s)</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = window.prompt("Rename subcategory", child.name);
+                            if (next) void rename(child, next);
+                          }}
+                          className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                        >
+                          Rename
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(child)}
+                          className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void toggleActive(child)}
+                          className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                        >
+                          {child.active ? "Deactivate" : "Activate"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </ScrollView>
+
+      <Dialog
+        open={deleteTarget !== null}
+        title="Delete category"
+        message={
+          deleteTarget
+            ? `Delete "${deleteTarget.name}"? This permanently removes the category and cannot be undone. Categories with products or subcategories can't be deleted.`
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
   );
 }
 

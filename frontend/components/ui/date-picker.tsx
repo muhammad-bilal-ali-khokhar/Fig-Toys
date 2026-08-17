@@ -165,7 +165,7 @@ export function DatePicker({
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
-      <div className="flex h-9 w-full items-center gap-1 rounded-2xl bg-ink-100 pl-3.5 pr-1 transition focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-500/40">
+      <div className="flex h-9 w-full items-center gap-1 rounded-2xl bg-white pl-3.5 pr-1 transition focus-within:ring-2 focus-within:ring-brand-500/40">
         <input
           ref={inputRef}
           type="text"

@@ -16,15 +16,19 @@ import { CARRIER_LABELS } from "@/lib/constants/units";
 import {
   APP,
   CONTACTS_DEFAULT_OPTIONS,
+  CONTACTS_OPTION_LABELS,
   CONTACTS_TEXT,
   EXPENSE_CATEGORY_LABELS,
   EXPENSE_PRINT_TEXT,
   EXPENSE_SHEET_DEFAULT_OPTIONS,
+  EXPENSE_SHEET_OPTION_LABELS,
   INVENTORY_DEFAULT_OPTIONS,
+  INVENTORY_OPTION_LABELS,
   INVENTORY_TEXT,
   PRINT,
   PRINT_DEFAULT_OPTIONS,
   PRINT_FORMATS,
+  PRINT_OPTION_LABELS,
   QR_TARGETS,
   RECEIPT_TEXT,
   type ContactsPrintOptions,
@@ -43,12 +47,14 @@ import {
   type BankAccount,
 } from "@/components/print/documents";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
+import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { CONTACT_TYPE_LABELS } from "@/components/ui/type-pill";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
-import { DownloadIcon, InventoryIcon, PrinterIcon, XIcon } from "@/components/icons";
+import { DownloadIcon, InventoryIcon, PrinterIcon, SettingsIcon, XIcon } from "@/components/icons";
 
 type DocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE";
 
@@ -82,7 +88,6 @@ const STATUS_LABEL: Record<string, string> = {
 type PrintLayout = {
   id: string;
   name: string;
-  type: PrintLayoutType;
   format: PrintFormatId;
   options: Record<string, boolean> | null;
   qrType: string;
@@ -150,6 +155,122 @@ function loadContactsOptions(): ContactsPrintOptions {
   return { ...CONTACTS_DEFAULT_OPTIONS };
 }
 
+function PrintOptionsPanel({
+  layoutType,
+  options,
+  onOptionsChange,
+  invOptions,
+  onInvOptionsChange,
+  expenseSheetOptions,
+  onExpenseSheetOptionsChange,
+  contactsOptions,
+  onContactsOptionsChange,
+}: {
+  layoutType: PrintLayoutType;
+  options: PrintBooleanOptions;
+  onOptionsChange: (o: PrintBooleanOptions) => void;
+  invOptions: InventoryPrintOptions;
+  onInvOptionsChange: (o: InventoryPrintOptions) => void;
+  expenseSheetOptions: ExpenseSheetOptions;
+  onExpenseSheetOptionsChange: (o: ExpenseSheetOptions) => void;
+  contactsOptions: ContactsPrintOptions;
+  onContactsOptionsChange: (o: ContactsPrintOptions) => void;
+}) {
+  if (layoutType === "document") {
+    return (
+      <div className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <SettingsIcon className="h-4 w-4 text-ink-400" />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Show / Hide</h3>
+        </div>
+        <div className="space-y-1">
+          {PRINT_OPTION_LABELS.map((opt) => (
+            <div key={opt.key} className="rounded-xl px-3 py-2 transition hover:bg-ink-50">
+              <Checkbox
+                checked={options[opt.key]}
+                onChange={(v) => onOptionsChange({ ...options, [opt.key]: v })}
+                label={opt.label}
+                description={opt.hint}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (layoutType === "inventory") {
+    return (
+      <div className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <SettingsIcon className="h-4 w-4 text-ink-400" />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Show / Hide</h3>
+        </div>
+        <div className="space-y-1">
+          {INVENTORY_OPTION_LABELS.map((opt) => (
+            <div key={opt.key} className="rounded-xl px-3 py-2 transition hover:bg-ink-50">
+              <Checkbox
+                checked={invOptions[opt.key]}
+                onChange={(v) => onInvOptionsChange({ ...invOptions, [opt.key]: v })}
+                label={opt.label}
+                description={opt.hint}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (layoutType === "expense") {
+    return (
+      <div className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <SettingsIcon className="h-4 w-4 text-ink-400" />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Show / Hide</h3>
+        </div>
+        <div className="space-y-1">
+          {EXPENSE_SHEET_OPTION_LABELS.map((opt) => (
+            <div key={opt.key} className="rounded-xl px-3 py-2 transition hover:bg-ink-50">
+              <Checkbox
+                checked={expenseSheetOptions[opt.key]}
+                onChange={(v) => onExpenseSheetOptionsChange({ ...expenseSheetOptions, [opt.key]: v })}
+                label={opt.label}
+                description={opt.hint}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (layoutType === "contacts") {
+    return (
+      <div className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <SettingsIcon className="h-4 w-4 text-ink-400" />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Show / Hide</h3>
+        </div>
+        <div className="space-y-1">
+          {CONTACTS_OPTION_LABELS.map((opt) => (
+            <div key={opt.key} className="rounded-xl px-3 py-2 transition hover:bg-ink-50">
+              <Checkbox
+                checked={contactsOptions[opt.key]}
+                onChange={(v) => onContactsOptionsChange({ ...contactsOptions, [opt.key]: v })}
+                label={opt.label}
+                description={opt.hint}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function PrintStudioContent() {
   const params = useSearchParams();
   const { user } = useAuth();
@@ -172,6 +293,7 @@ function PrintStudioContent() {
           : "document",
   );
   const [typePickerOpen, setTypePickerOpen] = useState(!deepLinkType);
+  const [showHideOpen, setShowHideOpen] = useState(false);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [layouts, setLayouts] = useState<PrintLayout[]>([]);
@@ -207,7 +329,6 @@ function PrintStudioContent() {
   const selectedVoucher = vouchers.find((v) => v.id === selectedId) ?? null;
   const selectedExpense = expenses.find((e) => e.id === selectedId) ?? null;
   const activeLayout = layouts.find((l) => l.id === activeLayoutId) ?? null;
-  const premadeLayouts = layouts.filter((l) => l.isSystem);
   const showCost = canViewCosts(user) && invOptions.cost;
   const inStockCount = units.filter((u) => u.status === "IN_STOCK").length;
   const contactsReceivable = contacts.reduce((sum, c) => sum + (parseFloat(c.receivable) || 0), 0);
@@ -261,15 +382,13 @@ function PrintStudioContent() {
             trailing: <span className="text-xs text-ink-400">{new Date(d.createdAt).toLocaleDateString()}</span>,
           }));
 
-  const layoutOptions = premadeLayouts
-    .filter((l) => l.type === layoutType)
-    .map((l) => ({
-      value: l.id,
-      label: l.name,
-      trailing: l.isDefault ? (
-        <span className="rounded bg-brand-600 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">Default</span>
-      ) : undefined,
-    }));
+  const layoutOptions = layouts.map((l) => ({
+    value: l.id,
+    label: l.name,
+    trailing: l.isDefault ? (
+      <span className="rounded bg-brand-600 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">Default</span>
+    ) : undefined,
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -326,13 +445,12 @@ function PrintStudioContent() {
   function applyLayout(layout: PrintLayout) {
     applyingLayoutRef.current = true;
     setActiveLayoutId(layout.id);
-    setLayoutType(layout.type);
     setFormat(layout.format);
-    if (layout.type === "inventory") {
+    if (layoutType === "inventory") {
       setInvOptions({ ...INVENTORY_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as InventoryPrintOptions);
-    } else if (layout.type === "expense") {
+    } else if (layoutType === "expense") {
       setExpenseSheetOptions({ ...EXPENSE_SHEET_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as ExpenseSheetOptions);
-    } else if (layout.type === "contacts") {
+    } else if (layoutType === "contacts") {
       setContactsOptions({ ...CONTACTS_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as ContactsPrintOptions);
     } else {
       setOptions({ ...PRINT_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as PrintBooleanOptions);
@@ -708,6 +826,22 @@ function PrintStudioContent() {
             </span>
           </div>
         )}
+        <div className="flex items-center rounded-2xl bg-white shadow-sm">
+          {PRINT_FORMATS.filter((f) => (layoutType === "inventory" || layoutType === "expense" || layoutType === "contacts") ? f.id !== "58" : true).map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFormat(f.id)}
+              className={`px-3 py-2 text-xs font-semibold transition ${
+                activeFormat === f.id
+                  ? "bg-brand-600 text-white"
+                  : "text-ink-500 hover:text-ink-900"
+              } ${f.id === "58" ? "rounded-l-2xl" : ""} ${f.id === "a4" ? "rounded-r-2xl" : ""}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <div className="w-52">
           <Dropdown
             value={activeLayoutId}
@@ -719,12 +853,20 @@ function PrintStudioContent() {
             trigger={
               <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">
                 <span className="truncate text-ink-900">
-                  {activeLayout ? activeLayout.name : "Layouts"}
+                  {activeLayout ? activeLayout.name : "Layout"}
                 </span>
               </div>
             }
           />
         </div>
+        <Button
+          variant="secondary"
+          className="px-4 py-2 text-xs"
+          onClick={() => setShowHideOpen(true)}
+        >
+          <SettingsIcon className="h-4 w-4" />
+          Show / Hide
+        </Button>
         <div className="flex-1" />
         {layoutType === "document" && docType === "VOUCHER" && selectedVoucher && (
           <p className="mr-1 text-xs text-ink-500">
@@ -980,6 +1122,25 @@ function PrintStudioContent() {
           </button>
         </div>
       </PrintModal>
+
+      <Sheet
+        open={showHideOpen}
+        title="Show / Hide"
+        onClose={() => setShowHideOpen(false)}
+        width="max-w-sm"
+      >
+        <PrintOptionsPanel
+          layoutType={layoutType}
+          options={options}
+          onOptionsChange={setOptions}
+          invOptions={invOptions}
+          onInvOptionsChange={setInvOptions}
+          expenseSheetOptions={expenseSheetOptions}
+          onExpenseSheetOptionsChange={setExpenseSheetOptions}
+          contactsOptions={contactsOptions}
+          onContactsOptionsChange={setContactsOptions}
+        />
+      </Sheet>
 
       {typeof document !== "undefined" &&
         createPortal(

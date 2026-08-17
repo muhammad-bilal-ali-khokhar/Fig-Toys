@@ -1,7 +1,6 @@
 [
   {
     "name": "58mm Receipt",
-    "type": "document",
     "format": "58",
     "qrType": "whatsapp",
     "isDefault": false,
@@ -24,7 +23,6 @@
   },
   {
     "name": "80mm Receipt",
-    "type": "document",
     "format": "80",
     "qrType": "whatsapp",
     "isDefault": true,
@@ -47,7 +45,6 @@
   },
   {
     "name": "A4 Invoice",
-    "type": "document",
     "format": "a4",
     "qrType": "whatsapp",
     "isDefault": false,
@@ -69,127 +66,47 @@
     }
   },
   {
-    "name": "80mm Inventory List",
-    "type": "inventory",
+    "name": "80mm Compact",
     "format": "80",
     "qrType": "whatsapp",
     "isDefault": false,
     "options": {
       "header": true,
-      "shopInfo": true,
-      "product": true,
-      "imeis": true,
-      "color": true,
-      "condition": true,
-      "status": true,
-      "carrier": true,
-      "grade": true,
-      "battery": true,
-      "vendor": true,
-      "purchased": true,
-      "sell": true,
-      "retail": true,
-      "cost": true,
-      "signature": false,
-      "footer": true
-    }
-  },
-  {
-    "name": "A4 Inventory List",
-    "type": "inventory",
-    "format": "a4",
-    "qrType": "whatsapp",
-    "isDefault": false,
-    "options": {
-      "header": true,
-      "shopInfo": true,
-      "product": true,
-      "imeis": true,
-      "color": true,
-      "condition": true,
-      "status": true,
-      "carrier": true,
-      "grade": true,
-      "battery": true,
-      "vendor": true,
-      "purchased": true,
-      "sell": true,
-      "retail": true,
-      "cost": true,
-      "signature": true,
-      "footer": true
-    }
-  },
-  {
-    "name": "80mm Expense Sheet",
-    "type": "expense",
-    "format": "80",
-    "qrType": "whatsapp",
-    "isDefault": false,
-    "options": {
-      "header": true,
-      "shopInfo": true,
+      "shopInfo": false,
+      "barcode": false,
       "number": true,
       "date": true,
-      "category": true,
       "contact": true,
-      "note": true,
+      "phone": false,
+      "cashier": false,
+      "imeis": true,
+      "payments": true,
+      "bankAccounts": false,
+      "note": false,
       "signature": false,
-      "footer": true
+      "thanks": true
     }
   },
   {
-    "name": "A4 Expense Sheet",
-    "type": "expense",
+    "name": "A4 Full Details",
     "format": "a4",
     "qrType": "whatsapp",
     "isDefault": false,
     "options": {
       "header": true,
       "shopInfo": true,
+      "barcode": true,
       "number": true,
       "date": true,
-      "category": true,
       "contact": true,
+      "phone": true,
+      "cashier": true,
+      "imeis": true,
+      "payments": true,
+      "bankAccounts": true,
       "note": true,
       "signature": true,
-      "footer": true
-    }
-  },
-  {
-    "name": "80mm Contacts List",
-    "type": "contacts",
-    "format": "80",
-    "qrType": "whatsapp",
-    "isDefault": false,
-    "options": {
-      "header": true,
-      "shopInfo": true,
-      "phone": true,
-      "type": true,
-      "city": true,
-      "cnic": true,
-      "notes": false,
-      "signature": false,
-      "footer": true
-    }
-  },
-  {
-    "name": "A4 Contacts List",
-    "type": "contacts",
-    "format": "a4",
-    "qrType": "whatsapp",
-    "isDefault": false,
-    "options": {
-      "header": true,
-      "shopInfo": true,
-      "phone": true,
-      "type": true,
-      "city": true,
-      "cnic": true,
-      "notes": true,
-      "signature": true,
-      "footer": true
+      "thanks": true
     }
   }
 ]

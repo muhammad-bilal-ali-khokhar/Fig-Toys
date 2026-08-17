@@ -93,6 +93,9 @@ export type Category = {
   type: CategoryType;
   sortOrder: number;
   active: boolean;
+  parentId: string | null;
+  parent?: { id: string; name: string } | null;
+  children?: Category[];
   createdAt: string;
   _count?: { products: number };
 };
@@ -128,6 +131,8 @@ export type ProductSummary = {
   categoryId: string;
   categoryName: string;
   categoryType: CategoryType;
+  parentCategoryId: string | null;
+  parentCategoryName: string | null;
   sku: string | null;
   image?: string | null;
   sellPrice: string;
@@ -201,6 +206,7 @@ export type Unit = {
     colorId: string | null;
     color: string | null;
     category: string | null;
+    parentCategory: string | null;
     sellPrice: string | null;
     retailPrice: string | null;
   };
@@ -219,6 +225,7 @@ export type InventoryProduct = {
   storage: string | null;
   color: string | null;
   category: string | null;
+  parentCategory: string | null;
   barcode: string | null;
   sellPrice: string | null;
   retailPrice: string | null;
@@ -545,6 +552,18 @@ export type DashboardOverview = {
     purchasesCount: number;
     purchasesAmount: number;
   };
+  range: {
+    salesCount: number;
+    revenue: number;
+    profit: number | null;
+    purchasesCount: number;
+    purchasesAmount: number;
+    expensesAmount: number;
+    expensesCount: number;
+    cashIn: number;
+    cashOut: number;
+  };
+  cashOnHand: number;
   stock: { NEW: number; USED: number; total: number };
   stockValue: { cost: number | null; retail: number };
   carrierSplit: { PTA: number; NON_PTA: number; SIM_LOCKED: number };
@@ -552,6 +571,7 @@ export type DashboardOverview = {
   credit: { receivables: number; payables: number };
   topSellers: { id: string; name: string; count: number; revenue: number }[];
   soldByCategory: { PHONE: number; ACCESSORY: number };
+  soldBySubCategory: Record<string, number>;
   lowStock: {
     id: string;
     brand: string;
@@ -620,6 +640,7 @@ export type SalesReport = {
   byCondition: { condition: string; count: number; revenue: number; items: number }[];
   byBrand: { name: string; count: number; revenue: number }[];
   byCategory: { name: string; type: string; count: number; revenue: number }[];
+  bySubCategory: { name: string; parentName: string; type: string; count: number; revenue: number }[];
   byPayment: { method: PaymentMethod; amount: number; count: number }[];
   byUser: { name: string; count: number; revenue: number }[];
   daily: { date: string; revenue: number; count: number }[];
@@ -661,6 +682,7 @@ export type StockReport = {
   retailValue: number;
   byCondition: { condition: string; units: number; costValue: number; retailValue: number }[];
   byCategory: { name: string; units: number; costValue: number; retailValue: number }[];
+  bySubCategory: { name: string; parentName: string; units: number; costValue: number; retailValue: number }[];
   byBrand: { name: string; units: number; costValue: number; retailValue: number }[];
 };
 

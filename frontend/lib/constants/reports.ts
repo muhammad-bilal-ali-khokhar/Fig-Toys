@@ -45,6 +45,7 @@ export const REPORT_NAV: ReportNavItem[] = REPORT_NAV_GROUPS.flatMap((g) => g.it
 export const REPORT_QUICK_RANGES: { key: string; label: string; days: number }[] = [
   { key: "today", label: "Today", days: 0 },
   { key: "7d", label: "7 days", days: 6 },
+  { key: "14d", label: "14 days", days: 13 },
   { key: "30d", label: "30 days", days: 29 },
   { key: "1y", label: "1 year", days: 364 },
   { key: "all", label: "All time", days: -1 },

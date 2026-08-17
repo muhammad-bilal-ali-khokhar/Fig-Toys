@@ -46,7 +46,15 @@ export async function listProducts({ q, categoryId }: { q?: string; categoryId?:
     include: {
       brand: { select: { id: true, name: true } },
       color: { select: { id: true, name: true } },
-      category: { select: { id: true, name: true, type: true } },
+      category: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          parentId: true,
+          parent: { select: { id: true, name: true } },
+        },
+      },
       units: {
         where: { status: "IN_STOCK" },
         select: { id: true, condition: true },
@@ -67,6 +75,8 @@ export async function listProducts({ q, categoryId }: { q?: string; categoryId?:
     categoryId: p.categoryId,
     categoryName: p.category.name,
     categoryType: p.category.type,
+    parentCategoryId: p.category.parentId,
+    parentCategoryName: p.category.parent?.name ?? null,
     sku: p.sku,
     image: p.image,
     sellPrice: p.sellPrice,
@@ -217,7 +227,15 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
     include: {
       brand: { select: { id: true, name: true } },
       color: { select: { id: true, name: true } },
-      category: { select: { id: true, name: true, type: true } },
+      category: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          parentId: true,
+          parent: { select: { id: true, name: true } },
+        },
+      },
       units: {
         where: { status: { in: statuses as ("IN_STOCK" | "RESERVED")[] } },
         select: { id: true, condition: true, imei: true, carrier: true, status: true },
@@ -245,7 +263,7 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
       units: p.units.filter((u) => u.imei.includes(query)),
     }));
   }
-  return mapped.filter((p) => p.units.length > 0);
+  return mapped.filter((p) => p.category.type === "ACCESSORY" || p.units.length > 0);
 }
 
 async function findOrCreateBrand(name: string) {

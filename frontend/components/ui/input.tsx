@@ -13,14 +13,24 @@ const VARIANTS: Record<Variant, string> = {
 
 export const Input = forwardRef<
   HTMLInputElement,
-  InputHTMLAttributes<HTMLInputElement> & { variant?: Variant }
->(function Input({ variant = "filled", className = "", ...rest }, ref) {
+  InputHTMLAttributes<HTMLInputElement> & {
+    variant?: Variant;
+    prefix?: string;
+    suffix?: string;
+  }
+>(function Input({ variant = "filled", className = "", prefix, suffix, ...rest }, ref) {
   return (
-    <input
-      ref={ref}
-      className={`mx-1 h-9 w-[calc(100%-0.5rem)] rounded-2xl px-3.5 text-sm text-ink-900 transition focus:outline-none focus:ring-2 focus:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
-      {...rest}
-    />
+    <span
+      className={`flex h-9 items-center rounded-2xl transition focus-within:ring-2 focus-within:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
+    >
+      {prefix && <span className="shrink-0 pl-3.5 text-sm text-ink-400">{prefix}</span>}
+      <input
+        ref={ref}
+        className={`h-full min-w-0 flex-1 bg-transparent px-3.5 text-sm text-ink-900 outline-none placeholder:text-ink-400`}
+        {...rest}
+      />
+      {suffix && <span className="shrink-0 pr-3.5 text-sm text-ink-400">{suffix}</span>}
+    </span>
   );
 });
 

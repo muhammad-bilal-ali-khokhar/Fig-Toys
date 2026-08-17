@@ -16,7 +16,6 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog } from "@/components/ui/dialog";
 import { Sheet } from "@/components/ui/sheet";
-import { Kbd } from "@/components/ui/kbd";
 import { PriceInput } from "@/components/ui/price-input";
 import { useToast } from "@/components/ui/toast";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
@@ -25,6 +24,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { TypePill } from "@/components/ui/type-pill";
 import { DirectPrint } from "@/components/print/direct-print";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
+import { DiscountFields } from "@/components/discount-fields";
 
 type SearchResult = {
   id: string;
@@ -65,51 +65,7 @@ function lineDiscount(line: CartLine) {
   return Math.min(Math.max(combined, 0), line.unitPrice);
 }
 
-function DiscountFields({
-  line,
-  onChange,
-}: {
-  line: CartLine;
-  onChange: (patch: Partial<CartLine>) => void;
-}) {
-  return (
-    <div className="flex items-center justify-end gap-1">
-      <div className="flex items-center">
-        <div className="w-12">
-          <PriceInput
-            value={line.discountPct}
-            max={100}
-            onChange={(n) => onChange({ discountPct: n })}
-            className="px-2 text-right"
-          />
-        </div>
-        <span className="ml-0.5 w-3 text-[10px] text-ink-400">%</span>
-      </div>
-      <div className="flex items-center">
-        <div className="w-12">
-          <PriceInput
-            value={line.discountFlat}
-            max={line.unitPrice}
-            onChange={(n) => onChange({ discountFlat: n })}
-            className="px-2 text-right"
-          />
-        </div>
-        <span className="ml-0.5 w-3 text-[10px] text-ink-400">Rs</span>
-      </div>
-    </div>
-  );
-}
-
-type PaymentMode = "CASH" | "CARD" | "BANK" | "CREDIT" | "SPLIT";
 const WALK_IN = "__walk_in__";
-
-const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
-  { value: "CASH", label: "Cash" },
-  { value: "CARD", label: "Card" },
-  { value: "BANK", label: "Bank" },
-  { value: "CREDIT", label: "Credit" },
-  { value: "SPLIT", label: "Partial / split" },
-];
 
 export default function PosPage() {
   const { toast } = useToast();
@@ -134,17 +90,17 @@ export default function PosPage() {
   const [cash, setCash] = useState("");
   const [card, setCard] = useState("");
   const [credit, setCredit] = useState("");
-  const [bankAmount, setBankAmount] = useState("");
   const [invoiceDiscount, setInvoiceDiscount] = useState("");
+const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
   const [bankId, setBankId] = useState<string | null>(null);
   const [bankRows, setBankRows] = useState<{ id: string; amount: string; bankId: string }[]>([]);
+  const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<TransactionDetail | null>(null);
   const [conflicts, setConflicts] = useState<ReservationConflict[] | null>(null);
   const confirmedRef = useRef(false);
   const clientRefRef = useRef<string | null>(null);
-  const [mode, setMode] = useState<PaymentMode>("CASH");
   const [reservationPickOpen, setReservationPickOpen] = useState(false);
   const [pickReservations, setPickReservations] = useState<ReservationDetail[] | null>(null);
   const [pickLoading, setPickLoading] = useState(false);
@@ -185,11 +141,16 @@ export default function PosPage() {
 
   const taxRate = parseFloat(profile?.taxRate ?? "0") || 0;
   const cardFeePct = parseFloat(profile?.cardFee ?? "0") || 0;
-  const invoiceDisc = roundMoney(parseFloat(invoiceDiscount) || 0);
+  const invoiceDisc = roundMoney(
+  Math.min(
+    (subtotal * invoiceDiscountPct) / 100 + (parseFloat(invoiceDiscount) || 0),
+    subtotal,
+  ),
+);
   const tax = roundMoney((subtotal * taxRate) / 100);
-  const cardUsed =
-    mode === "CARD" || (mode === "SPLIT" && (parseFloat(card) || 0) > 0);
-  const cardFee = roundMoney(cardUsed ? ((subtotal - invoiceDisc + tax) * cardFeePct) / 100 : 0);
+  const cardUsed = (parseFloat(card) || 0) > 0;
+  const cardAmount = roundMoney(parseFloat(card) || 0);
+  const cardFee = roundMoney(cardUsed ? (cardAmount * cardFeePct) / 100 : 0);
   const total = roundMoney(subtotal - invoiceDisc + tax + cardFee);
 
   const cartGroups = useMemo(() => {
@@ -197,7 +158,7 @@ export default function PosPage() {
     const plain: CartLine[] = [];
     for (const line of cart) {
       if (line.imei) {
-        const key = line.productId;
+        const key = `${line.productId}:${line.condition ?? ""}`;
         let g = map.get(key);
         if (!g) {
           g = { key, label: line.label, unitPrice: line.unitPrice, lines: [] };
@@ -217,14 +178,9 @@ export default function PosPage() {
     loadedReservation && loadedReservation.contactId === contactId ? loadedReservation.advance : 0;
   const due = Math.max(0, total - advanceApplies);
 
-  const cashTendered = mode === "CASH" ? parseFloat(cash) || 0 : 0;
+  const cashTendered = parseFloat(cash) || 0;
   const change = cashTendered > due ? cashTendered - due : 0;
   const cashShort = cashTendered > 0 && cashTendered < due;
-  const tenderStep = due >= 100000 ? 10000 : due >= 10000 ? 1000 : 500;
-  const quickTenders =
-    due > 0
-      ? [...new Set([due, Math.ceil(due / tenderStep) * tenderStep, Math.ceil(due / tenderStep) * tenderStep + tenderStep])]
-      : [];
 
   useSaveShortcut(() => {
     void pay();
@@ -327,10 +283,14 @@ export default function PosPage() {
     const product = found[0];
     if (product.units.length === 1) {
       if (addLine(product, product.units[0])) {
+        setQ("");
+        setResults([]);
         toast(`${product.brand} ${product.model} · ${product.units[0].imei} added`, "success");
       }
     } else if (product.units.length === 0) {
       addLine(product);
+      setQ("");
+      setResults([]);
       toast(`${product.brand} ${product.model} added`, "success");
     } else {
       toast("Multiple units. Tap the IMEI", "error");
@@ -347,6 +307,7 @@ export default function PosPage() {
       result.storage,
       result.ram,
       result.screenSize,
+      unit?.condition ? unit.condition : null,
       unit?.carrier ? CARRIER_LABELS[unit.carrier] : null,
     ]
       .filter(Boolean)
@@ -496,53 +457,28 @@ export default function PosPage() {
       tendered?: number;
       bankAccountId?: string;
     }[] = [];
-    if (mode === "CASH") {
-      if (due > 0.01 && cashTendered < due - 0.01) {
-        toast("Cash received is less than the amount due", "error");
-        return;
-      }
-      payments = due > 0.01 ? [{ method: "CASH", amount: due, tendered: cashTendered }] : [];
-    } else if (mode === "CARD") {
-      payments = [{ method: "CARD", amount: parseFloat(card) || due }];
-    } else if (mode === "BANK") {
-      const amount = parseFloat(bankAmount) || due;
-      if (!bankId) {
+    for (const row of bankRows) {
+      const amount = parseFloat(row.amount) || 0;
+      if (amount <= 0) continue;
+      if (!row.bankId) {
         toast("Pick which bank the payment went to", "error");
         return;
       }
-      payments = [{ method: "BANK_TRANSFER", amount, bankAccountId: bankId }];
-    } else if (mode === "CREDIT") {
-      payments = [{ method: "CREDIT", amount: parseFloat(credit) || due }];
-    } else {
-      const list: {
-        method: "CASH" | "CARD" | "BANK_TRANSFER" | "CREDIT";
-        amount: number;
-        bankAccountId?: string;
-      }[] = [];
-      for (const row of bankRows) {
-        const amount = parseFloat(row.amount) || 0;
-        if (amount <= 0) continue;
-        if (!row.bankId) {
-          toast("Pick which bank the payment went to", "error");
-          return;
-        }
-        list.push({ method: "BANK_TRANSFER", amount, bankAccountId: row.bankId });
-      }
-      const cashAmt = parseFloat(cash) || 0;
-      const cardAmt = parseFloat(card) || 0;
-      const creditAmt = parseFloat(credit) || 0;
-      if (cashAmt > 0) list.push({ method: "CASH", amount: cashAmt });
-      if (cardAmt > 0) list.push({ method: "CARD", amount: cardAmt });
-      if (creditAmt > 0) list.push({ method: "CREDIT", amount: creditAmt });
-      payments = list;
+      payments.push({ method: "BANK_TRANSFER", amount, bankAccountId: row.bankId });
     }
-    payments = payments.filter((p) => p.amount > 0);
+    const cashAmt = parseFloat(cash) || 0;
+    const cardAmt = parseFloat(card) || 0;
+    const creditAmt = parseFloat(credit) || 0;
+    if (cashAmt > 0) payments.push({ method: "CASH", amount: cashAmt, tendered: cashAmt });
+    if (cardAmt > 0) payments.push({ method: "CARD", amount: cardAmt });
+    if (creditAmt > 0) payments.push({ method: "CREDIT", amount: creditAmt });
+    const filteredPayments = payments.filter((p) => p.amount > 0);
     const dueCovered = advanceApplies > 0 && due <= 0.01;
-    if (payments.length === 0 && !dueCovered) {
+    if (filteredPayments.length === 0 && !dueCovered) {
       toast("Enter a payment amount", "error");
       return;
     }
-    const sum = payments.reduce((s, p) => s + p.amount, 0);
+    const sum = filteredPayments.reduce((s, p) => s + p.amount, 0);
     if (sum > total + 0.01) {
       toast("Payments exceed the total", "error");
       return;
@@ -580,7 +516,7 @@ export default function PosPage() {
             unitPrice: l.unitPrice,
             discount: lineDiscount(l),
           })),
-          payments,
+          payments: filteredPayments,
           discount: invoiceDisc,
           date: saleDate,
         },
@@ -612,10 +548,10 @@ export default function PosPage() {
     setCash("");
     setCard("");
     setCredit("");
-    setBankAmount("");
     setInvoiceDiscount("");
+    setInvoiceDiscountPct(0);
     setBankRows([]);
-    setMode("CASH");
+    setBankSheetOpen(false);
     setWalkInName("");
     setWalkInPhone("");
     setContactId(contacts?.[0]?.id ?? null);
@@ -628,6 +564,7 @@ export default function PosPage() {
     setSaleDate(txn.createdAt.slice(0, 10));
     setInvoiceNo(txn.number);
     setInvoiceDiscount(parseFloat(txn.discount) > 0 ? String(parseFloat(txn.discount)) : "");
+    setInvoiceDiscountPct(0);
     setCart(
       txn.items.map((item) => ({
         key: item.unit ? `unit-${item.unit.id}` : `prod-${item.product.id}`,
@@ -652,39 +589,10 @@ export default function PosPage() {
     const cardPayment = txn.payments.find((p) => p.method === "CARD");
     const creditPayment = txn.payments.find((p) => p.method === "CREDIT");
     const bankPayment = txn.payments.find((p) => p.method === "BANK_TRANSFER");
-    if (txn.payments.length > 1) {
-      setMode("SPLIT");
-      setCash(cashPayment ? String(parseFloat(cashPayment.amount)) : "");
-      setCard(cardPayment ? String(parseFloat(cardPayment.amount)) : "");
-      setCredit(creditPayment ? String(parseFloat(creditPayment.amount)) : "");
-      setBankAmount(bankPayment ? String(parseFloat(bankPayment.amount)) : "");
-      if (bankPayment?.bankAccount) setBankId(bankPayment.bankAccount.id);
-    } else if (cashPayment) {
-      setMode("CASH");
-      setCash(String(parseFloat(cashPayment.amount)));
-      setCard("");
-      setCredit("");
-      setBankAmount("");
-    } else if (cardPayment) {
-      setMode("CARD");
-      setCard(String(parseFloat(cardPayment.amount)));
-      setCash("");
-      setCredit("");
-      setBankAmount("");
-    } else if (creditPayment) {
-      setMode("CREDIT");
-      setCredit(String(parseFloat(creditPayment.amount)));
-      setCash("");
-      setCard("");
-      setBankAmount("");
-    } else if (bankPayment) {
-      setMode("BANK");
-      setBankAmount(String(parseFloat(bankPayment.amount)));
-      if (bankPayment.bankAccount) setBankId(bankPayment.bankAccount.id);
-      setCash("");
-      setCard("");
-      setCredit("");
-    }
+    setCash(cashPayment ? String(parseFloat(cashPayment.amount)) : "");
+    setCard(cardPayment ? String(parseFloat(cardPayment.amount)) : "");
+    setCredit(creditPayment ? String(parseFloat(creditPayment.amount)) : "");
+    if (bankPayment?.bankAccount) setBankId(bankPayment.bankAccount.id);
     setQ("");
     setResults([]);
     toast(`Editing ${txn.number}`, "success");
@@ -704,8 +612,6 @@ export default function PosPage() {
   ];
 
   const isWalkIn = contactId === WALK_IN;
-
-  const modeOptions = PAYMENT_MODES.map((m) => ({ value: m.value, label: m.label }));
 
   if (receipt) {
     return (
@@ -812,16 +718,16 @@ export default function PosPage() {
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Invoice" : "Sale Invoice"}</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="grey" onClick={() => setModifyPickerOpen(true)}>
+          <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
             Modify
           </Button>
           <Link href="/sale-returns">
-            <Button variant="grey">
+            <Button variant="ghost">
               <RefundIcon className="h-4 w-4" />
               Sale Return
             </Button>
           </Link>
-          <Button variant="grey" onClick={() => void openReservationPicker()}>
+          <Button variant="ghost" onClick={() => void openReservationPicker()}>
             <ReservationIcon className="h-4 w-4" />
             Process Reservation
           </Button>
@@ -831,11 +737,14 @@ export default function PosPage() {
               New Reservation
             </Button>
           </Link>
+          <Button variant="destructive" onClick={reset}>
+            Clear
+          </Button>
         </div>
       </div>
 
-      <div className="mt-4 grid shrink-0 gap-3 md:grid-cols-[2fr_1fr_1fr_1fr_1fr] md:items-end">
-        <div>
+      <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
           {contactOptions.length > 0 && (
             <Dropdown
@@ -848,33 +757,34 @@ export default function PosPage() {
           )}
         </div>
 
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Invoice #</p>
-          <Input value={invoiceNo} readOnly className="bg-ink-100" />
+          <Input value={invoiceNo} readOnly variant="white" />
         </div>
 
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date</p>
           <DatePicker value={saleDate} onChange={setSaleDate} />
         </div>
 
-        <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Payment</p>
-          <Dropdown
-            value={mode}
-            options={modeOptions}
-            onChange={(v) => setMode(v as PaymentMode)}
-          />
-        </div>
-
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Invoice discount</p>
-          <PriceInput
-            value={invoiceDisc}
-            max={MAX_MONEY_AMOUNT}
-            onChange={(n) => setInvoiceDiscount(n > 0 ? String(n) : "")}
-            className="bg-ink-100 text-right"
-          />
+          <div className="flex items-center gap-2">
+            <PriceInput
+              value={invoiceDiscountPct}
+              max={100}
+              onChange={(n) => setInvoiceDiscountPct(n)}
+              className="flex-1 min-w-0 bg-ink-100"
+              suffix="%"
+            />
+            <PriceInput
+              value={parseFloat(invoiceDiscount) || 0}
+              max={MAX_MONEY_AMOUNT}
+              onChange={(n) => setInvoiceDiscount(n > 0 ? String(n) : "")}
+              className="flex-1 min-w-0 bg-ink-100"
+              suffix="Rs"
+            />
+          </div>
         </div>
       </div>
 
@@ -916,15 +826,14 @@ export default function PosPage() {
               }}
               placeholder="Scan IMEI or search product…"
               variant="white"
-              className="bg-ink-100 py-4 text-base rounded-[16px]"
+              className="bg-ink-100 h-14 text-base rounded-[16px]"
               iconClassName="h-5 w-5"
             />
 
-            {panelPos &&
-              (searching || (!searching && q.trim().length >= 2 && results.length === 0)) && (
+            {panelPos && results.length === 0 && q.trim().length >= 2 && (
                 <div
                   style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                  className="z-[100] rounded-2xl bg-white p-4"
+                  className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"
                 >
                   <p className="text-sm text-ink-400">
                     {searching ? "Searching…" : "No products found."}
@@ -935,7 +844,7 @@ export default function PosPage() {
             {panelPos && results.length > 0 && (
               <div
                 style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5"
+                className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
               >
                 {results.map((result) => {
                   const inStock = result.units;
@@ -944,7 +853,9 @@ export default function PosPage() {
                       <div className="flex items-center justify-between gap-3 px-3 pt-3">
                         <div className="min-w-0">
                           <p className="truncate font-medium text-ink-900">
-                            {result.brand} {result.model} {result.storage ?? ""} {result.ram ?? ""} {result.screenSize ?? ""} {result.color ?? ""}
+                            {[result.brand, result.model, result.storage, result.ram, result.screenSize, result.color]
+                              .filter(Boolean)
+                              .join(" ")}
                           </p>
                           <p className="text-xs text-ink-500">
                             {formatPKR(result.sellPrice)} · {result.category.name}
@@ -963,14 +874,12 @@ export default function PosPage() {
                               ✓ Added
                             </button>
                           ) : (
-                            <Button variant="secondary" className="shrink-0 px-3 py-2 text-xs" onClick={() => addLine(result)}>
-                              <PlusIcon className="mr-1.5 h-3.5 w-3.5" />
+                            <Button variant="secondary" size="sm" className="px-3 shrink-0" onClick={() => addLine(result)}>
+                              <PlusIcon className="h-3.5 w-3.5" />
                               Add
                             </Button>
                           )
-                        ) : (
-                          <span className="shrink-0 text-xs text-ink-400">{inStock.length} unit(s)</span>
-                        )}
+                        ) : null}
                       </div>
                       {inStock.length > 0 && (
                         <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
@@ -992,7 +901,7 @@ export default function PosPage() {
                                   added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
                                 }`}
                               >
-                                <span className={`truncate font-mono text-xs ${added ? "text-brand-600" : "text-ink-700"}`}>
+                                <span className={`truncate text-xs ${added ? "text-brand-600" : "text-ink-700"}`}>
                                   {unit.imei}
                                 </span>
                                 <span className="flex shrink-0 items-center gap-2">
@@ -1032,7 +941,7 @@ export default function PosPage() {
                 <th className="px-4 py-3">Item</th>
                 <th className="w-14 px-4 py-3 text-center">Qty</th>
                 <th className="w-28 px-4 py-3 text-right">Price</th>
-                <th className="px-4 py-3 text-right">Disc</th>
+                <th className="w-44 px-4 py-3 text-right">Disc</th>
                 <th className="w-28 px-4 py-3 text-right">Amount</th>
                 <th className="w-12 px-4 py-3" />
               </tr>
@@ -1045,16 +954,13 @@ export default function PosPage() {
                       <div className="flex items-center gap-2.5">
                         <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
                         <span className="truncate text-sm font-semibold text-ink-900">{g.label}</span>
-                        <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500 ring-1 ring-ink-200">
-                          {g.lines.length} unit{g.lines.length === 1 ? "" : "s"}
-                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-900">
                       {g.lines.reduce((s, l) => s + l.quantity, 0)}
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      <div className="w-20">
+                      <div className="w-28">
                         <PriceInput
                           value={g.unitPrice}
                           max={MAX_MONEY_AMOUNT}
@@ -1065,8 +971,10 @@ export default function PosPage() {
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <DiscountFields
-                        line={g.lines[0]}
-                        onChange={(patch) => updateGroupDiscount(g.key, patch)}
+                        pct={g.lines[0].discountPct}
+                        flat={g.lines[0].discountFlat}
+                        maxFlat={g.lines[0].unitPrice}
+                        onChange={({ pct, flat }) => updateGroupDiscount(g.key, { discountPct: pct, discountFlat: flat })}
                       />
                     </td>
                     <td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">
@@ -1082,7 +990,7 @@ export default function PosPage() {
                     <tr key={line.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
                       <td className="px-4 py-2.5 pl-9">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-[13px] font-medium text-ink-900">{line.imei}</span>
+                          <span className="text-[13px] font-medium text-ink-900">{line.imei}</span>
                           {line.color && <Badge variant="neutral">{line.color}</Badge>}
                           {line.condition && (
                             <TypePill tone={line.condition === "NEW" ? "brand" : "grey"}>
@@ -1094,7 +1002,7 @@ export default function PosPage() {
                       </td>
                       <td className="px-4 py-2.5 text-center text-ink-700">{line.quantity}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <div className="w-20">
+                        <div className="w-28">
                           <PriceInput
                             value={line.unitPrice}
                             max={MAX_MONEY_AMOUNT}
@@ -1103,8 +1011,13 @@ export default function PosPage() {
                           />
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <DiscountFields line={line} onChange={(patch) => updateLine(line.key, patch)} />
+                      <td className="px-4 py-2.5">
+                        <DiscountFields
+                          pct={line.discountPct}
+                          flat={line.discountFlat}
+                          maxFlat={line.unitPrice}
+                          onChange={({ pct, flat }) => updateLine(line.key, { discountPct: pct, discountFlat: flat })}
+                        />
                       </td>
                       <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
                         {formatPKR(roundMoney((line.unitPrice - lineDiscount(line)) * line.quantity))}
@@ -1125,7 +1038,7 @@ export default function PosPage() {
               ))}
               {cartGroups.plain.map((line) => (
                 <tr key={line.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className="h-6 w-1 shrink-0 rounded-full bg-ink-300" />
                       <div className="min-w-0">
@@ -1137,9 +1050,9 @@ export default function PosPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-center text-ink-700">{line.quantity}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <div className="w-20">
+                  <td className="px-4 py-3 text-center text-ink-700">{line.quantity}</td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="w-28">
                       <PriceInput
                         value={line.unitPrice}
                         max={MAX_MONEY_AMOUNT}
@@ -1148,13 +1061,18 @@ export default function PosPage() {
                       />
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <DiscountFields line={line} onChange={(patch) => updateLine(line.key, patch)} />
+                  <td className="px-4 py-3">
+                    <DiscountFields
+                      pct={line.discountPct}
+                      flat={line.discountFlat}
+                      maxFlat={line.unitPrice}
+                      onChange={({ pct, flat }) => updateLine(line.key, { discountPct: pct, discountFlat: flat })}
+                    />
                   </td>
-                      <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
+                      <td className="px-4 py-3 text-right font-semibold text-ink-900">
                         {formatPKR(roundMoney((line.unitPrice - lineDiscount(line)) * line.quantity))}
                       </td>
-                      <td className="px-4 py-2.5 text-right">
+                      <td className="px-4 py-3 text-right">
                         <button
                           type="button"
                           onClick={() => removeLine(line.key)}
@@ -1177,49 +1095,15 @@ export default function PosPage() {
           </table>
         </div>
 
-      <div className="-mx-6 -mb-6 mt-6 shrink-0 border-t border-ink-100 bg-white px-6 py-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-              {mode === "SPLIT" ? "Split payment" : "Payment"}
+      <div className="mt-6 grid shrink-0 gap-4 lg:grid-cols-3">
+        <div className="rounded-3xl bg-white lg:col-span-2">
+          <div className="flex items-center justify-between px-5 py-4">
+            <h3 className="text-sm font-semibold text-ink-900">Payment</h3>
+            <p className="text-xs text-ink-400">
+              Total due <span className="font-semibold text-ink-900">{formatPKR(due)}</span>
             </p>
-            {mode === "SPLIT" && (
-              <p className="text-xs text-ink-400">
-                Total due <span className="font-semibold text-ink-900">{formatPKR(due)}</span>
-              </p>
-            )}
           </div>
-
-          {mode === "BANK" && (
-            <div className="mt-3">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                Paid into bank
-              </p>
-              {bankAccounts.length > 0 ? (
-                <Dropdown
-                  value={bankId ?? ""}
-                  options={bankAccounts.map((b) => ({
-                    value: b.id,
-                    label: b.bankName,
-                    trailing: (
-                      <span className="text-xs text-ink-400">
-                        {b.name} · {b.accountNo}
-                      </span>
-                    ),
-                  }))}
-                  onChange={(v) => setBankId(v)}
-                  placeholder="Select bank…"
-                />
-              ) : (
-                <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-xs text-ink-500">
-                  No registered bank accounts. Add them in Settings.
-                </p>
-              )}
-            </div>
-          )}
-
-          {mode === "SPLIT" ? (
+          <div className="px-5 pb-5">
             <div className="mt-3 space-y-3">
               <div className="grid grid-cols-3 gap-2">
                 <div>
@@ -1237,59 +1121,18 @@ export default function PosPage() {
               </div>
 
               {bankRows.length > 0 && (
-                <div className="space-y-2 rounded-2xl bg-ink-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Bank deposits</p>
-                  {bankRows.map((row) => (
-                    <div key={row.id} className="flex items-center gap-2">
-                      <Input
-                        value={row.amount}
-                        onChange={(e) =>
-                          setBankRows((r) =>
-                            r.map((x) => (x.id === row.id ? { ...x, amount: clampMoneyInput(e.target.value) } : x))
-                          )
-                        }
-                        placeholder="Amount"
-                        inputMode="decimal"
-                        className="min-w-0 flex-1 bg-white"
-                      />
-                      {bankAccounts.length > 0 ? (
-                        <Dropdown
-                          value={row.bankId}
-                          options={bankAccounts
-                            .filter((b) => b.id === row.bankId || !bankRows.some((x) => x.id !== row.id && x.bankId === b.id))
-                            .map((b) => ({
-                              value: b.id,
-                              label: b.bankName,
-                              trailing: (
-                                <span className="text-xs text-ink-400">
-                                  {b.name} · {b.accountNo}
-                                </span>
-                              ),
-                            }))}
-                          onChange={(v) =>
-                            setBankRows((r) =>
-                              r.map((x) => (x.id === row.id ? { ...x, bankId: v } : x))
-                            )
-                          }
-                          className="flex-1"
-                          triggerClassName="flex-1 bg-white"
-                          placeholder="Pick bank…"
-                        />
-                      ) : (
-                        <p className="flex-1 text-xs text-ink-500">
-                          No registered bank accounts. Add them in Settings.
-                        </p>
-                      )}
-                      <button
-                        type="button"
-                        aria-label="Remove bank"
-                        className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-100 hover:text-ink-900"
-                        onClick={() => setBankRows((r) => r.filter((x) => x.id !== row.id))}
-                      >
-                        <XIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-ink-50 px-3 py-2">
+                  {bankRows.map((row) => {
+                    const bank = bankAccounts.find((b) => b.id === row.bankId);
+                    return (
+                      <span key={row.id} className="text-xs text-ink-700">
+                        {bank?.bankName ?? "Bank"} · {row.amount ? formatPKR(parseFloat(row.amount)) : "—"}
+                      </span>
+                    );
+                  })}
+                  <Button variant="ghost" className="px-2 py-1 text-xs" onClick={() => setBankSheetOpen(true)}>
+                    Edit
+                  </Button>
                 </div>
               )}
 
@@ -1298,16 +1141,16 @@ export default function PosPage() {
                   variant="secondary"
                   className="px-3 py-1.5 text-xs"
                   disabled={bankRows.length >= bankAccounts.length}
-                  onClick={() =>
-                    setBankRows((r) => {
-                      const used = r.map((x) => x.bankId);
-                      const next = bankAccounts.find((b) => !used.includes(b.id));
-                      return [...r, { id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }];
-                    })
-                  }
+                  onClick={() => {
+                    if (bankRows.length === 0) {
+                      const next = bankAccounts[0];
+                      setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]);
+                    }
+                    setBankSheetOpen(true);
+                  }}
                 >
                   <PlusIcon className="mr-1 h-3.5 w-3.5" />
-                  Add bank
+                  {bankRows.length > 0 ? "Edit banks" : "Add bank"}
                 </Button>
                 <Button
                   variant="secondary"
@@ -1329,64 +1172,6 @@ export default function PosPage() {
                 </Button>
               </div>
             </div>
-          ) : (
-            <div className="mt-3">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                {mode === "CASH"
-                  ? "Cash received"
-                  : mode === "CARD"
-                    ? "Card amount"
-                    : mode === "BANK"
-                      ? "Bank amount"
-                      : "Credit amount"}
-              </p>
-              <Input
-                value={mode === "CASH" ? cash : mode === "CARD" ? card : mode === "BANK" ? bankAmount : credit}
-                onChange={(e) =>
-                  mode === "CASH"
-                    ? setCash(clampMoneyInput(e.target.value))
-                    : mode === "CARD"
-                      ? setCard(clampMoneyInput(e.target.value))
-                      : mode === "BANK"
-                        ? setBankAmount(clampMoneyInput(e.target.value))
-                        : setCredit(clampMoneyInput(e.target.value))
-                }
-                placeholder={formatPKR(due)}
-                inputMode="decimal"
-                className="bg-ink-100"
-              />
-              {mode === "CASH" && (
-                <>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {quickTenders.map((amt) => (
-                      <Button
-                        key={amt}
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setCash(clampMoneyInput(String(amt)))}
-                      >
-                        {amt === due ? "Exact" : formatPKR(amt)}
-                      </Button>
-                    ))}
-                  </div>
-                  {cashTendered > 0 && (
-                    <div
-                      className={`mt-2 flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold ${
-                        change > 0
-                          ? "bg-brand-50 text-brand-700"
-                          : cashShort
-                            ? "bg-warning/10 text-warning"
-                            : "bg-ink-50 text-ink-500"
-                      }`}
-                    >
-                      <span>{change > 0 ? "Change to give" : cashShort ? "Short by" : "Exact amount"}</span>
-                      <span>{formatPKR(change > 0 ? change : cashShort ? due - cashTendered : 0)}</span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
           {loadedReservation && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               <Badge
@@ -1424,12 +1209,19 @@ export default function PosPage() {
             </div>
           )}
         </div>
+        </div>
 
-        <div className="flex shrink-0 flex-col items-end gap-2">
-            <div className="text-right">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Total</p>
-              <p className="text-3xl font-bold leading-tight text-brand-600">{formatPKR(total)}</p>
-              <div className="mt-1 space-y-0.5 text-xs text-ink-500">
+        <div className="rounded-3xl bg-white">
+          <div className="px-5 py-4">
+            <h3 className="text-sm font-semibold text-ink-900">Summary</h3>
+          </div>
+          <div className="px-5 pb-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-left">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Total</p>
+                <p className="text-3xl font-bold leading-tight text-brand-600">{formatPKR(total)}</p>
+              </div>
+              <div className="space-y-1 text-right text-xs text-ink-500">
                 <p className="flex items-center justify-end gap-2">
                   <span>Discount</span>
                   <span className="w-20 text-right font-medium text-ink-700">{formatPKR(invoiceDisc)}</span>
@@ -1438,10 +1230,12 @@ export default function PosPage() {
                   <span>Tax</span>
                   <span className="w-20 text-right font-medium text-ink-700">{formatPKR(tax)}</span>
                 </p>
-                <p className="flex items-center justify-end gap-2">
-                  <span>Card fee</span>
-                  <span className="w-20 text-right font-medium text-ink-700">{formatPKR(cardFee)}</span>
-                </p>
+                {cardFee > 0 && (
+                  <p className="flex items-center justify-end gap-2">
+                    <span>Card fee</span>
+                    <span className="w-20 text-right font-medium text-ink-700">{formatPKR(cardFee)}</span>
+                  </p>
+                )}
                 {change > 0 && (
                   <p className="flex items-center justify-end gap-2 text-brand-600">
                     <span>Change</span>
@@ -1450,17 +1244,13 @@ export default function PosPage() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="grey" className="px-4 py-2" onClick={reset}>
-                Clear
-              </Button>
+            <div className="mt-4">
               <Button
-                className="min-w-72 px-8 py-4 text-base"
+                className="w-full"
                 type="submit"
                 disabled={submitting || cart.length === 0}
               >
                 {submitting ? "Processing…" : modifyId ? `Update sale` : `Charge ${formatPKR(due)}`}
-                <Kbd>Ctrl+S</Kbd>
               </Button>
             </div>
           </div>
@@ -1522,6 +1312,76 @@ export default function PosPage() {
                 </p>
               </button>
             ))
+          )}
+        </div>
+      </Sheet>
+
+      <Sheet open={bankSheetOpen} title="Bank deposits" onClose={() => setBankSheetOpen(false)} width="max-w-2xl">
+        <div className="space-y-3">
+          {bankAccounts.length === 0 ? (
+            <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-xs text-ink-500">
+              No registered bank accounts. Add them in Settings.
+            </p>
+          ) : (
+            bankRows.map((row) => (
+              <div key={row.id} className="flex items-center gap-2">
+                <Dropdown
+                  value={row.bankId}
+                  options={bankAccounts
+                    .filter((b) => b.id === row.bankId || !bankRows.some((x) => x.id !== row.id && x.bankId === b.id))
+                    .map((b) => ({
+                      value: b.id,
+                      label: b.bankName,
+                      trailing: (
+                        <span className="text-xs text-ink-400">
+                          {b.name} · {b.accountNo}
+                        </span>
+                      ),
+                    }))}
+                  onChange={(v) =>
+                    setBankRows((r) =>
+                      r.map((x) => (x.id === row.id ? { ...x, bankId: v } : x))
+                    )
+                  }
+                  className="flex-1"
+                  triggerClassName="flex-1 bg-ink-100"
+                  placeholder="Pick bank…"
+                />
+                <Input
+                  value={row.amount}
+                  onChange={(e) =>
+                    setBankRows((r) =>
+                      r.map((x) => (x.id === row.id ? { ...x, amount: clampMoneyInput(e.target.value) } : x))
+                    )
+                  }
+                  placeholder="Amount"
+                  inputMode="decimal"
+                  className="min-w-0 w-32"
+                />
+                <button
+                  type="button"
+                  aria-label="Remove bank"
+                  className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-100 hover:text-ink-900"
+                  onClick={() => setBankRows((r) => r.filter((x) => x.id !== row.id))}
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+              </div>
+            ))
+          )}
+          {bankAccounts.length > 0 && bankRows.length < bankAccounts.length && (
+            <Button
+              variant="secondary"
+              className="w-full text-xs"
+              onClick={() => {
+                const used = bankRows.map((x) => x.bankId);
+                const next = bankAccounts.find((b) => !used.includes(b.id));
+                setBankRows((r) => [...r, { id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]);
+              }}
+            >
+              <PlusIcon className="mr-1 h-3.5 w-3.5" />
+              Add bank
+            </Button>
           )}
         </div>
       </Sheet>

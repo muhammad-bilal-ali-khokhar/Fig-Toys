@@ -8,11 +8,15 @@ export function PriceInput({
   onChange,
   max,
   className,
+  prefix,
+  suffix,
 }: {
   value: number;
   onChange: (n: number) => void;
   max?: number;
   className?: string;
+  prefix?: string;
+  suffix?: string;
 }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
@@ -25,6 +29,8 @@ export function PriceInput({
       inputMode="decimal"
       placeholder="0"
       className={className}
+      prefix={prefix}
+      suffix={suffix}
       onFocus={() => {
         setFocused(true);
         setText(value > 0 ? String(value) : "");

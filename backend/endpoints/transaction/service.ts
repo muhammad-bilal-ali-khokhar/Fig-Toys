@@ -138,7 +138,10 @@ export async function createSale(input: CreateSaleInput, userId: string) {
   const { taxRate, cardFee: cardFeePct } = await getCompanyFinancials();
   const tax = Math.round(subtotal * taxRate) / 100;
   const cardUsed = input.payments.some((p) => p.method === "CARD");
-  const cardFee = cardUsed ? Math.round((subtotal - input.discount + tax) * cardFeePct) / 100 : 0;
+  const cardAmount = input.payments
+    .filter((p) => p.method === "CARD")
+    .reduce((sum, p) => sum + p.amount, 0);
+  const cardFee = cardUsed ? Math.round(cardAmount * cardFeePct) / 100 : 0;
   const total = subtotal - input.discount + tax + cardFee;
   if (total < 0) throw new ApiError(400, "transaction.negative_total", "Total cannot be negative");
 
@@ -865,7 +868,10 @@ export async function modifySale(id: string, input: CreateSaleInput, userId: str
   const { taxRate, cardFee: cardFeePct } = await getCompanyFinancials();
   const tax = Math.round(subtotal * taxRate) / 100;
   const cardUsed = input.payments.some((p) => p.method === "CARD");
-  const cardFee = cardUsed ? Math.round((subtotal - input.discount + tax) * cardFeePct) / 100 : 0;
+  const cardAmount = input.payments
+    .filter((p) => p.method === "CARD")
+    .reduce((sum, p) => sum + p.amount, 0);
+  const cardFee = cardUsed ? Math.round(cardAmount * cardFeePct) / 100 : 0;
   const total = subtotal - input.discount + tax + cardFee;
   if (total < 0) throw new ApiError(400, "transaction.negative_total", "Total cannot be negative");
 

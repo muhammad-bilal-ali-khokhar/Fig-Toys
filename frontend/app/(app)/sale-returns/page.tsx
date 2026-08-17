@@ -5,20 +5,19 @@ import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import type { ReturnEligibility, TransactionDetail, Unit } from "@/lib/api-types";
 import { CARRIER_LABELS } from "@/lib/constants";
-import { formatPKR } from "@/lib/money";
+import { formatPKR, clampMoneyInput } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
-import { Kbd } from "@/components/ui/kbd";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
 import { Scanner } from "@/components/scanner";
 import { SearchInput } from "@/components/ui/search-input";
-import { CameraIcon, ReportsIcon } from "@/components/icons";
+import { CameraIcon, PlusIcon, PrinterIcon, XIcon } from "@/components/icons";
 import Link from "next/link";
 
 type SearchResult = {
@@ -54,7 +53,6 @@ export default function SaleReturnsPage() {
   const [note, setNote] = useState("");
   const [cash, setCash] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
-  const [payMode, setPayMode] = useState<"CASH" | "CREDIT" | "SPLIT">("CASH");
   const [submitting, setSubmitting] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [returnNo, setReturnNo] = useState("RET-0001");
@@ -142,7 +140,7 @@ export default function SaleReturnsPage() {
       setSearching(true);
       try {
         const found = await apiRequest<SearchResult[]>(
-          `/product/search?q=${encodeURIComponent(query)}`,
+          `/product/search?q=${encodeURIComponent(query)}&statuses=SOLD`,
         );
         setResults(found);
         return found;
@@ -281,53 +279,8 @@ export default function SaleReturnsPage() {
 
   const refundTotal = useMemo(() => cart.reduce((sum, l) => sum + l.refund, 0), [cart]);
 
-  function onSplitCash(value: string) {
-    setCash(value);
-    const c = parseFloat(value);
-    if (c && c > 0) setCreditAmount(String(Math.max(0, refundTotal - c)));
-  }
-
-  function onSplitCredit(value: string) {
-    setCreditAmount(value);
-    const c = parseFloat(value);
-    if (c && c > 0) setCash(String(Math.max(0, refundTotal - c)));
-  }
-
-  function onCreditCash(value: string) {
-    setCash(value);
-    const c = parseFloat(value);
-    if (c && c > 0) {
-      setPayMode("SPLIT");
-      setCreditAmount(String(Math.max(0, refundTotal - c)));
-    }
-  }
-
-  function onPayModeChange(v: "CASH" | "CREDIT" | "SPLIT") {
-    setPayMode(v);
-    setCash("");
-    setCreditAmount("");
-  }
-
-  function buildGroupPayments(groupTotal: number, isLast: boolean, allocated: number): { method: "CASH" | "CREDIT"; amount: number }[] {
-    const total = refundTotal;
-    const cashTotal =
-      payMode === "CREDIT"
-        ? 0
-        : payMode === "SPLIT"
-          ? parseFloat(cash) || 0
-          : parseFloat(cash) || total;
-    const cashAmt =
-      payMode === "CREDIT" || cashTotal <= 0
-        ? 0
-        : isLast
-          ? Math.max(0, cashTotal - allocated)
-          : Math.round((cashTotal * groupTotal) / total);
-    const creditAmt = payMode === "CREDIT" ? groupTotal : Math.max(0, groupTotal - cashAmt);
-    return [
-      ...(cashAmt > 0 ? [{ method: "CASH" as const, amount: cashAmt }] : []),
-      ...(creditAmt > 0 ? [{ method: "CREDIT" as const, amount: creditAmt }] : []),
-    ];
-  }
+  const cashAmt = parseFloat(cash) || 0;
+  const creditAmt = parseFloat(creditAmount) || 0;
 
   useSaveShortcut(() => {
     void submit();
@@ -351,20 +304,20 @@ export default function SaleReturnsPage() {
     );
     const cashPayment = txn.payments.find((p) => p.method === "CASH");
     const creditPayment = txn.payments.find((p) => p.method === "CREDIT");
-    if (cashPayment && creditPayment) {
-      setPayMode("SPLIT");
-      setCash(String(parseFloat(cashPayment.amount)));
-      setCreditAmount(String(parseFloat(creditPayment.amount)));
-    } else if (creditPayment) {
-      setPayMode("CREDIT");
-      setCash("");
-      setCreditAmount(String(parseFloat(creditPayment.amount)));
-    } else if (cashPayment) {
-      setPayMode("CASH");
-      setCash(String(parseFloat(cashPayment.amount)));
-      setCreditAmount("");
-    }
+    setCash(cashPayment ? String(parseFloat(cashPayment.amount)) : "");
+    setCreditAmount(creditPayment ? String(parseFloat(creditPayment.amount)) : "");
     toast(`Editing ${txn.number}`, "success");
+  }
+
+  function reset() {
+    setCart([]);
+    setNote("");
+    setCash("");
+    setCreditAmount("");
+    setModifyId(null);
+    setCustomerId(null);
+    setQ("");
+    setResults([]);
   }
 
   async function submit() {
@@ -372,20 +325,21 @@ export default function SaleReturnsPage() {
       toast("Add at least one unit to return", "error");
       return;
     }
-    if (payMode === "SPLIT") {
-      const cashAmt = parseFloat(cash) || 0;
-      const creditAmt = parseFloat(creditAmount) || 0;
-      if (Math.abs(cashAmt + creditAmt - refundTotal) > 0.01) {
+    if (cashAmt > 0.01 && creditAmt > 0.01) {
+      const total = cashAmt + creditAmt;
+      if (Math.abs(total - refundTotal) > 0.01) {
         toast(`Cash + credit must equal ${formatPKR(refundTotal)}`, "error");
         return;
       }
     }
     setSubmitting(true);
     try {
+      const payments: { method: "CASH" | "CREDIT"; amount: number }[] = [];
+      if (cashAmt > 0) payments.push({ method: "CASH", amount: cashAmt });
+      if (creditAmt > 0) payments.push({ method: "CREDIT", amount: creditAmt });
+
       if (modifyId) {
         const firstSaleId = cart[0]?.saleId ?? "";
-        const total = refundTotal;
-        const payments = buildGroupPayments(total, true, 0);
         await apiRequest<{ number: string }>(`/transaction/${modifyId}/sale-return`, {
           method: "PUT",
           body: {
@@ -413,15 +367,24 @@ export default function SaleReturnsPage() {
           const [saleId, lines] = groupsArr[i];
           const groupTotal = lines.reduce((sum, l) => sum + l.refund, 0);
           const isLast = i === groupsArr.length - 1;
-          const payments = buildGroupPayments(groupTotal, isLast, allocated);
-          allocated += payments.find((p) => p.method === "CASH")?.amount ?? 0;
+          const groupPayments: { method: "CASH" | "CREDIT"; amount: number }[] = [];
+          const groupCash =
+            cashAmt <= 0
+              ? 0
+              : isLast
+                ? Math.max(0, cashAmt - allocated)
+                : Math.round((cashAmt * groupTotal) / refundTotal);
+          const groupCredit = creditAmt > 0 ? groupTotal : Math.max(0, groupTotal - groupCash);
+          if (groupCash > 0) groupPayments.push({ method: "CASH", amount: groupCash });
+          if (groupCredit > 0) groupPayments.push({ method: "CREDIT", amount: groupCredit });
+          allocated += groupCash;
           await apiRequest<{ number: string }>("/transaction/sale/returns", {
             method: "POST",
             body: {
               saleId,
               items: lines.map((l) => ({ productId: l.productId, unitId: l.unitId })),
               note: note.trim() || undefined,
-              payments,
+              payments: groupPayments,
               number: `RET-${String(nextNo++).padStart(4, "0")}`,
               date: returnDate,
               clientRef: crypto.randomUUID(),
@@ -431,12 +394,7 @@ export default function SaleReturnsPage() {
         toast(`${cart.length} unit(s) returned`, "success");
       }
       playSuccess();
-      setCart([]);
-      setNote("");
-      setCash("");
-      setCreditAmount("");
-      setPayMode("CASH");
-      setModifyId(null);
+      reset();
       const list = await apiRequest<{ number: string }[]>(
         `/transaction?type=SALE_RETURN&limit=1`,
       );
@@ -456,292 +414,249 @@ export default function SaleReturnsPage() {
       className="flex h-full flex-col"
       onSubmit={(e) => {
         e.preventDefault();
-        submit();
+        void submit();
       }}
     >
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-ink-900">Sale returns</h2>
-          <p className="text-xs text-ink-500">
-            Scan or pick sold units to take back from the customer and refund them.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="grey" onClick={() => setModifyPickerOpen(true)}>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Return" : "Sale Return"}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
             Modify
           </Button>
-          <Link
-            href="/reports/sale-returns"
-            className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
-          >
-            <ReportsIcon className="h-4 w-4" />
-            Reports
-          </Link>
           <Button variant="ghost" onClick={() => setScannerOpen(true)}>
             <CameraIcon className="h-4 w-4" />
-            Scan IMEI / barcode
+            Scan IMEI
+          </Button>
+          <Link href="/pos">
+            <Button variant="ghost">
+              <PrinterIcon className="h-4 w-4" />
+              Sale Invoice
+            </Button>
+          </Link>
+          <Button variant="destructive" onClick={reset}>
+            Clear
           </Button>
         </div>
       </div>
 
-      <section className="shrink-0 rounded-2xl bg-white p-4">
-        <div className="grid gap-3 md:grid-cols-3 md:items-end">
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
-            <div className="rounded-2xl bg-ink-100 px-3.5 py-2 text-sm">
-              <span className="truncate text-ink-900">
-                {customerId ? "Auto-assigned from the unit" : "Auto-assigns from the unit"}
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Return #</p>
-            <Input value={returnNo} readOnly className="bg-ink-100" />
-          </div>
-
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date</p>
-            <DatePicker value={returnDate} onChange={setReturnDate} />
+      <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
+          <div className="flex h-9 items-center rounded-2xl bg-white px-3.5 text-sm">
+            <span className="truncate text-ink-500">
+              {customerId ? "Auto-assigned from the unit" : "Auto-assigns from the unit"}
+            </span>
           </div>
         </div>
 
-        <div className="mt-3">
-          <div ref={searchWrapRef} className="relative">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-              IMEI / barcode / product
-            </p>
-            <div className="relative">
-              <SearchInput
-                value={q}
-                onChange={setQ}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    void handleEnterOrScan(q);
-                  }
-                }}
-                placeholder="Scan IMEI of a sold unit, barcode, or search product…"
-                variant="white"
-                className="bg-ink-100 py-3"
-                wrapperClassName="w-full"
-                iconClassName="left-4 h-4 w-4"
-              />
+        <div className="flex-1 min-w-0">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Return #</p>
+          <Input value={returnNo} readOnly variant="white" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date</p>
+          <DatePicker value={returnDate} onChange={setReturnDate} />
+        </div>
+      </div>
+
+      <section className="mt-6 shrink-0">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Add items</p>
+        <div ref={searchWrapRef} className="relative">
+          <SearchInput
+            value={q}
+            onChange={setQ}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void handleEnterOrScan(q);
+              }
+            }}
+            placeholder="Scan IMEI of a sold unit or search product…"
+            variant="white"
+            className="bg-ink-100 h-14 text-base rounded-[16px]"
+            iconClassName="h-5 w-5"
+          />
+
+          {panelPos && results.length === 0 && q.trim().length >= 2 && (
+            <div
+              style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
+              className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"
+            >
+              <p className="text-sm text-ink-400">
+                {searching ? "Searching…" : "No products found."}
+              </p>
             </div>
+          )}
 
-            {panelPos &&
-              (searching || (!searching && q.trim().length >= 2 && results.length === 0)) && (
-                <div
-                  style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                  className="z-[100] rounded-2xl bg-white p-4"
-                >
-                  <p className="text-sm text-ink-400">
-                    {searching ? "Searching…" : "No products found."}
-                  </p>
-                </div>
-              )}
-
-            {panelPos && results.length > 0 && (
-              <div
-                style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5"
-              >
-                {results.map((result) => (
-                  <div key={result.id} className="rounded-xl hover:bg-ink-50">
-                    <div className="px-3 pt-3">
-                      <p className="truncate font-medium text-ink-900">
-                        {result.brand} {result.model} {result.storage ?? ""} {result.ram ?? ""}{" "}
-                        {result.screenSize ?? ""} {result.color ?? ""}
-                      </p>
-                      <p className="text-xs text-ink-500">
-                        {result.category.name} · {result.units.length} in-stock unit(s)
-                      </p>
-                    </div>
-                    {result.units.map((unit) => (
-                      <button
-                        key={unit.id}
-                        type="button"
-                        onClick={() => pickUnit(unit)}
-                        className="mt-1 flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-brand-50"
-                      >
-                        <span className="font-mono text-xs text-ink-700">{unit.imei}</span>
-                        <span className="text-[10px] text-ink-400">
-                          {unit.condition} · {CARRIER_LABELS[unit.carrier]}
-                        </span>
-                      </button>
-                    ))}
+          {panelPos && results.length > 0 && (
+            <div
+              style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
+              className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
+            >
+              {results.map((result) => (
+                <div key={result.id} className="rounded-xl hover:bg-ink-50">
+                  <div className="px-3 pt-3">
+                    <p className="truncate font-medium text-ink-900">
+                      {[result.brand, result.model, result.storage, result.ram, result.screenSize, result.color]
+                        .filter(Boolean)
+                        .join(" ")}
+                    </p>
+                    <p className="text-xs text-ink-500">
+                      {result.category.name} · {result.units.length} unit(s)
+                    </p>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  {result.units.length > 0 && (
+                    <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
+                      {result.units.map((unit) => (
+                        <button
+                          key={unit.id}
+                          type="button"
+                          onClick={() => pickUnit(unit)}
+                          className="flex w-full items-center justify-between gap-3 rounded-xl bg-ink-50 px-3 py-2 transition hover:bg-brand-50"
+                        >
+                          <span className="truncate text-xs text-ink-700">{unit.imei}</span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            <Badge variant="neutral">{unit.condition}</Badge>
+                            <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
-      <div className="mt-6 flex-1 overflow-y-auto pt-0.5">
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Units to return</span>
-            <span className="text-xs text-ink-500">{cart.length} unit(s)</span>
-          </div>
-
-          <div className="overflow-x-auto rounded-2xl bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
-                  <th className="px-4 py-2.5 font-semibold">IMEI</th>
-                  <th className="px-4 py-2.5 font-semibold">Product</th>
-                  <th className="px-4 py-2.5 font-semibold">Sale</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">Refund</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {cart.map((line) => (
-                  <tr key={line.unitId} className="border-t border-ink-100">
-                    <td className="px-4 py-3 font-mono text-xs text-ink-700">{line.imei}</td>
-                    <td className="px-4 py-3 text-ink-900">{line.productLabel}</td>
-                    <td className="px-4 py-3 text-ink-700">{line.saleNumber}</td>
-                    <td className="px-4 py-3 text-right font-medium text-ink-900">
-                      {formatPKR(line.refund)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => removeLine(line.unitId)}
-                        className="text-ink-400 hover:text-error"
-                        aria-label="Remove"
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {cart.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-5 py-8 text-center text-sm text-ink-400">
-                      No units yet. Scan or search for sold units. The customer is picked automatically.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      <div className="mt-6 mb-3 flex shrink-0 items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Units to return</span>
+        <span className="text-xs text-ink-500">{cart.length} unit(s)</span>
       </div>
 
-      <div className="-mx-6 -mb-6 mt-6 shrink-0 bg-white px-6 py-4">
-        <div className="lg:max-w-xl">
-          <div className="grid grid-cols-[1fr_1.5fr] items-end gap-3">
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Refund</p>
-              <Dropdown
-                value={payMode}
-                options={[
-                  { value: "CASH", label: "Cash", trailing: <span className="text-xs text-ink-400">paid to customer now</span> },
-                  { value: "CREDIT", label: "Credit", trailing: <span className="text-xs text-ink-400">returned, not paid yet</span> },
-                  { value: "SPLIT", label: "Cash + Credit", trailing: <span className="text-xs text-ink-400">part cash, rest on credit</span> },
-                ]}
-                onChange={(v) => onPayModeChange(v as "CASH" | "CREDIT" | "SPLIT")}
-              />
-            </div>
-            {payMode === "SPLIT" ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash paid</p>
-                  <Input
-                    value={cash}
-                    onChange={(e) => onSplitCash(e.target.value)}
-                    placeholder="0"
-                    inputMode="numeric"
-                    className="bg-ink-100"
-                  />
-                </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">On credit (debt)</p>
-                  <Input
-                    value={creditAmount}
-                    onChange={(e) => onSplitCredit(e.target.value)}
-                    placeholder="0"
-                    inputMode="numeric"
-                    className="bg-ink-100"
-                  />
-                </div>
-              </div>
-            ) : (
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 z-10 bg-white">
+            <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
+              <th className="px-4 py-3">IMEI</th>
+              <th className="px-4 py-3">Product</th>
+              <th className="px-4 py-3">Sale</th>
+              <th className="w-28 px-4 py-3 text-right">Refund</th>
+              <th className="w-12 px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {cart.map((line) => (
+              <tr key={line.unitId} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                <td className="px-4 py-3 font-mono text-xs text-ink-700">{line.imei}</td>
+                <td className="px-4 py-3 text-ink-900">{line.productLabel}</td>
+                <td className="px-4 py-3 text-ink-700">{line.saleNumber}</td>
+                <td className="px-4 py-3 text-right font-semibold text-ink-900">
+                  {formatPKR(line.refund)}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => removeLine(line.unitId)}
+                    title="Remove"
+                    className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {cart.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink-400">
+                  Cart is empty. Scan or search for sold units.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-6 grid shrink-0 gap-4 lg:grid-cols-3">
+        <div className="rounded-3xl bg-white lg:col-span-2">
+          <div className="flex items-center justify-between px-5 py-4">
+            <h3 className="text-sm font-semibold text-ink-900">Refund</h3>
+            <p className="text-xs text-ink-400">
+              Total <span className="font-semibold text-ink-900">{formatPKR(refundTotal)}</span>
+            </p>
+          </div>
+          <div className="px-5 pb-5">
+            <div className="mt-3 grid grid-cols-2 gap-3">
               <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                  {payMode === "CREDIT" ? "Cash paid (optional)" : "Cash paid"}
-                </p>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash paid</p>
                 <Input
                   value={cash}
-                  onChange={(e) =>
-                    payMode === "CREDIT" ? onCreditCash(e.target.value) : setCash(e.target.value)
-                  }
-                  placeholder={payMode === "CREDIT" ? "Leave blank for full credit" : "Leave blank for full amount"}
-                  inputMode="numeric"
+                  onChange={(e) => setCash(clampMoneyInput(e.target.value))}
+                  placeholder="0"
+                  inputMode="decimal"
                   className="bg-ink-100"
                 />
               </div>
-            )}
-          </div>
-          {payMode === "SPLIT" && (
-            <p className="mt-1.5 text-[11px] text-ink-400">
-              Cash + credit must add up to the total ({formatPKR(refundTotal)}).{" "}
-              {(() => {
-                const remain = refundTotal - ((parseFloat(cash) || 0) + (parseFloat(creditAmount) || 0));
-                return remain > 0.01
-                  ? `Remaining: ${formatPKR(remain)}`
-                  : remain < -0.01
-                    ? "Over the total"
-                    : "Balanced";
-              })()}
-            </p>
-          )}
-        </div>
-
-        <div className="mt-3 grid gap-3 lg:max-w-2xl lg:grid-cols-[1fr_2fr]">
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Refund total</p>
-            <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-sm font-bold text-ink-900">
-              {formatPKR(refundTotal)}
-            </p>
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Note</p>
-            <Input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Optional reason for the return"
-              className="bg-ink-100"
-            />
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">On credit</p>
+                <Input
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))}
+                  placeholder="0"
+                  inputMode="decimal"
+                  className="bg-ink-100"
+                />
+              </div>
+            </div>
+            <div className="mt-3">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Note</p>
+              <Input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Optional reason for the return"
+                className="bg-ink-100"
+              />
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-4">
-          <p className="text-xs text-ink-400">
-            {payMode === "CASH"
-              ? "Refund is computed from the sale price of each returned unit."
-              : payMode === "SPLIT"
-                ? "Cash part is paid now, the rest stays on the customer's credit account."
-                : "Refund stays on the customer's credit account and nets against future purchases."}
-          </p>
-          <Button
-            className="min-w-72 px-8 py-4 text-base"
-            type="submit"
-            disabled={submitting || cart.length === 0}
-          >
-            {submitting
-              ? "Returning…"
-              : cart.length === 0
-                ? "Return units"
-                : payMode === "CREDIT"
-                  ? `Return on credit · ${formatPKR(refundTotal)}`
-                  : payMode === "SPLIT"
-                    ? `Cash + credit · ${formatPKR(refundTotal)}`
-                    : `Refund · ${formatPKR(refundTotal)}`}
-            <Kbd>Ctrl+S</Kbd>
-          </Button>
+        <div className="rounded-3xl bg-white">
+          <div className="px-5 py-4">
+            <h3 className="text-sm font-semibold text-ink-900">Summary</h3>
+          </div>
+          <div className="px-5 pb-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-left">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Refund total</p>
+                <p className="text-3xl font-bold leading-tight text-brand-600">{formatPKR(refundTotal)}</p>
+              </div>
+              <div className="space-y-1 text-right text-xs text-ink-500">
+                {cashAmt > 0 && (
+                  <p className="flex items-center justify-end gap-2">
+                    <span>Cash</span>
+                    <span className="w-20 text-right font-medium text-ink-700">{formatPKR(cashAmt)}</span>
+                  </p>
+                )}
+                {creditAmt > 0 && (
+                  <p className="flex items-center justify-end gap-2">
+                    <span>Credit</span>
+                    <span className="w-20 text-right font-medium text-ink-700">{formatPKR(creditAmt)}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="mt-4">
+              <Button
+                className="w-full"
+                type="submit"
+                disabled={submitting || cart.length === 0}
+              >
+                {submitting ? "Returning…" : `Refund ${formatPKR(refundTotal)}`}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -200,6 +200,9 @@ model Category {
   type      CategoryType @default(PHONE)
   sortOrder Int          @default(0)
   active    Boolean      @default(true)
+  parentId  String?
+  parent    Category?    @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[]   @relation("CategoryTree")
   createdAt DateTime     @default(now())
   products  Product[]
 

@@ -35,6 +35,7 @@ export function Dropdown<T extends string>({
   searchable = false,
   allowCustom = false,
   defaultFilter = "",
+  searchPrefix = "",
   className = "",
   menuClassName = "",
 }: {
@@ -50,6 +51,7 @@ export function Dropdown<T extends string>({
   searchable?: boolean;
   allowCustom?: boolean;
   defaultFilter?: string;
+  searchPrefix?: string;
   className?: string;
   menuClassName?: string;
 }) {
@@ -123,14 +125,9 @@ export function Dropdown<T extends string>({
         setOpen(false);
       }
     }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
     document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
     };
   }, []);
 
@@ -144,18 +141,53 @@ export function Dropdown<T extends string>({
   }
 
   const visible = searchable && filter
-    ? matchOptions(options, filter)
+    ? matchOptions(options, searchPrefix + filter)
     : options;
 
-  const exactMatch = allowCustom && filter
-    ? options.some((o) => o.label.toLowerCase() === filter.toLowerCase())
+  const exactMatch = allowCustom && (searchPrefix + filter)
+    ? options.some((o) => o.label.toLowerCase() === (searchPrefix + filter).toLowerCase())
     : true;
 
   function chooseCustom() {
     if (!filter.trim()) return;
-    onChange(filter.trim() as T);
+    onChange((searchPrefix + filter).trim() as T);
     setOpen(false);
   }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (!open) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        setActiveIndex((i) => Math.min(Math.max(i + step, 0), visible.length - 1));
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        setActiveIndex(0);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        setActiveIndex(visible.length - 1);
+      } else if (event.key === "Enter") {
+        const target = activeIndex >= 0 ? visible[activeIndex] : visible[0];
+        if (target) {
+          event.preventDefault();
+          onChange(target.value);
+          setOpen(false);
+        } else if (allowCustom) {
+          event.preventDefault();
+          chooseCustom();
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, visible, activeIndex, allowCustom, onChange]);
 
   const selectedLabel = label ?? options.find((o) => o.value === value)?.label ?? placeholder;
 
@@ -194,14 +226,22 @@ export function Dropdown<T extends string>({
     >
       {searchable && (
         <div className="p-1.5 pb-2.5">
-          <Input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            aria-label="Search options"
-            placeholder="Search…"
-            autoFocus
-            className="bg-ink-50"
-          />
+          <div className="relative">
+            {searchPrefix && (
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-brand-600 select-none">
+                {searchPrefix}
+              </span>
+            )}
+            <Input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label="Search options"
+              placeholder={searchPrefix ? "0001…" : "Search…"}
+              autoFocus
+              style={searchPrefix ? { paddingLeft: "3.6rem" } : undefined}
+              className="bg-ink-50"
+            />
+          </div>
         </div>
       )}
       <div className="max-h-56 space-y-1 overflow-y-auto overscroll-none">
@@ -272,7 +312,7 @@ export function Dropdown<T extends string>({
           typeof trigger === "function" ? trigger(open) : trigger
         ) : (
           <div
-            className={`flex h-9 items-center justify-between rounded-2xl bg-ink-100 px-3.5 text-sm ${triggerClassName ?? ""}`}
+            className={`flex h-9 items-center justify-between rounded-2xl bg-white px-3.5 text-sm ${triggerClassName ?? ""}`}
           >
             <span className="truncate text-ink-900">{selectedLabel}</span>
           </div>

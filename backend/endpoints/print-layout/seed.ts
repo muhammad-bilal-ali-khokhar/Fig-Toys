@@ -27,7 +27,6 @@ export async function upsertSystemLayout(layout: PrintLayoutInput) {
   const system = await ensureSystemUser();
   const data = {
     name: layout.name,
-    type: layout.type,
     format: layout.format,
     options: layout.options ?? undefined,
     qrType: layout.qrType ?? "whatsapp",

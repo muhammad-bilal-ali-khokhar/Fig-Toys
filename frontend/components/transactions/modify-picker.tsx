@@ -90,7 +90,7 @@ export function ModifyPicker({
           onChange={setSelectedId}
           placeholder={loading ? "Loading…" : "Select a document…"}
           searchable
-          defaultFilter={TYPE_PREFIX[type] ?? ""}
+          searchPrefix={TYPE_PREFIX[type] ?? ""}
         />
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="grey" onClick={onClose}>

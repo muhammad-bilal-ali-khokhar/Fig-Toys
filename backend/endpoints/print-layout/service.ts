@@ -43,7 +43,6 @@ export async function updatePrintLayout(id: string, userId: string, input: Print
     where: { id },
     data: {
       ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.type !== undefined ? { type: input.type } : {}),
       ...(input.format !== undefined ? { format: input.format } : {}),
       ...(input.options !== undefined ? { options: input.options } : {}),
       ...(input.qrType !== undefined ? { qrType: input.qrType } : {}),

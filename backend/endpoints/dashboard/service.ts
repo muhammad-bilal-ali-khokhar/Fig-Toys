@@ -55,6 +55,10 @@ export async function overview(
     stockUnits,
     salesByUser,
     users,
+    rangeSales,
+    rangePurchases,
+    rangeVouchers,
+    allTimeVouchers,
   ] = await Promise.all([
     prisma.transaction.aggregate({
       where: { type: "SALE", createdAt: { gte: today } },
@@ -103,7 +107,7 @@ export async function overview(
                 brand: { select: { name: true } },
                 model: true,
                 storage: true,
-                category: { select: { type: true } },
+                category: { select: { type: true, name: true, parent: { select: { name: true } } } },
               },
             },
           },
@@ -155,6 +159,24 @@ export async function overview(
       _sum: { total: true },
     }),
     prisma.user.findMany({ select: { id: true, name: true } }),
+    prisma.transaction.aggregate({
+      where: { type: "SALE", ...rangeWhere(range, timeZone) },
+      _count: true,
+      _sum: { total: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { type: "PURCHASE", ...rangeWhere(range, timeZone) },
+      _count: true,
+      _sum: { total: true },
+    }),
+    prisma.voucher.findMany({
+      where: { status: "ACTIVE", ...rangeWhere(range, timeZone, "date") },
+      select: { type: true, amount: true },
+    }),
+    prisma.voucher.findMany({
+      where: { status: "ACTIVE" },
+      select: { type: true, amount: true },
+    }),
   ]);
 
   const stockByCondition = inStockUnits.reduce(
@@ -175,6 +197,19 @@ export async function overview(
   for (const g of returnGroups) {
     if (g.type === "SALE_RETURN") returns.sale = g._count;
     else returns.purchase = g._count;
+  }
+
+  let rangeCashIn = 0;
+  let rangeCashOut = 0;
+  for (const v of rangeVouchers) {
+    if (v.type === "RECEIVING") rangeCashIn += Number(v.amount);
+    else rangeCashOut += Number(v.amount);
+  }
+
+  let cashOnHand = 0;
+  for (const v of allTimeVouchers) {
+    if (v.type === "RECEIVING") cashOnHand += Number(v.amount);
+    else cashOnHand -= Number(v.amount);
   }
 
   let receivables = 0;
@@ -205,6 +240,7 @@ export async function overview(
     .slice(0, 4);
 
   let profitToday = null;
+  let profitRange = null;
   if (canViewCosts) {
     const items = await prisma.transactionItem.findMany({
       where: {
@@ -215,6 +251,15 @@ export async function overview(
     });
     profitToday = items.reduce((sum, i) => sum + (Number(i.total) - Number(i.unit?.costPrice ?? 0)), 0);
     profitToday -= Number(todayExpenses._sum.amount ?? 0);
+    const rangeItems = await prisma.transactionItem.findMany({
+      where: {
+        transaction: { type: "SALE", ...rangeWhere(range, timeZone) },
+        unit: { isNot: null },
+      },
+      include: { unit: true },
+    });
+    profitRange = rangeItems.reduce((sum, i) => sum + (Number(i.total) - Number(i.unit?.costPrice ?? 0)), 0);
+    profitRange -= rangeExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
   }
 
   const lowStockProducts = lowStock
@@ -266,6 +311,7 @@ export async function overview(
   let usedSold = 0;
   let phoneSold = 0;
   let accessorySold = 0;
+  const accessorySubCategoryMap = new Map<string, number>();
 
   for (const s of recentSales) {
     const idx = dayIndex.get(dayKeyInTz(s.createdAt, timeZone));
@@ -278,7 +324,13 @@ export async function overview(
     }
     for (const it of s.items) {
       if (it.product.category.type === "PHONE") phoneSold += it.quantity;
-      else accessorySold += it.quantity;
+      else {
+        accessorySold += it.quantity;
+        const subCatName = it.product.category.parent
+          ? it.product.category.name
+          : "Uncategorized";
+        accessorySubCategoryMap.set(subCatName, (accessorySubCategoryMap.get(subCatName) ?? 0) + it.quantity);
+      }
       const name = `${it.product.brand.name} ${it.product.model} ${it.product.storage ?? ""}`.trim();
       const cur = productMap.get(name) ?? { name, qty: 0, revenue: 0 };
       cur.qty += it.quantity;
@@ -333,6 +385,18 @@ export async function overview(
       purchasesCount: allPurchases._count,
       purchasesAmount: allPurchases._sum.total ?? 0,
     },
+    range: {
+      salesCount: rangeSales._count,
+      revenue: rangeSales._sum.total ?? 0,
+      profit: profitRange,
+      purchasesCount: rangePurchases._count,
+      purchasesAmount: rangePurchases._sum.total ?? 0,
+      expensesAmount: rangeExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
+      expensesCount: rangeExpenses.length,
+      cashIn: rangeCashIn,
+      cashOut: rangeCashOut,
+    },
+    cashOnHand,
     stock: { ...stockByCondition, total: stockByCondition.NEW + stockByCondition.USED },
     stockValue: {
       cost: canViewCosts ? Math.round(costValue) : null,
@@ -348,6 +412,7 @@ export async function overview(
     credit: { receivables, payables },
     topSellers,
     soldByCategory: { PHONE: phoneSold, ACCESSORY: accessorySold },
+    soldBySubCategory: Object.fromEntries(accessorySubCategoryMap),
     lowStock: lowStockProducts,
     salesTrend: days,
     topProducts,

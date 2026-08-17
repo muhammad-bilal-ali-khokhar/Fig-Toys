@@ -74,7 +74,7 @@ export function ReservationModifyPicker({
           onChange={setSelectedId}
           placeholder={loading ? "Loading…" : "Select a reservation…"}
           searchable
-          defaultFilter="RES-"
+          searchPrefix="RES-"
         />
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="grey" onClick={onClose}>

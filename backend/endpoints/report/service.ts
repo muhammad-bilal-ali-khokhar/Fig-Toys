@@ -169,7 +169,13 @@ export async function salesReport(r: Range) {
           select: {
             brand: { select: { name: true } },
             model: true,
-            category: { select: { name: true, type: true } },
+            category: {
+              select: {
+                name: true,
+                type: true,
+                parent: { select: { name: true } },
+              },
+            },
           },
         },
       },
@@ -188,6 +194,7 @@ export async function salesReport(r: Range) {
 
   const brandMap = new Map<string, { name: string; count: number; revenue: number }>();
   const catMap = new Map<string, { name: string; type: string; count: number; revenue: number }>();
+  const subCatMap = new Map<string, { name: string; parentName: string; type: string; count: number; revenue: number }>();
   const condMap = new Map<string, { condition: string; count: number; revenue: number; items: number }>();
 
   for (const it of items) {
@@ -197,11 +204,20 @@ export async function salesReport(r: Range) {
     curB.revenue += n(it.total);
     brandMap.set(brand, curB);
 
-    const cat = it.product.category.name;
-    const curC = catMap.get(cat) ?? { name: cat, type: it.product.category.type, count: 0, revenue: 0 };
+    const parentName = it.product.category.parent?.name ?? it.product.category.name;
+    const catType = it.product.category.type;
+    const curC = catMap.get(parentName) ?? { name: parentName, type: catType, count: 0, revenue: 0 };
     curC.count += 1;
     curC.revenue += n(it.total);
-    catMap.set(cat, curC);
+    catMap.set(parentName, curC);
+
+    if (it.product.category.parent) {
+      const subKey = `${parentName} > ${it.product.category.name}`;
+      const curS = subCatMap.get(subKey) ?? { name: it.product.category.name, parentName, type: catType, count: 0, revenue: 0 };
+      curS.count += 1;
+      curS.revenue += n(it.total);
+      subCatMap.set(subKey, curS);
+    }
 
     const cond = it.unit?.condition ?? "ACCESSORY";
     const curD = condMap.get(cond) ?? { condition: cond, count: 0, revenue: 0, items: 0 };
@@ -237,6 +253,7 @@ export async function salesReport(r: Range) {
     byCondition: [...condMap.values()].sort((a, b) => b.revenue - a.revenue),
     byBrand: [...brandMap.values()].sort((a, b) => b.revenue - a.revenue),
     byCategory: [...catMap.values()].sort((a, b) => b.revenue - a.revenue),
+    bySubCategory: [...subCatMap.values()].sort((a, b) => b.revenue - a.revenue),
     byPayment: payments
       .map((p) => ({ method: p.method, amount: n(p._sum.amount), count: p._count }))
       .sort((a, b) => b.amount - a.amount),
@@ -472,7 +489,12 @@ export async function stockReport(permissions: readonly Permission[]) {
           brand: { select: { name: true } },
           model: true,
           sellPrice: true,
-          category: { select: { name: true } },
+          category: {
+            select: {
+              name: true,
+              parent: { select: { name: true } },
+            },
+          },
         },
       },
     },
@@ -480,6 +502,7 @@ export async function stockReport(permissions: readonly Permission[]) {
 
   const byCondition = new Map<string, { condition: string; units: number; costValue: number; retailValue: number }>();
   const byCategory = new Map<string, { name: string; units: number; costValue: number; retailValue: number }>();
+  const bySubCategory = new Map<string, { name: string; parentName: string; units: number; costValue: number; retailValue: number }>();
   const byBrand = new Map<string, { name: string; units: number; costValue: number; retailValue: number }>();
 
   for (const u of units) {
@@ -492,12 +515,21 @@ export async function stockReport(permissions: readonly Permission[]) {
     c.retailValue += retailV;
     byCondition.set(u.condition, c);
 
-    const cat = u.product.category.name;
-    const k = byCategory.get(cat) ?? { name: cat, units: 0, costValue: 0, retailValue: 0 };
+    const parentName = u.product.category.parent?.name ?? u.product.category.name;
+    const k = byCategory.get(parentName) ?? { name: parentName, units: 0, costValue: 0, retailValue: 0 };
     k.units += 1;
     k.costValue += costV;
     k.retailValue += retailV;
-    byCategory.set(cat, k);
+    byCategory.set(parentName, k);
+
+    if (u.product.category.parent) {
+      const subKey = `${parentName} > ${u.product.category.name}`;
+      const s = bySubCategory.get(subKey) ?? { name: u.product.category.name, parentName, units: 0, costValue: 0, retailValue: 0 };
+      s.units += 1;
+      s.costValue += costV;
+      s.retailValue += retailV;
+      bySubCategory.set(subKey, s);
+    }
 
     const brand = u.product.brand.name;
     const b = byBrand.get(brand) ?? { name: brand, units: 0, costValue: 0, retailValue: 0 };
@@ -516,6 +548,7 @@ export async function stockReport(permissions: readonly Permission[]) {
     retailValue: round(totalRetail),
     byCondition: [...byCondition.values()].sort((a, b) => b.costValue - a.costValue),
     byCategory: [...byCategory.values()].sort((a, b) => b.costValue - a.costValue),
+    bySubCategory: [...bySubCategory.values()].sort((a, b) => b.costValue - a.costValue),
     byBrand: [...byBrand.values()].sort((a, b) => b.costValue - a.costValue),
   };
 }

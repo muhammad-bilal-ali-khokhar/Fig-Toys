@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -19,10 +19,8 @@ import {
   YAxis,
 } from "recharts";
 import {
+  AlertIcon,
   ChartPieIcon,
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
   InventoryIcon,
   PosIcon,
   ProductsIcon,
@@ -35,24 +33,22 @@ import {
   UserIcon,
   VoucherIcon,
   WalletIcon,
+  XIcon,
 } from "@/components/icons";
 import { useAuth } from "@/lib/auth-context";
-import type { ActivityLog, CompanyProfile, DashboardOverview, DashboardWidget, ReportRange } from "@/lib/api-types";
+import type { ActivityLog, CompanyProfile, DashboardOverview, ReportRange } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { canViewCosts } from "@/lib/roles";
 import { formatMoney, formatMoneyCompact } from "@/lib/money";
 import { pluralize } from "@/lib/pluralize";
 import { toISODate } from "@/lib/dates";
-import { apiRequest } from "@/lib/apiClient";
 import { CHART } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Sheet } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { PeriodPicker } from "@/components/reports/period-picker";
 import { ACTIVITY_ACTION_LABELS, TRANSACTION_TYPE_LABELS } from "@/lib/constants";
 import {
-  DASHBOARD_WIDGETS,
   DASHBOARD_WIDGET_SPANS,
   DEFAULT_DASHBOARD_WIDGETS,
   type DashboardWidgetKey,
@@ -109,6 +105,10 @@ const SHORTCUTS = [
   { href: "/contacts", label: "Add Customer", icon: UserIcon },
   { href: "/inventory", label: "Inventory", icon: InventoryIcon },
   { href: "/reports", label: "Reports", icon: ReportsIcon },
+  { href: "/sale-returns", label: "Sale Returns", icon: ReturnsIcon },
+  { href: "/reservations", label: "Reservations", icon: ReservationIcon },
+  { href: "/vouchers", label: "Vouchers", icon: VoucherIcon },
+  { href: "/expenses", label: "Expenses", icon: WalletIcon },
 ];
 
 function ChartTooltip({ active, payload, label, money, percent, noHeader, symbol = "Rs" }: {
@@ -202,6 +202,20 @@ function entityLabel(entity: string) {
   return entity.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
+function activityDetail(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const d = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof d.number === "string") return d.number;
+    if (typeof d.name === "string") return d.name;
+    if (typeof d.model === "string") return d.model;
+    if (typeof d.sku === "string") return d.sku;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function timeAgo(iso: string) {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
   if (mins < 1) return "Just now";
@@ -222,11 +236,7 @@ export default function DashboardPage() {
     from.setDate(from.getDate() - 13);
     return { from: toISODate(from), to: toISODate(to) };
   });
-  const [visibleKeys, setVisibleKeys] = useState<DashboardWidgetKey[]>(DEFAULT_DASHBOARD_WIDGETS);
-  const [customizeOpen, setCustomizeOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const widgetsLoadedRef = useRef(false);
-
+  const [lowStockAlertOpen, setLowStockAlertOpen] = useState(true);
   const params = new URLSearchParams();
   if (range.from) params.set("from", range.from);
   if (range.to) params.set("to", range.to);
@@ -235,20 +245,6 @@ export default function DashboardPage() {
   const { data, loading } = useApi<DashboardOverview>(overviewPath);
   const { data: activity } = useApi<ActivityLog[]>("/dashboard/activity");
   const { data: profile } = useApi<CompanyProfile>("/settings/company");
-  const { data: savedWidgets } = useApi<DashboardWidget[]>("/dashboard/widgets");
-
-  useEffect(() => {
-    if (!savedWidgets || widgetsLoadedRef.current) return;
-    widgetsLoadedRef.current = true;
-    if (savedWidgets.length > 0) {
-      const saved = savedWidgets
-        .slice()
-        .sort((a, b) => a.order - b.order)
-        .map((w) => w.key as DashboardWidgetKey)
-        .filter((k) => DASHBOARD_WIDGETS.some((w) => w.key === k));
-      if (saved.length > 0) setVisibleKeys(saved);
-    }
-  }, [savedWidgets]);
 
   const currencySymbol = profile?.currencySymbol ?? "Rs";
   const compact = profile?.compactPrices ?? true;
@@ -306,51 +302,10 @@ export default function DashboardPage() {
   const soldTotal = data
     ? data.soldByCategory.PHONE + data.soldByCategory.ACCESSORY
     : 0;
-  const netCash = data ? data.today.cashIn - data.today.cashOut : 0;
-
-  function toggleWidget(key: DashboardWidgetKey) {
-    setVisibleKeys((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-  }
-
-  function moveWidget(key: DashboardWidgetKey, dir: -1 | 1) {
-    setVisibleKeys((prev) => {
-      const i = prev.indexOf(key);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= prev.length) return prev;
-      const next = [...prev];
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
-  }
-
-  async function saveLayout() {
-    setSaving(true);
-    try {
-      await apiRequest("/dashboard/widgets", {
-        method: "PUT",
-        body: {
-          widgets: visibleKeys.map((key, order) => ({
-            key,
-            order,
-            layout: DASHBOARD_WIDGET_SPANS[key],
-            settings: "{}",
-          })),
-        },
-      });
-      toast("Dashboard layout saved", "success");
-      setCustomizeOpen(false);
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Couldn't save the layout", "error");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   function widgetBlock(key: DashboardWidgetKey, children: ReactNode) {
     return (
-      <div key={key} className={DASHBOARD_WIDGET_SPANS[key]}>
+      <div key={key} className={`${DASHBOARD_WIDGET_SPANS[key]} h-full`}>
         {children}
       </div>
     );
@@ -363,36 +318,36 @@ export default function DashboardPage() {
           "kpis",
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <KpiCard
-              label="Today's Sales"
-              value={loading || !data ? "…" : fmt(data.today.revenue)}
-              sub={loading || !data ? undefined : pluralize(data.today.salesCount, "invoice")}
+              label="Sales"
+              value={!data ? "…" : fmt(data.range.revenue)}
+              sub={!data ? undefined : pluralize(data.range.salesCount, "invoice")}
               tone="text-brand-600"
               icon={WalletIcon}
             />
             {viewCosts ? (
               <KpiCard
                 label="Net Profit"
-                value={loading || !data || data.today.profit === null ? "…" : fmt(data.today.profit)}
+                value={!data || data.range.profit === null ? "…" : fmt(data.range.profit)}
                 tone="text-warning"
                 icon={TrendingUpIcon}
               />
             ) : (
               <KpiCard
-                label="Purchases Today"
-                value={loading || !data ? "…" : fmt(data.today.purchasesAmount)}
+                label="Purchases"
+                value={!data ? "…" : fmt(data.range.purchasesAmount)}
                 icon={PurchasesIcon}
               />
             )}
             <KpiCard
               label="Units In Stock"
-              value={loading || !data ? "…" : String(data.stock.total)}
-              sub={loading || !data ? undefined : `${data.stock.NEW} new · ${data.stock.USED} used`}
+              value={!data ? "…" : String(data.stock.total)}
+              sub={!data ? undefined : `${data.stock.NEW} new · ${data.stock.USED} used`}
               icon={InventoryIcon}
             />
             <KpiCard
               label="Total Revenue"
-              value={loading || !data ? "…" : fmt(data.all.revenue)}
-              sub={loading || !data ? undefined : `${data.all.salesCount} sales`}
+              value={!data ? "…" : fmt(data.all.revenue)}
+              sub={!data ? undefined : `${data.all.salesCount} sales`}
               icon={ChartPieIcon}
             />
           </div>,
@@ -402,29 +357,36 @@ export default function DashboardPage() {
           "kpis2",
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
             <KpiCard
-              label="Expenses Today"
-              value={loading || !data ? "…" : fmt(data.today.expensesAmount)}
-              sub={loading || !data ? undefined : pluralize(data.today.expensesCount, "expense")}
+              label="Expenses"
+              value={!data ? "…" : fmt(data.range.expensesAmount)}
+              sub={!data ? undefined : pluralize(data.range.expensesCount, "expense")}
               icon={WalletIcon}
             />
             <KpiCard
-              label="Net Cash Today"
-              value={loading || !data ? "…" : fmt(netCash)}
+              label="Net Cash"
+              value={!data ? "…" : fmt(data.range.cashIn - data.range.cashOut)}
               sub={
-                loading || !data
+                !data
                   ? undefined
-                  : `${fmt(data.today.cashIn)} in · ${fmt(data.today.cashOut)} out`
+                  : `${fmt(data.range.cashIn)} in · ${fmt(data.range.cashOut)} out`
               }
               tone={
-                loading || !data || netCash >= 0 ? "text-success" : "text-error"
+                !data || data.range.cashIn - data.range.cashOut >= 0 ? "text-success" : "text-error"
               }
               icon={VoucherIcon}
             />
             <KpiCard
+              label="Cash on Hand"
+              value={!data ? "…" : fmt(data.cashOnHand)}
+              sub={!data ? undefined : "register balance"}
+              tone={!data || data.cashOnHand >= 0 ? "text-success" : "text-error"}
+              icon={RefundIcon}
+            />
+            <KpiCard
               label="Outstanding Credit"
-              value={loading || !data ? "…" : fmt(data.credit.receivables)}
+              value={!data ? "…" : fmt(data.credit.receivables)}
               sub={
-                loading || !data
+                !data
                   ? undefined
                   : data.credit.payables > 0
                     ? `Payables ${fmt(data.credit.payables)}`
@@ -434,9 +396,9 @@ export default function DashboardPage() {
             />
             <KpiCard
               label="Active Reservations"
-              value={loading || !data ? "…" : String(data.reservations.active)}
+              value={!data ? "…" : String(data.reservations.active)}
               sub={
-                loading || !data
+                !data
                   ? undefined
                   : `${pluralize(data.reservations.consignments, "consignment")} · ${fmt(data.reservations.advance)} advance`
               }
@@ -444,35 +406,21 @@ export default function DashboardPage() {
             />
             <KpiCard
               label="Inventory Value"
-              value={loading || !data ? "…" : fmt(data.stockValue.retail)}
+              value={!data ? "…" : fmt(data.stockValue.retail)}
               sub={
-                loading || !data || data.stockValue.cost === null
+                !data || data.stockValue.cost === null
                   ? undefined
                   : `${fmt(data.stockValue.cost)} cost`
               }
               icon={InventoryIcon}
-            />
-            <KpiCard
-              label="Returns Today"
-              value={
-                loading || !data
-                  ? "…"
-                  : String(data.today.returns.sale + data.today.returns.purchase)
-              }
-              sub={
-                loading || !data
-                  ? undefined
-                  : `${pluralize(data.today.returns.sale, "sale")} · ${pluralize(data.today.returns.purchase, "purchase")}`
-              }
-              icon={ReturnsIcon}
             />
           </div>,
         );
       case "salesTrend":
         return widgetBlock(
           "salesTrend",
-          <Card title="Sales trend" action={<span className="text-xs text-ink-400">{rangeLabel}</span>}>
-            <div className="h-64 px-2 pb-2">
+          <Card title="Sales trend" action={<span className="text-xs text-ink-400">{rangeLabel}</span>} className="flex h-full flex-col">
+            <div className="min-h-64 flex-1 px-2 pb-2">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke={CHART.grid} strokeDasharray="3 3" vertical={false} />
@@ -520,8 +468,8 @@ export default function DashboardPage() {
       case "payments":
         return widgetBlock(
           "payments",
-          <Card title="Payments by method">
-            <div className="h-64 px-2 pb-2">
+          <Card title="Payments by method" className="flex h-full flex-col">
+            <div className="min-h-64 flex-1 px-2 pb-2">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={paymentData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={78} paddingAngle={2}>
@@ -546,8 +494,8 @@ export default function DashboardPage() {
       case "topProducts":
         return widgetBlock(
           "topProducts",
-          <Card title="Top products">
-            <div className="h-56 px-2 pb-2">
+          <Card title="Top products" className="flex h-full flex-col">
+            <div className="min-h-56 flex-1 px-2 pb-2">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={(data?.topProducts ?? []).map((p) => ({ name: p.name, Units: p.qty }))} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
                   <CartesianGrid stroke={CHART.grid} strokeDasharray="3 3" horizontal={false} />
@@ -563,8 +511,8 @@ export default function DashboardPage() {
       case "newUsed":
         return widgetBlock(
           "newUsed",
-          <Card title="Sold · New vs Used">
-            <div className="h-40 px-2 pb-2">
+          <Card title="Sold · New vs Used" className="flex h-full flex-col">
+            <div className="min-h-40 flex-1 px-2 pb-2">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={newUsedData} dataKey="value" nameKey="name" innerRadius={44} outerRadius={66} paddingAngle={2}>
@@ -589,22 +537,31 @@ export default function DashboardPage() {
       case "recentActivity":
         return widgetBlock(
           "recentActivity",
-          <Card title="Recent activity">
+          <Card title="Recent activity" className="flex h-full flex-col">
             {!activity ? (
-              <p className="px-5 pb-5 text-sm text-ink-400">Loading…</p>
+              <div className="flex-1 space-y-3 px-5 pb-5">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
             ) : activity.length > 0 ? (
-              <ul className="">
-                {activity.slice(0, 6).map((a) => (
-                  <li key={a.id} className="flex items-center justify-between px-5 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-ink-900">{actionLabel(a.action)}</p>
-                      <p className="text-xs text-ink-500">
-                        {a.user.name} · {entityLabel(a.entity)}
-                      </p>
-                    </div>
-                    <p className="shrink-0 pl-3 text-xs text-ink-400">{timeAgo(a.createdAt)}</p>
-                  </li>
-                ))}
+              <ul className="flex-1">
+                {activity.slice(0, 6).map((a) => {
+                  const detail = activityDetail(a.details);
+                  return (
+                    <li key={a.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-ink-900">{actionLabel(a.action)}</p>
+                        <p className="truncate text-xs text-ink-500">
+                          {a.user.name} · {entityLabel(a.entity)}
+                          {detail ? ` · ${detail}` : ""}
+                        </p>
+                      </div>
+                      <p className="shrink-0 pl-3 text-xs text-ink-400">{timeAgo(a.createdAt)}</p>
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <p className="px-5 pb-5 text-sm text-ink-400">No recent activity.</p>
@@ -614,16 +571,21 @@ export default function DashboardPage() {
       case "stockPta":
         return widgetBlock(
           "stockPta",
-          <Card title="Stock · PTA status">
-            {loading || !data ? (
-              <p className="px-5 pb-5 text-sm text-ink-400">Loading…</p>
+          <Card title="Stock · PTA status" className="flex h-full flex-col">
+            {!data ? (
+              <div className="flex-1 space-y-3 px-5 pb-5">
+                <Skeleton className="h-3 w-full rounded-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
             ) : carrierTotal > 0 ? (
-              <div className="px-5 pb-5 pt-1">
+              <div className="flex-1 px-5 pb-5 pt-1">
                 <div className="flex h-3 overflow-hidden rounded-full bg-ink-100">
                   {carrierData.map((c) => (
                     <div
                       key={c.name}
-                      style={{ width: `${(c.value / carrierTotal) * 100}%` }}
+                      style={{ width: `${(c.value / carrierTotal) * 100}%`, backgroundColor: c.color }}
                       className="h-full"
                       title={c.name}
                     />
@@ -649,11 +611,15 @@ export default function DashboardPage() {
       case "topSellers":
         return widgetBlock(
           "topSellers",
-          <Card title="Top sellers">
-            {loading || !data ? (
-              <p className="px-5 pb-5 text-sm text-ink-400">Loading…</p>
+          <Card title="Top sellers" className="flex h-full flex-col">
+            {!data ? (
+              <div className="flex-1 space-y-3 px-5 pb-5">
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+              </div>
             ) : data.topSellers.length > 0 ? (
-              <ul className="px-5">
+              <ul className="flex-1 px-5">
                 {data.topSellers.map((s, i) => (
                   <li key={s.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                     <span className="flex min-w-0 items-center gap-2.5 text-ink-700">
@@ -662,12 +628,15 @@ export default function DashboardPage() {
                       </span>
                       <span className="truncate">{s.name}</span>
                     </span>
-                    <span className="shrink-0 font-semibold text-ink-900">{fmt(s.revenue)}</span>
+                    <span className="shrink-0 text-right">
+                      <span className="block font-semibold text-ink-900">{fmt(s.revenue)}</span>
+                      <span className="block text-xs text-ink-400">{pluralize(s.count, "sale")}</span>
+                    </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="px-5 pb-5 text-sm text-ink-400">No sales in this period.</p>
+              <p className="px-5 pb-5 text-sm text-ink-400">No sales in {rangeLabel.toLowerCase()}.</p>
             )}
           </Card>,
         );
@@ -677,12 +646,16 @@ export default function DashboardPage() {
           <Card
             title="Sold · Phones vs Accessories"
             action={<span className="text-xs text-ink-400">{rangeLabel}</span>}
+            className="flex h-full flex-col"
           >
-            {loading || !data ? (
-              <p className="px-5 pb-5 text-sm text-ink-400">Loading…</p>
+            {!data ? (
+              <div className="flex-1 px-5 pb-5">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="mt-3 h-3 w-full rounded-full" />
+              </div>
             ) : soldTotal > 0 ? (
               <>
-                <div className="grid grid-cols-2 gap-4 px-5 pb-3">
+                <div className="grid flex-1 grid-cols-2 gap-4 px-5 pb-3">
                   <div className="rounded-3xl bg-brand-50 p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Phones</p>
                     <p className="mt-1 text-2xl font-bold text-ink-900">{data.soldByCategory.PHONE}</p>
@@ -714,7 +687,7 @@ export default function DashboardPage() {
                 </div>
               </>
             ) : (
-              <p className="px-5 pb-5 text-sm text-ink-400">No units sold yet.</p>
+              <p className="px-5 pb-5 text-sm text-ink-400">No units sold in {rangeLabel.toLowerCase()}.</p>
             )}
           </Card>,
         );
@@ -722,8 +695,8 @@ export default function DashboardPage() {
         return widgetBlock(
           "lowStock",
           data && data.lowStock.length > 0 ? (
-            <Card title="Low stock">
-              <ul className=" px-5">
+            <Card title="Low stock" className="flex h-full flex-col">
+              <ul className="flex-1 px-5">
                 {data.lowStock.map((p) => (
                   <li key={p.id} className="flex items-center justify-between py-2.5 text-sm">
                     <span className="text-ink-700">
@@ -737,9 +710,8 @@ export default function DashboardPage() {
           ) : null,
         );
       case "recentTransactions": {
-        const lowStockVisible = visibleKeys.includes("lowStock");
         return (
-          <div key={key} className={lowStockVisible ? "lg:col-span-2" : "lg:col-span-3"}>
+          <div key={key} className="h-full lg:col-span-2">
             <Card
               title="Recent transactions"
               action={
@@ -747,11 +719,17 @@ export default function DashboardPage() {
                   View all
                 </Link>
               }
+              className="flex h-full flex-col"
             >
               {loading ? (
-                <p className="px-5 pb-5 text-sm text-ink-400">Loading…</p>
+                <div className="flex-1 space-y-3 px-5 pb-5">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
               ) : data && data.recent.length > 0 ? (
-                <ul className="">
+                <ul className="flex-1">
                   {data.recent.map((t) => (
                     <li key={t.id} className="flex items-center justify-between px-5 py-3">
                       <div>
@@ -779,110 +757,52 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-ink-500">Welcome back, {user?.name}.</p>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="rounded-3xl bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-ink-500">Welcome back, {user?.name}.</p>
           <PeriodPicker value={range} onChange={setRange} />
-          <Button variant="grey" onClick={() => setCustomizeOpen(true)}>
-            Customize
-          </Button>
+        </div>
+        <div className="mt-4 grid grid-cols-5 gap-1 min-[900px]:grid-cols-10">
+          {SHORTCUTS.map((s) => (
+            <Link
+              key={s.href}
+              href={s.href}
+              className="flex flex-col items-center gap-1.5 rounded-2xl px-1 py-2 transition hover:bg-brand-50"
+            >
+              <span className="rounded-xl bg-brand-50 p-1.5 text-brand-600">
+                <s.icon className="h-5 w-5" />
+              </span>
+              <span className="text-[11px] font-medium leading-tight text-ink-700">{s.label}</span>
+            </Link>
+          ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-        {SHORTCUTS.map((s) => (
-          <Link
-            key={s.href}
-            href={s.href}
-            className="flex flex-col items-center gap-2 rounded-3xl bg-white px-3 py-4 text-center transition hover:bg-brand-50"
-          >
-            <span className="rounded-xl bg-brand-50 p-2 text-brand-600">
-              <s.icon className="h-5 w-5" />
+      {data && data.lowStock.length > 0 && lowStockAlertOpen ? (
+        <div className="flex items-center justify-between gap-3 rounded-3xl bg-warning/10 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="shrink-0 rounded-xl bg-warning/15 p-1.5 text-warning">
+              <AlertIcon className="h-4 w-4" />
             </span>
-            <span className="text-xs font-medium text-ink-700">{s.label}</span>
-          </Link>
-        ))}
-      </div>
+            <p className="text-sm text-ink-700">
+              {data.lowStock.length} product{data.lowStock.length > 1 ? "s" : ""} at or below stock
+              threshold. Review the low-stock list below.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLowStockAlertOpen(false)}
+            className="shrink-0 rounded-lg p-1 text-ink-400 transition hover:bg-ink-100 hover:text-ink-700"
+            aria-label="Dismiss"
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {visibleKeys.map((key) => renderWidget(key))}
+        {DEFAULT_DASHBOARD_WIDGETS.map((key) => renderWidget(key))}
       </div>
-
-      <Sheet
-        open={customizeOpen}
-        title="Customize dashboard"
-        width="max-w-lg"
-        onClose={() => setCustomizeOpen(false)}
-      >
-        <p className="mb-3 text-xs text-ink-400">
-          Show, hide and reorder widgets. Changes apply to your account only.
-        </p>
-        <div className="max-h-[50vh] space-y-1.5 overflow-y-auto overscroll-none">
-          {DASHBOARD_WIDGETS.map((w) => {
-            const idx = visibleKeys.indexOf(w.key);
-            const visible = idx >= 0;
-            return (
-              <div
-                key={w.key}
-                className={`flex items-center justify-between gap-3 rounded-2xl p-2.5 ${visible ? "bg-ink-50" : ""}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => toggleWidget(w.key)}
-                  className="flex min-w-0 flex-1 items-start gap-2.5 text-left"
-                >
-                  <span
-                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                      visible ? "border-brand-600 bg-brand-600 text-white" : "border-ink-300 bg-white"
-                    }`}
-                  >
-                    {visible && <CheckIcon className="h-3 w-3" />}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-ink-900">{w.label}</span>
-                    <span className="block text-xs text-ink-400">{w.description}</span>
-                  </span>
-                </button>
-                {visible && (
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      aria-label="Move up"
-                      disabled={idx === 0}
-                      onClick={() => moveWidget(w.key, -1)}
-                      className="rounded-lg p-1.5 text-ink-500 transition hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30"
-                    >
-                      <ChevronUpIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Move down"
-                      disabled={idx === visibleKeys.length - 1}
-                      onClick={() => moveWidget(w.key, 1)}
-                      className="rounded-lg p-1.5 text-ink-500 transition hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30"
-                    >
-                      <ChevronDownIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-4 flex items-center justify-between gap-2">
-          <Button variant="grey" onClick={() => setVisibleKeys([...DEFAULT_DASHBOARD_WIDGETS])}>
-            Reset
-          </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="grey" onClick={() => setCustomizeOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void saveLayout()} disabled={saving}>
-              {saving ? "Saving…" : "Save layout"}
-            </Button>
-          </div>
-        </div>
-      </Sheet>
     </div>
   );
 }

@@ -34,7 +34,7 @@ export async function listUnits({
     where,
     orderBy: [{ status: "asc" }, { acquiredAt: "desc" }],
     include: {
-      product: { select: { id: true, brand: { select: { name: true } }, model: true, storage: true, screenSize: true, color: { select: { name: true } }, category: { select: { id: true, name: true } }, sellPrice: true, retailPrice: true } },
+      product: { select: { id: true, brand: { select: { name: true } }, model: true, storage: true, screenSize: true, color: { select: { name: true } }, category: { select: { id: true, name: true, parent: { select: { name: true } } } }, sellPrice: true, retailPrice: true } },
       items: {
         select: {
           transactionId: true,
@@ -72,6 +72,7 @@ export async function listUnits({
         brand: u.product.brand.name,
         color: u.product.color?.name ?? null,
         category: u.product.category?.name ?? null,
+        parentCategory: u.product.category?.parent?.name ?? null,
       },
       purchase: purchaseItem
         ? {

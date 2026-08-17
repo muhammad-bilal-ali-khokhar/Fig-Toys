@@ -18,6 +18,7 @@ export type ProductFormValues = {
   screenSize: string;
   colorId: string;
   categoryId: string;
+  subcategoryId: string;
   sellPrice: string;
   costPrice: string;
   retailPrice: string;
@@ -32,11 +33,21 @@ export const EMPTY_PRODUCT_FORM: ProductFormValues = {
   screenSize: "",
   colorId: "",
   categoryId: "",
+  subcategoryId: "",
   sellPrice: "",
   costPrice: "",
   retailPrice: "",
   image: "",
 };
+
+function getSubcategories(categories: Category[], parentId: string): Category[] {
+  const parent = categories.find((c) => c.id === parentId);
+  return parent?.children ?? [];
+}
+
+function findParentForSubcategory(categories: Category[], subcategoryId: string): Category | undefined {
+  return categories.find((c) => c.children?.some((ch) => ch.id === subcategoryId));
+}
 
 export function ProductForm({
   initial,
@@ -57,21 +68,43 @@ export function ProductForm({
   onSave: (values: ProductFormValues) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState<ProductFormValues>(initial);
+  const [form, setForm] = useState<ProductFormValues>(() => {
+    if (initial.subcategoryId && !initial.categoryId) {
+      const parent = findParentForSubcategory(categories, initial.subcategoryId);
+      if (parent) return { ...initial, categoryId: parent.id };
+    }
+    return initial;
+  });
   const dirty = useDirtyForm(initial);
 
   function update(next: Partial<ProductFormValues>) {
     const updated = { ...form, ...next };
+    if (next.categoryId !== undefined) {
+      const subs = getSubcategories(categories, next.categoryId);
+      if (subs.length > 0) {
+        if (!subs.some((s) => s.id === updated.subcategoryId)) {
+          updated.subcategoryId = "";
+        }
+      } else {
+        updated.subcategoryId = "";
+      }
+    }
     setForm(updated);
     dirty.markDirty(updated);
   }
+
+  const parentCategories = categories.filter((c) => !c.parentId);
+  const selectedParent = parentCategories.find((c) => c.id === form.categoryId);
+  const subcategories = selectedParent?.children?.filter((c) => c.active !== false) ?? [];
+  const hasSubcategories = subcategories.length > 0;
+  const effectiveCategoryId = hasSubcategories && form.subcategoryId ? form.subcategoryId : form.categoryId;
 
   return (
     <form
       id="product-form"
       onSubmit={(e) => {
         e.preventDefault();
-        onSave(form);
+        onSave({ ...form, categoryId: effectiveCategoryId });
       }}
     >
       <div className="space-y-3">
@@ -141,13 +174,24 @@ export function ProductForm({
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
+          <Dropdown
+            value={form.categoryId}
+            options={parentCategories.map((c) => ({ value: c.id, label: c.name }))}
+            onChange={(value) => update({ categoryId: value })}
+            placeholder="Select…"
+          />
+        </div>
+        {hasSubcategories && (
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Subcategory</label>
             <Dropdown
-              value={form.categoryId}
-              options={categories.map((c) => ({ value: c.id, label: c.name }))}
-              onChange={(value) => update({ categoryId: value })}
+              value={form.subcategoryId}
+              options={[{ value: "", label: "None" }, ...subcategories.map((c) => ({ value: c.id, label: c.name }))]}
+              onChange={(value) => update({ subcategoryId: value })}
               placeholder="Select…"
             />
-        </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-500">Sell price (PKR)</label>
