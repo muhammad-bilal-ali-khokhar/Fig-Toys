@@ -1,8 +1,14 @@
 # Changelog
 
-All notable changes are documented here, based on the actual git commit history.
+All notable changes are documented here. Released sections are curated by hand
+for clarity; `scripts/changelog.sh` prepends the newest version's section on
+each release without overwriting earlier notes.
 
-## v0.1.42
+## v0.1.43
+
+- Released on: 2026-08-17
+
+- feat: remove content-update system, clean up update UI, install to C:\Wavlon Studio\Fig POS, clean changelog
 
 - Released on: 2026-08-17
 
