@@ -3,6 +3,7 @@ export * from "./audit";
 export * from "./auth";
 export * from "./brand";
 export * from "./charts";
+export * from "./content-update";
 export * from "./currencies";
 export * from "./dashboard";
 export * from "./expense";

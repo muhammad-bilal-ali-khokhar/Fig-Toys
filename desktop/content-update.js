@@ -89,10 +89,33 @@ function sha256File(file) {
   });
 }
 
-// Fetch the remote manifest, download production.zip if a newer content
-// version is available, verify it, and atomically swap it into place.
-// Returns the applied contentVersion, or null when nothing changed / failed.
-async function checkContentUpdate(onStatus) {
+// Fetch the remote manifest and report whether a newer content version is
+// available — WITHOUT applying it. Returns { available, contentVersion, applied }
+// or null when the check could not run / no network.
+async function checkContentUpdate() {
+  if (process.platform !== "win32") return null;
+  const log = require("./logging");
+  let manifest;
+  try {
+    manifest = await got.get(MANIFEST_URL).json();
+  } catch (err) {
+    log.write(`content: manifest fetch skipped (${err && err.message ? err.message : "no network"}).`);
+    return null;
+  }
+  if (!manifest || !manifest.contentVersion) return null;
+
+  const applied = readAppliedVersion();
+  return {
+    available: applied !== manifest.contentVersion,
+    contentVersion: manifest.contentVersion,
+    applied,
+  };
+}
+
+// Download, verify, and apply the content update. Returns the applied
+// contentVersion, or null when nothing changed / failed. Callers should run
+// checkContentUpdate first and only apply when available.
+async function applyContentUpdate(onStatus) {
   if (process.platform !== "win32") return null;
   const log = require("./logging");
   let manifest;
@@ -108,7 +131,7 @@ async function checkContentUpdate(onStatus) {
   if (applied === manifest.contentVersion) return null;
 
   onStatus && onStatus("Downloading app update…");
-  log.write(`content: update available (${manifest.contentVersion}).`);
+  log.write(`content: applying ${manifest.contentVersion}.`);
 
   const staging = stagingDir();
   const final = finalDir();
@@ -143,4 +166,4 @@ async function checkContentUpdate(onStatus) {
   }
 }
 
-module.exports = { init, checkContentUpdate, appliedContentRoot, readAppliedVersion };
+module.exports = { init, checkContentUpdate, applyContentUpdate, appliedContentRoot, readAppliedVersion };

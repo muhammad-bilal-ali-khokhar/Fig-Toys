@@ -294,6 +294,28 @@ function userDataDir() {
 
 contentUpdate.init(userDataDir);
 
+// After the app is up, quietly ask whether a content (backend/frontend) update
+// is available and tell the renderer so it can offer Update now / Update later.
+// Never applies anything on its own.
+let contentCheckScheduled = false;
+function scheduleContentCheck() {
+  if (contentCheckScheduled) return;
+  contentCheckScheduled = true;
+  setTimeout(async () => {
+    try {
+      const info = await contentUpdate.checkContentUpdate();
+      if (!info) return;
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) {
+          win.webContents.send("content:available", info);
+        }
+      }
+    } catch (err) {
+      logging.error("content: availability check failed " + (err && err.stack ? err.stack : err));
+    }
+  }, 4000);
+}
+
 function runtimeFile() {
   return path.join(userDataDir(), "fig-runtime.json");
 }
@@ -849,6 +871,33 @@ if (!app.requestSingleInstanceLock()) {
     return true;
   });
 
+  // Content (backend/frontend) update approval flow. check reports availability
+  // without applying; apply downloads + swaps and relaunches the app.
+  ipcMain.handle("content:check", async () => {
+    try {
+      return await contentUpdate.checkContentUpdate();
+    } catch (err) {
+      logging.error("content: check failed " + (err && err.stack ? err.stack : err));
+      return null;
+    }
+  });
+
+  ipcMain.handle("content:apply", async () => {
+    try {
+      const applied = await contentUpdate.applyContentUpdate();
+      if (applied) {
+        setTimeout(() => {
+          app.relaunch();
+          app.exit(0);
+        }, 800);
+      }
+      return applied;
+    } catch (err) {
+      logging.error("content: apply failed " + (err && err.stack ? err.stack : err));
+      return null;
+    }
+  });
+
   ipcMain.handle("about:open", () => openAboutWindow());
 
   ipcMain.handle("about:close", () => {
@@ -928,15 +977,12 @@ if (!app.requestSingleInstanceLock()) {
         return;
       }
 
-      // Content self-update (backend/frontend bundle) — applied in the user-data
-      // dir, no reinstall. Runs before the servers spawn so this launch uses the
-      // updated copy. Falls back silently on no network.
+      // Content self-update (backend/frontend bundle). Check whether a newer
+      // build is available but do NOT apply automatically — the UI shows an
+      // approval prompt and the owner decides to update now or later. Applied
+      // updates live in the user-data dir, no reinstall.
       if (process.platform === "win32" && app.isPackaged && !process.execPath.includes("win-unpacked")) {
-        try {
-          await contentUpdate.checkContentUpdate(setStatus);
-        } catch (err) {
-          logging.error("Content update check failed: " + (err && err.stack ? err.stack : err));
-        }
+        scheduleContentCheck();
       }
 
       setStatus("Starting backend server…");
