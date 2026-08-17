@@ -50,8 +50,7 @@ jobs:
 
       - name: Commit + tag
         run: |
-          rm -f .release-notes.md
-          git add backend/package.json frontend/package.json desktop/package.json CHANGELOG.md
+          git add backend/package.json frontend/package.json desktop/package.json CHANGELOG.md .release-notes.md
           git commit -m "v${{ steps.version.outputs.version }}"
           git tag "v${{ steps.version.outputs.version }}"
           git push origin main --tags
@@ -144,9 +143,6 @@ jobs:
             desktop/release/*.exe.blockmap
             desktop/release/*-no-install.zip
           if-no-files-found: error
-
-      - name: Generate changelog release notes
-        run: ./scripts/changelog.sh "${{ needs.release.outputs.version }}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

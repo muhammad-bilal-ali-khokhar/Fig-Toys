@@ -4,18 +4,27 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.23
+## v0.1.23 (2026-08-17)
 
-- Released on: 2026-08-17
+### Installer download fix
+- **Fixed installer download 404.** `productName` ("Fig POS") contains a space;
+  in the artifact name electron-builder wrote the space as a period in the actual
+  file (`Fig.POS-Setup`) but a hyphen in `latest.yml` (`Fig-POS-Setup`), so the
+  updater's download URL 404'd. The artifact name is now explicit and space-free,
+  so the file and `latest.yml` always match.
+- **Fixed changelog release notes** that showed "No notable changes" on every
+  release (the build job regenerated notes after tagging, producing an empty
+  range).
 
-- fix: installer download 404 due to space in productName artifact name
-- fix: changelog release notes showed 'No notable changes' on every release
+## v0.1.22 (2026-08-17)
 
-- Released on: 2026-08-17
+### Development tooling
+- **Re-enabled developer tools in dev mode.** Only shipped (packaged) builds
+  harden shortcuts/devtools now. In dev mode the View menu exposes Force Reload
+  and Toggle DevTools, and Cmd/Ctrl+Shift+I works, so the frontend can be
+  inspected while developing.
 
-- feat: re-enable devtools in dev mode via View menu + shortcuts
-- docs: detailed curated changelog for all versions
-- docs: detailed curated changelog + prepend-only generator
+## v0.1.21 (2026-08-17)
 
 ### Update approval & installer polish
 - **Content update approval flow.** Content updates (backend/frontend bundle)
