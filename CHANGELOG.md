@@ -4,9 +4,14 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.16
+## v0.1.17
 
 - Released on: 2026-08-17
+
+- fix: restrict OTA updates to Windows platform
+- feat: enable OTA update checks in dev/unpacked builds
+
+## v0.1.16
 
 - feat: polish NSIS installer branding + fix publish repo
 - refactor: remove standalone updater, polish About window update UI
