@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.35
+## v0.1.36
+
+- Released on: 2026-08-17
+
+- fix: use  guard in customInit per NSIS docs
 
 - Released on: 2026-08-17
 
