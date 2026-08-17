@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.19
+## v0.1.20
 
 - Released on: 2026-08-17
+
+- fix: pin got to ^11 and sync desktop lockfile
+
+## v0.1.19
 
 - feat: content self-update for backend/frontend without reinstall
 
