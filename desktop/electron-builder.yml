@@ -52,7 +52,6 @@ win:
 nsis:
   oneClick: false
   perMachine: false
-  installMode: perUser
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: Fig POS
