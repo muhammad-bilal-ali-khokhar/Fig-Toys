@@ -10,6 +10,7 @@ files:
   - preload.js
   - logging.js
   - report.js
+  - content-update.js
   - loading.html
   - about.html
   - icon.png

@@ -8,6 +8,7 @@ const http = require("node:http");
 const path = require("node:path");
 const logging = require("./logging");
 const report = require("./report");
+const contentUpdate = require("./content-update");
 const { autoUpdater } = require("electron-updater");
 
 // Allow update checks to run even in unpacked/dev builds (needs a
@@ -29,13 +30,22 @@ const SRC_BACKEND = path.join(ROOT, "backend");
 const SRC_FRONTEND = path.join(ROOT, "frontend");
 
 // Production bundles live in <repo>/production (or <resources>/production in a
-// packaged app). Fall back to the source tree for development.
+// packaged app). A content update may have placed a newer copy in the user-data
+// dir, which is preferred when present. Fall back to the source tree for
+// development.
+function userContentDir() {
+  return contentUpdate.appliedContentRoot();
+}
 function backendDir() {
+  const u = userContentDir();
+  if (u && fs.existsSync(path.join(u, "backend", "server.cjs"))) return path.join(u, "backend");
   return fs.existsSync(path.join(PROD_BACKEND, "server.cjs"))
     ? PROD_BACKEND
     : SRC_BACKEND;
 }
 function frontendDir() {
+  const u = userContentDir();
+  if (u && fs.existsSync(path.join(u, "frontend", "server.js"))) return path.join(u, "frontend");
   return fs.existsSync(path.join(PROD_FRONTEND, "server.js"))
     ? PROD_FRONTEND
     : SRC_FRONTEND;
@@ -43,6 +53,8 @@ function frontendDir() {
 // The bundled server.cjs, setup.cjs and schema.sql share one folder — the prod
 // bundle root in a packaged build, or the backend source tree in development.
 function bundleDir() {
+  const u = userContentDir();
+  if (u && fs.existsSync(path.join(u, "backend", "server.cjs"))) return path.join(u, "backend");
   return backendDir() === PROD_BACKEND
     ? PROD_BACKEND
     : SRC_BACKEND;
@@ -279,6 +291,8 @@ process.on("unhandledRejection", (reason) => {
 function userDataDir() {
   return app.getPath("userData");
 }
+
+contentUpdate.init(userDataDir);
 
 function runtimeFile() {
   return path.join(userDataDir(), "fig-runtime.json");
@@ -913,6 +927,18 @@ if (!app.requestSingleInstanceLock()) {
         app.exit(1);
         return;
       }
+
+      // Content self-update (backend/frontend bundle) — applied in the user-data
+      // dir, no reinstall. Runs before the servers spawn so this launch uses the
+      // updated copy. Falls back silently on no network.
+      if (process.platform === "win32" && app.isPackaged && !process.execPath.includes("win-unpacked")) {
+        try {
+          await contentUpdate.checkContentUpdate(setStatus);
+        } catch (err) {
+          logging.error("Content update check failed: " + (err && err.stack ? err.stack : err));
+        }
+      }
+
       setStatus("Starting backend server…");
       ensureBackendData();
       track(spawnBackend());
