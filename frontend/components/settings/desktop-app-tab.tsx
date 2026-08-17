@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
 import { UpdaterIcon } from "@/components/icons";
+import { ReleaseNotes } from "@/components/ui/release-notes";
 import { useToast } from "@/components/ui/toast";
 
 type RuntimeConfig = { mode: "local" | "hosted"; hostedUrl: string };
@@ -188,9 +189,9 @@ export function DesktopAppTab() {
               What's new in {update.version}
             </p>
             {update.releaseNotes ? (
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-ink-600">
-                {update.releaseNotes}
-              </pre>
+              <div className="max-h-40 overflow-auto rounded-2xl bg-ink-50 p-3">
+                <ReleaseNotes notes={update.releaseNotes} />
+              </div>
             ) : (
               <p className="text-xs text-ink-400">No release notes provided.</p>
             )}
