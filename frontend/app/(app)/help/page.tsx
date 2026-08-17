@@ -696,7 +696,7 @@ export default function HelpPage() {
               </Body>
               <Heading>Desktop app</Heading>
               <Body>
-                Manage the desktop app itself, including checking for updates and crash reporting.
+                Manage the desktop app itself, including crash reporting and diagnostics.
               </Body>
               <Note>
                 Many Settings sections require Admin access. If a section is missing, your role may not allow you to
@@ -951,8 +951,7 @@ export default function HelpPage() {
               </Body>
               <Heading>Updates</Heading>
               <Body>
-                Fig POS checks for updates automatically and can install new versions when they are available. You can
-                view the latest release and trigger an update from the Desktop app section of Settings.
+                Fig POS updates are installed by downloading the latest installer from the releases page.
               </Body>
             </Group>
           </>

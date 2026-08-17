@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { brandOf, type CompanyProfile, type Contact, type ReservationDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
@@ -64,6 +65,7 @@ function ReservationsToolbar() {
 
 export default function ReservationsPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const { data: contacts, refetch: refetchContacts } = useApi<Contact[]>("/contact");
   const { data: profile } = useApi<CompanyProfile>("/settings/company");
   const [q, setQ] = useState("");
@@ -78,6 +80,22 @@ export default function ReservationsPage() {
   const [reservation, setReservation] = useState<ReservationDetail | null>(null);
   const [reserveNo, setReserveNo] = useState("RES-0001");
   const [flow, setFlow] = useState<"RESERVATION" | "CONSIGNMENT" | null>(null);
+  const [modifyId, setModifyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const modifyParam = searchParams.get("modify");
+    if (!modifyParam) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const txn = await apiRequest<ReservationDetail>(`/reservation/${modifyParam}`);
+        if (!cancelled) loadForModify(txn);
+      } catch {
+        if (!cancelled) toast("Could not load the reservation to modify", "error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   function pickFlow(f: "RESERVATION" | "CONSIGNMENT") {
     setAdvance("");
@@ -271,6 +289,25 @@ export default function ReservationsPage() {
     setCart((prev) => prev.map((l) => (l.productId === productId ? { ...l, unitPrice } : l)));
   }
 
+  function loadForModify(txn: ReservationDetail) {
+    setModifyId(txn.id);
+    setContactId(txn.contact.id);
+    setFlow(txn.type);
+    setAdvance(parseFloat(txn.advance) > 0 ? String(parseFloat(txn.advance)) : "");
+    setCart(
+      txn.items.map((item) => ({
+        key: item.unit ? `unit-${item.unit.id}` : `prod-${item.product.id}`,
+        productId: item.product.id,
+        label: `${brandOf(item.product)} ${item.product.model} ${item.product.storage ?? ""}`.trim(),
+        imei: item.unit?.imei ?? null,
+        unitId: item.unit?.id ?? null,
+        unitPrice: parseFloat(item.unitPrice),
+        quantity: item.quantity,
+      })),
+    );
+    toast(`Editing ${txn.number}`, "success");
+  }
+
   async function reserve() {
     if (cart.length === 0) {
       toast("Cart is empty", "error");
@@ -316,8 +353,10 @@ export default function ReservationsPage() {
 
     setSubmitting(true);
     try {
-      const created = await apiRequest<ReservationDetail>("/reservation", {
-        method: "POST",
+      const method = modifyId ? "PUT" : "POST";
+      const url = modifyId ? `/reservation/${modifyId}` : "/reservation";
+      const created = await apiRequest<ReservationDetail>(url, {
+        method,
         body: {
           contactId: customerId,
           type: flow,
@@ -331,7 +370,8 @@ export default function ReservationsPage() {
         },
       });
       setReservation(created);
-      toast(`Reservation ${created.number} created`, "success");
+      toast(modifyId ? `Reservation modified` : `Reservation ${created.number} created`, "success");
+      setModifyId(null);
       const match = reserveNo.match(/RES-(\d+)$/);
       const next = match ? parseInt(match[1], 10) + 1 : 1;
       setReserveNo(`RES-${String(next).padStart(4, "0")}`);
@@ -346,6 +386,7 @@ export default function ReservationsPage() {
     setReservation(null);
     setCart([]);
     setQ("");
+    setModifyId(null);
     setResults([]);
     setAdvance("");
     setWalkInName("");
@@ -435,6 +476,9 @@ export default function ReservationsPage() {
           <Button variant="secondary" onClick={() => window.print()}>
             <PrinterIcon className="h-4 w-4" />
             Print
+          </Button>
+          <Button variant="secondary" onClick={() => loadForModify(reservation)}>
+            Modify
           </Button>
           <Button onClick={reset}>
             <PlusIcon className="h-4 w-4" />

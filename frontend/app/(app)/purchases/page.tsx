@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Color, Contact, ProductSummary, Transaction } from "@/lib/api-types";
+import type { Color, Contact, ProductSummary, Transaction, TransactionDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, CARRIER_OPTIONS } from "@/lib/constants";
 import { PERMISSIONS } from "@/lib/constants/permissions";
@@ -55,6 +56,7 @@ let keyCounter = 0;
 export default function PurchasesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const { data: contacts } = useApi<Contact[]>("/contact");
   const { data: products } = useApi<ProductSummary[]>("/product");
   const { data: colors } = useApi<Color[]>("/color");
@@ -90,6 +92,22 @@ export default function PurchasesPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const barcodeFieldRefs = useRef<(HTMLInputElement | null)[]>([]);
   const purchaseClientRef = useRef<string | null>(null);
+  const [modifyId, setModifyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const modifyParam = searchParams.get("modify");
+    if (!modifyParam) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const txn = await apiRequest<TransactionDetail>(`/transaction/${modifyParam}`);
+        if (!cancelled) loadForModify(txn);
+      } catch {
+        if (!cancelled) toast("Could not load the purchase to modify", "error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -422,6 +440,58 @@ export default function PurchasesPage() {
     setColorId(null);
     setCarrier("PTA");
     setBatteryHealth("");
+    setModifyId(null);
+    purchaseClientRef.current = null;
+  }
+
+  function loadForModify(txn: TransactionDetail) {
+    setModifyId(txn.id);
+    setContactId(txn.contact.id);
+    setPurchaseNo(txn.number);
+    setPurchaseDate(txn.createdAt.slice(0, 10));
+    setDiscount(parseFloat(txn.discount) > 0 ? String(parseFloat(txn.discount)) : "");
+    setNote(txn.note ?? "");
+    const hasImei = txn.items.some((i) => i.unit?.imei);
+    if (hasImei) {
+      const hasUsed = txn.items.some((i) => i.unit && !i.unit.costPrice);
+      setFlow(hasUsed ? "USED" : "NEW");
+      setTab(hasUsed ? "USED" : "NEW");
+    } else {
+      setFlow("ACCESSORY");
+      setTab("NEW");
+    }
+    setRows(
+      txn.items.map((item) => ({
+        key: item.unit?.id ?? `row-${item.id}`,
+        productId: item.product.id,
+        productLabel: `${item.product.brand} ${item.product.model} ${item.product.storage ?? ""}`.trim(),
+        imei: item.unit?.imei ?? "",
+        barcode: "",
+        costPrice: String(parseFloat(item.unitPrice)),
+        quantity: item.quantity,
+        colorId: null,
+        colorLabel: null,
+        carrier: "NON_PTA" as const,
+        batteryHealth: "",
+        grade: "A",
+      })),
+    );
+    const cashPayment = txn.payments.find((p) => p.method === "CASH");
+    const creditPayment = txn.payments.find((p) => p.method === "CREDIT");
+    if (cashPayment && creditPayment) {
+      setPayMode("SPLIT");
+      setCash(String(parseFloat(cashPayment.amount)));
+      setCreditAmount(String(parseFloat(creditPayment.amount)));
+    } else if (creditPayment) {
+      setPayMode("CREDIT");
+      setCash("");
+      setCreditAmount(String(parseFloat(creditPayment.amount)));
+    } else if (cashPayment) {
+      setPayMode("CASH");
+      setCash(String(parseFloat(cashPayment.amount)));
+      setCreditAmount("");
+    }
+    toast(`Editing ${txn.number}`, "success");
   }
 
   function onSplitCash(value: string) {
@@ -521,8 +591,10 @@ export default function PurchasesPage() {
           { method: payMode === "CREDIT" ? ("CREDIT" as const) : ("CASH" as const), amount: parseFloat(cash) || total },
         ];
       }
-      const txn = await apiRequest<Transaction>("/transaction/purchase", {
-        method: "POST",
+      const method = modifyId ? "PUT" : "POST";
+      const url = modifyId ? `/transaction/${modifyId}/purchase` : "/transaction/purchase";
+      const txn = await apiRequest<Transaction>(url, {
+        method,
         body: {
           contactId,
           items: validItems,
@@ -531,10 +603,10 @@ export default function PurchasesPage() {
           date: purchaseDate,
           discount: parseFloat(discount) || 0,
           note: note.trim() || undefined,
-          clientRef: (purchaseClientRef.current ??= crypto.randomUUID()),
+          clientRef: modifyId ? undefined : (purchaseClientRef.current ??= crypto.randomUUID()),
         },
       });
-      toast(`${txn.number} recorded (${formatPKR(txn.total)})`, "success");
+      toast(modifyId ? `${txn.number} modified` : `${txn.number} recorded (${formatPKR(txn.total)})`, "success");
       purchaseClientRef.current = null;
       clearAll();
     } catch (err) {
@@ -978,12 +1050,14 @@ export default function PurchasesPage() {
               disabled={submitting || rows.length === 0}
             >
               {submitting
-                ? "Recording…"
-                : payMode === "CREDIT"
-                  ? `Buy on credit · ${formatPKR(total)}`
-                  : payMode === "SPLIT"
-                    ? `Cash + credit · ${formatPKR(total)}`
-                    : `Pay ${formatPKR(total)}`}
+                ? modifyId ? "Updating…" : "Recording…"
+                : modifyId
+                  ? `Update purchase · ${formatPKR(total)}`
+                  : payMode === "CREDIT"
+                    ? `Buy on credit · ${formatPKR(total)}`
+                    : payMode === "SPLIT"
+                      ? `Cash + credit · ${formatPKR(total)}`
+                      : `Pay ${formatPKR(total)}`}
               <Kbd>Ctrl+S</Kbd>
             </Button>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import type { CompanyProfile, Expense, TransactionDetail, Voucher } from "@/lib/api-types";
 import { useToast } from "@/components/ui/toast";
@@ -27,6 +28,7 @@ export function InvoiceViewer({
   onClose: () => void;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
@@ -115,6 +117,38 @@ export function InvoiceViewer({
             {isReturn && detail && (
               <Button variant="destructive" size="sm" onClick={voidReturn} disabled={voiding}>
                 {voiding ? "Voiding…" : "Void return"}
+              </Button>
+            )}
+            {type === "SALE" && detail && (
+              <Button variant="secondary" size="sm" onClick={() => {
+                router.push(`/pos?modify=${id}`);
+                onClose();
+              }}>
+                Modify
+              </Button>
+            )}
+            {type === "PURCHASE" && detail && (
+              <Button variant="secondary" size="sm" onClick={() => {
+                router.push(`/purchases?modify=${id}`);
+                onClose();
+              }}>
+                Modify
+              </Button>
+            )}
+            {type === "SALE_RETURN" && detail && (
+              <Button variant="secondary" size="sm" onClick={() => {
+                router.push(`/sale-returns?modify=${id}`);
+                onClose();
+              }}>
+                Modify
+              </Button>
+            )}
+            {type === "PURCHASE_RETURN" && detail && (
+              <Button variant="secondary" size="sm" onClick={() => {
+                router.push(`/purchase-returns?modify=${id}`);
+                onClose();
+              }}>
+                Modify
               </Button>
             )}
             <DirectPrint type={type as DirectDocType} id={id} render={(open, busy) => (

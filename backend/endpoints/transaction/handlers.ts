@@ -6,6 +6,10 @@ import {
   createSaleReturn,
   getTransaction,
   listTransactions,
+  modifyPurchase,
+  modifyPurchaseReturn,
+  modifySale,
+  modifySaleReturn,
   voidReturn,
 } from "./service";
 import type {
@@ -51,4 +55,20 @@ export async function purchaseReturnHandler(req: Request, res: Response) {
 
 export async function voidReturnHandler(req: Request, res: Response) {
   res.json({ data: await voidReturn(req.params.id, req.user!.id) });
+}
+
+export async function modifySaleHandler(req: Request, res: Response) {
+  res.json({ data: await modifySale(req.params.id, req.body as CreateSaleInput, req.user!.id) });
+}
+
+export async function modifyPurchaseHandler(req: Request, res: Response) {
+  res.json({ data: await modifyPurchase(req.params.id, req.body as CreatePurchaseInput, req.user!.id) });
+}
+
+export async function modifySaleReturnHandler(req: Request, res: Response) {
+  res.json({ data: await modifySaleReturn(req.params.id, req.body as SaleReturnInput, req.user!.id) });
+}
+
+export async function modifyPurchaseReturnHandler(req: Request, res: Response) {
+  res.json({ data: await modifyPurchaseReturn(req.params.id, req.body as PurchaseReturnInput, req.user!.id) });
 }

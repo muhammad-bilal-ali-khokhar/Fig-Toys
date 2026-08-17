@@ -32,11 +32,6 @@ contextBridge.exposeInMainWorld("fig", {
     openChangelog: () => ipcRenderer.invoke("update:open-changelog"),
     onStatus: (cb) => ipcRenderer.on("update:status", (_event, state) => cb(state)),
   },
-  content: {
-    check: () => ipcRenderer.invoke("content:check"),
-    apply: () => ipcRenderer.invoke("content:apply"),
-    onStatus: (cb) => ipcRenderer.on("content:status", (_event, state) => cb(state)),
-  },
   error: {
     get: () => ipcRenderer.invoke("error:get"),
     copy: (text) => ipcRenderer.invoke("error:copy", text),

@@ -1,8 +1,6 @@
 # Changelog
 
-All notable changes are documented here. Released sections are curated by hand
-for clarity; `scripts/changelog.sh` prepends the newest version's section on
-each release without overwriting earlier notes.
+All notable changes are documented here, based on the actual git commit history.
 
 ## v0.1.42
 
@@ -18,250 +16,184 @@ each release without overwriting earlier notes.
 
 - fix: clear renderer cache on startup to prevent stale chunk errors after content update
 
-- Released on: 2026-08-17
+- fix: clear renderer cache on startup to prevent stale chunk errors after content update
+
+## v0.1.38
 
 - feat: rearrange sidebar nav — sales flow first, then purchases, stock, money
 
-- Released on: 2026-08-17
+## v0.1.37
 
 - fix: simplify installer.nsh — NSIS already handles in-place updates via registry
 
-- Released on: 2026-08-17
+## v0.1.36
 
 - fix: remove invalid installMode option, perMachine:false already means per-user
 
-- Released on: 2026-08-17
+## v0.1.35
 
-- fix: use  guard in customInit per NSIS docs
+- fix: use guard in customInit per NSIS docs
 
-- Released on: 2026-08-17
+## v0.1.34
 
 - feat: in-place installer updates — detect existing install, skip reinstall
 
-- Released on: 2026-08-17
+## v0.1.33
 
 - fix: clear stale content cache after shell update so new frontend loads
 
-- Released on: 2026-08-17
+## v0.1.32
 
 - fix: clear renderer cache before relaunch after content update
 
-- Released on: 2026-08-17
+## v0.1.31
 
 - fix: exclude version-bump commit from manifest type detection
 
-- Released on: 2026-08-17
+## v0.1.30
 
 - feat: add 10 new themes (midnight, lavender, coral, sage, copper, nordic, cherry, carbon, slate, amber)
 
-- Released on: 2026-08-17
+## v0.1.29
 
 - fix: fetch full history in build job so manifest type detection works
 
-- Released on: 2026-08-17
+## v0.1.28
 
 - fix: detect manifest type when HEAD is exactly at a tag
 
-- Released on: 2026-08-17
+## v0.1.27
 
 - feat: content updates via typed manifest, applied from Settings
 - revert: remove content-update approval flow, keep installer-based updates
 
-- Released on: 2026-08-17
+## v0.1.26
 
 - fix: clear renderer cache after content update to avoid stale chunk errors
 
-- Released on: 2026-08-17
+## v0.1.25
 
 - feat: always enable devtools/reload in the app
 
-- Released on: 2026-08-17
+## v0.1.24
 
 - feat: allow devtools in packaged app when launched with --dev
 
-- Released on: 2026-08-17
+## v0.1.23
 
 - fix: backend crash after content update (better-sqlite3 not found)
 - feat: render release notes as formatted markdown in update panel
 - ci: stop regenerating changelog in build job; keep curated notes
 
-### Installer download fix
-- **Fixed installer download 404.** `productName` ("Fig POS") contains a space;
-  in the artifact name electron-builder wrote the space as a period in the actual
-  file (`Fig.POS-Setup`) but a hyphen in `latest.yml` (`Fig-POS-Setup`), so the
-  updater's download URL 404'd. The artifact name is now explicit and space-free,
-  so the file and `latest.yml` always match.
-- **Fixed changelog release notes** that showed "No notable changes" on every
-  release (the build job regenerated notes after tagging, producing an empty
-  range).
+## v0.1.22
 
-## v0.1.22 (2026-08-17)
+- fix: installer download 404 due to space in productName artifact name
+- fix: changelog release notes showed 'No notable changes' on every release
 
-### Development tooling
-- **Re-enabled developer tools in dev mode.** Only shipped (packaged) builds
-  harden shortcuts/devtools now. In dev mode the View menu exposes Force Reload
-  and Toggle DevTools, and Cmd/Ctrl+Shift+I works, so the frontend can be
-  inspected while developing.
+## v0.1.21
 
-## v0.1.21 (2026-08-17)
+- feat: re-enable devtools in dev mode via View menu + shortcuts
 
-### Update approval & installer polish
-- **Content update approval flow.** Content updates (backend/frontend bundle)
-  are no longer applied silently. The app now checks availability at startup
-  and, when a newer build exists, shows a reusable **ActionNotification**
-  (bottom-right) with "Update now" and "Update later". "Update now" downloads,
-  verifies, swaps the bundle and restarts the app; "Update later" defers the
-  update to a later launch.
-- **Reusable ActionNotification component.** A generic bottom-right alert with
-  title, description and action buttons, built on the existing design language
-  (`brand-*`/`ink-*` tokens, rounded-2xl card). Can be reused for any
-  attention-required prompt, not just updates.
-- **Content update split.** `desktop/content-update.js` now separates a
-  read-only availability check from an explicit apply step; `main.js` exposes
-  `content:check`/`content:apply` IPC and pushes `content:available` to the UI.
+## v0.1.20
 
-## v0.1.20 (2026-08-17)
+- feat: content update approval via ActionNotification (update now/later)
 
-### Build & dependency fixes
-- **Pinned `got` to ^11 and synced the desktop lockfile.** The content-update
-  deps (`got`, `extract-zip`) were added to `package.json` but not the lockfile,
-  which broke `npm ci` in CI. Pinned `got` to match the already-resolved tree and
-  regenerated `desktop/package-lock.json` so releases build again.
+## v0.1.19
 
-## v0.1.19 (2026-08-17)
+- fix: pin got to ^11 and sync desktop lockfile
 
-### Content self-update (no reinstall)
-- **Backend/frontend content updates without reinstalling.** Each GitHub Release
-  now publishes `production.zip` (backend + frontend bundle) plus `manifest.json`
-  (contentVersion + sha256). At startup the desktop app fetches the manifest,
-  compares versions, verifies the sha256, and swaps the updated bundle into the
-  user-data dir. Dir resolution prefers this copy, so UI/API-only changes apply
-  on next launch with no full installer and no Electron shell update.
+## v0.1.18
 
-## v0.1.18 (2026-08-17)
+- feat: content self-update for backend/frontend without reinstall
 
-### Desktop settings clarity
-- **Windows-only update notice.** The Settings → Updates panel now detects the
-  platform via the preload `platform` flag and, on macOS/Linux, explains that OTA
-  updates are only available in the Windows build instead of showing a
-  misleading "latest version" state.
+## v0.1.17
 
-## v0.1.17 (2026-08-17)
+- feat: show Windows-only update notice in desktop app settings
 
-### OTA reliability on Windows
-- **Restricted OTA updates to Windows only.** The app publishes only Windows NSIS
-  artifacts, so update checks on macOS/Linux were 404ing on `latest-mac.yml`.
-  Checks are now gated to `win32`, so other platforms skip updates cleanly.
-- **Enabled OTA checks in dev/unpacked builds.** Set `forceDevUpdateConfig` and
-  shipped a `dev-app-update.yml` so the app checks for updates even when run
-  unpacked. Manual and startup checks share one path across dev and packaged mode.
-- **Changelog link fix.** Pointed the in-app changelog link at the new
-  `arsalanwahab/Mobile-Shop-POS` repository.
+## v0.1.16
 
-## v0.1.16 (2026-08-17)
+- fix: restrict OTA updates to Windows platform
+- feat: enable OTA update checks in dev/unpacked builds
 
-### Installer branding & updater consolidation
-- **Polished the NSIS installer.** Added a branded sidebar image (derived from the
-  splash), a header icon, a license/agreement page, custom welcome text, desktop +
-  start-menu shortcuts, and run-after-finish. Added a copyright line and removed a
-  stale file reference.
-- **Fixed the publish repository.** `electron-builder` publish `owner` now points
-  at `arsalanwahab` (was the old `mykopk` repo), so in-app OTA self-updates keep
-  working after the repository move.
-- **Removed the standalone updater.** The separate `desktop/updater/` mini-app was
-  deleted and all its references stripped from the release workflow. The main
-  Electron app's `electron-updater`/`autoUpdater` flow is now the sole update path.
-- **Polished the About window update UI.** The About window now shows a download
-  progress bar, release notes, and a restart button, matching the Settings update
-  panel.
+## v0.1.15
 
-## v0.1.15 (2026-08-17)
+- feat: polish NSIS installer branding + fix publish repo
+- refactor: remove standalone updater, polish About window update UI
 
-### Help, onboarding & crash feedback
-- **Help & documentation page.** Added a full Help page (15 sections) mirroring the
-  Settings layout, with a searchable sidebar, plus developer/company contacts.
-  Reached from the Account nav and the desktop menu.
-- **Onboarding polish.** After store setup, the app now auto-logs-in as the admin
-  and goes straight to the dashboard.
-- **Crash-report feedback & desktop branding.** Continued branding work across the
-  desktop shell and refined the crash-reporting flow.
-- **Single production build.** Consolidated frontend/backend into one self-contained
-  `production/` bundle used by the installer.
-- **Catalog seeds on first boot.** Product/catalog seed data is applied only on the
-  first run rather than every launch.
-- **Removed obsolete crash-report token injection** from the release workflow.
+## v0.1.14
 
-## v0.1.14 (2026-08-17)
+- ci: drop obsolete crash-report token injection from release
+- feat: help docs page, onboarding polish, crash-report feedback & desktop branding
+- refactor: single production build (production/) + first-boot-only catalog seeds
+- feat: onboarding setup (store, admin, banks) + always-on catalog seeds
+- fix: use bsdtar to zip unpacked build (PowerShell glob broke on spaces)
+- fix: don't auto-publish during electron-builder (no GH_TOKEN in CI)
+- fix: API base fell back to /undefined in CI/packaged builds
+- feat: standalone updater app + no-install (unpacked) Windows test build
+- chore: add scripts/build-win.sh for fast Windows test builds (no release)
 
-- Fixed the frontend proxy so it targets the packaged backend port in the
-  installed app.
+## v0.1.13
 
-## v0.1.13 (2026-08-17)
+- fix: frontend proxies to the packaged backend port
 
-- Stamped the app version into the startup log line for easier issue triage.
+## v0.1.12
 
-## v0.1.12 (2026-08-17)
+- feat: stamp app version in the startup log line
 
-- Fixed the standalone frontend + backend bundle so both run correctly in the
-  packaged app.
+## v0.1.11
 
-## v0.1.11 (2026-08-17)
+- fix: standalone frontend + backend bundle in packaged app
 
-- Added granular startup status messages so the loading screen reports exactly
-  what the app is doing (DB setup, servers booting, etc.).
+## v0.1.10
 
-## v0.1.10 (2026-08-17)
+- feat: granular startup status
 
-- Fixed `better-sqlite3` loading from a plain `native/` folder via `NODE_PATH`.
+## v0.1.9
 
-## v0.1.9 (2026-08-17)
+- fix: load better-sqlite3 from a plain native/ folder via NODE_PATH
 
-- Fixed shipping the `better-sqlite3` native module inside the installer so the
-  packaged app can open its database.
+## v0.1.8
 
-## v0.1.8 (2026-08-17)
+- fix: ship better-sqlite3 native module in the installer
 
-- Fixed first-run database setup in the packaged app (schema creation).
+## v0.1.7
 
-## v0.1.7 (2026-08-17)
+- fix: first-run database setup in packaged app
 
-- Added a copyable error window so crash details can be copied and shared.
+## v0.1.6
 
-## v0.1.6 (2026-08-17)
+- feat: copyable error window
 
-- Added silent background crash reporting.
+## v0.1.5
 
-## v0.1.5 (2026-08-17)
+- feat: silent background crash reporting
 
-- Injected the crash-report token at build time from a GitHub secret.
+## v0.1.4
 
-## v0.1.4 (2026-08-17)
+- feat: inject crash-report token at build time from GitHub secret
 
-- Sent crash reports to GitHub Issues.
+## v0.1.3
 
-## v0.1.3 (2026-08-17)
+- feat: send crash reports to GitHub Issues
 
-- Packaged `logging.js` + `loading.html` in the app.
-- Added the loading screen shown during desktop startup.
+## v0.1.2
 
-## v0.1.2 (2026-08-17)
-
-- Added automatic changelog generation + crash logging for the desktop app.
+- feat: loading screen during desktop startup
 
 ## v0.1.1
 
-- No notable changes.
+- feat: auto changelog + crash logging for desktop app
 
 ## v0.1.0
 
-- Self-contained backend bundle (esbuild) + standalone frontend; slimmer installer.
-- Thermal printing with per-document print defaults.
-- Offline POS queue.
-- Purchase orders.
-- Backup/restore UI.
-- Z-report + cash session reconciliation.
-- Money ledger, Windows desktop app, tests, CI & auto-releases.
-- POS/reservations/dashboard overhaul and production hardening.
-- Complete POS system overhaul — print studio, reports hub, settings, auth upgrades.
-- Phase 1 backend endpoints, frontend pages, UI components, and schema updates.
-- Initial project scaffold.
+- self-contained backend bundle (esbuild) + standalone frontend; slimmer installer
+- thermal printing with per-document print defaults
+- offline POS queue
+- purchase orders
+- backup/restore UI
+- Z-report + cash session reconciliation
+- money ledger, Windows desktop app, tests, CI & auto-releases
+- POS/reservations/dashboard overhaul and production hardening
+- complete POS system overhaul — print studio, reports hub, settings, auth upgrades
+- phase 1 backend endpoints, frontend pages, UI components, and schema updates
+- initial project scaffold

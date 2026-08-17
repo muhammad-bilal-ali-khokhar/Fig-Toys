@@ -8,7 +8,6 @@ const http = require("node:http");
 const path = require("node:path");
 const logging = require("./logging");
 const report = require("./report");
-const contentUpdate = require("./content-update");
 const { autoUpdater } = require("electron-updater");
 
 // Allow update checks to run even in unpacked/dev builds (needs a
@@ -34,24 +33,16 @@ const SRC_FRONTEND = path.join(ROOT, "frontend");
 // dir, which is preferred when present. Fall back to the source tree for
 // development.
 function backendDir() {
-  const u = contentUpdate.appliedContentRoot();
-  if (u && fs.existsSync(path.join(u, "backend", "server.cjs"))) return path.join(u, "backend");
   return fs.existsSync(path.join(PROD_BACKEND, "server.cjs"))
     ? PROD_BACKEND
     : SRC_BACKEND;
 }
 function frontendDir() {
-  const u = contentUpdate.appliedContentRoot();
-  if (u && fs.existsSync(path.join(u, "frontend", "server.js"))) return path.join(u, "frontend");
   return fs.existsSync(path.join(PROD_FRONTEND, "server.js"))
     ? PROD_FRONTEND
     : SRC_FRONTEND;
 }
-// The bundled server.cjs, setup.cjs and schema.sql share one folder — the prod
-// bundle root in a packaged build, or the backend source tree in development.
 function bundleDir() {
-  const u = contentUpdate.appliedContentRoot();
-  if (u && fs.existsSync(path.join(u, "backend", "server.cjs"))) return path.join(u, "backend");
   return backendDir() === PROD_BACKEND
     ? PROD_BACKEND
     : SRC_BACKEND;
@@ -197,7 +188,7 @@ autoUpdater.on("error", (err) => {
 // though there is no terminal on Windows.
 // ---------------------------------------------------------------------------
 try {
-  logging.init(app.getPath("userData"));
+  logging.init(userDataDir());
 } catch {
   /* userData not ready yet */
 }
@@ -288,32 +279,15 @@ process.on("unhandledRejection", (reason) => {
 // Runtime config (local server vs hosted URL), stored in the user data dir so
 // it can be switched at runtime from Settings.
 // ---------------------------------------------------------------------------
+const COMPANY_ROOT = "C:\\Wavlon Studio";
+const APP_DATA_DIR = path.join(COMPANY_ROOT, "Fig POS");
+
 function userDataDir() {
+  if (process.platform === "win32") {
+    return APP_DATA_DIR;
+  }
   return app.getPath("userData");
 }
-
-contentUpdate.init(userDataDir);
-
-// After a full installer update the bundled production/ is fresh but the old
-// content cache in <userData>/content/production/ may still exist and override
-// it.  Detect a shell-version change and wipe the stale content directory so
-// the app loads the new bundled frontend/backend.
-function clearStaleContentIfShellUpdated() {
-  const shellVersion = app.getVersion();
-  const marker = path.join(userDataDir(), "content", "shell-version.json");
-  try {
-    const prev = JSON.parse(fs.readFileSync(marker, "utf8"));
-    if (prev.version === shellVersion) return;
-  } catch {}
-  const contentDir = path.join(userDataDir(), "content");
-  try {
-    fs.rmSync(contentDir, { recursive: true, force: true });
-    logging.write("cleared stale content cache (shell " + shellVersion + ")");
-  } catch {}
-  fs.mkdirSync(contentDir, { recursive: true });
-  fs.writeFileSync(marker, JSON.stringify({ version: shellVersion }, null, 2));
-}
-clearStaleContentIfShellUpdated();
 
 function runtimeFile() {
   return path.join(userDataDir(), "fig-runtime.json");
@@ -861,44 +835,6 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.handle("update:open-changelog", () => {
     shell.openExternal("https://github.com/arsalanwahab/Mobile-Shop-POS/releases/latest");
     return true;
-  });
-
-  // Content (backend/frontend) update flow, driven from the Settings → Updates
-  // panel. check reports the type of available update; apply downloads + swaps
-  // the bundle into the user-data dir and restarts the servers. Never touches
-  // the database/backups (those live in separate user-data paths).
-  ipcMain.handle("content:check", async () => {
-    try {
-      return await contentUpdate.checkContentUpdate();
-    } catch (err) {
-      logging.error("content: check failed " + (err && err.stack ? err.stack : err));
-      return null;
-    }
-  });
-
-  ipcMain.handle("content:apply", async () => {
-    try {
-      const applied = await contentUpdate.applyContentUpdate((pct) => {
-        for (const win of BrowserWindow.getAllWindows()) {
-          if (!win.isDestroyed()) {
-            win.webContents.send("content:status", { applying: true, progress: pct });
-          }
-        }
-      });
-      if (applied) {
-        // Clear the renderer HTTP cache so stale JS/CSS chunks from the old
-        // bundle don't persist after the relaunch.
-        await session.defaultSession.clearCache();
-        setTimeout(() => {
-          app.relaunch();
-          app.exit(0);
-        }, 800);
-      }
-      return applied;
-    } catch (err) {
-      logging.error("content: apply failed " + (err && err.stack ? err.stack : err));
-      return null;
-    }
   });
 
   ipcMain.handle("about:open", () => openAboutWindow());

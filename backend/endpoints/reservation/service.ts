@@ -2,7 +2,7 @@ import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
-import { moneyIn, moneyOut } from "../../core/lib/ledger";
+import { moneyIn, moneyOut, reverseMoney } from "../../core/lib/ledger";
 import type { HoldType, Prisma, ReservationStatus } from "../../generated/prisma/client";
 import type { CreateReservationInput } from "./schemas";
 
@@ -354,4 +354,169 @@ export async function returnToStock(id: string, userId: string) {
   });
 
   return prisma.reservation.findUnique({ where: { id }, include: includeReservation });
+}
+
+export async function modifyReservation(id: string, input: CreateReservationInput, userId: string) {
+  const existing = await prisma.reservation.findUnique({
+    where: { id },
+    include: { items: true },
+  });
+  if (!existing) throw new ApiError(404, "reservation.not_found", "Reservation not found");
+  if (existing.status !== "ACTIVE") {
+    throw new ApiError(400, "reservation.not_active", "Only active reservations can be modified");
+  }
+
+  const contact = await prisma.contact.findUnique({ where: { id: input.contactId } });
+  if (!contact) throw new ApiError(404, "contact.not_found", "Contact not found");
+
+  for (const item of input.items) {
+    const product = await prisma.product.findUnique({ where: { id: item.productId } });
+    if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+  }
+
+  const items = input.items.map((item) => {
+    const total = item.unitId
+      ? item.unitPrice - item.discount
+      : (item.unitPrice - item.discount) * item.quantity;
+    return { ...item, total };
+  });
+
+  const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+  const total = subtotal - input.discount;
+  if (total < 0) throw new ApiError(400, "reservation.negative_total", "Total cannot be negative");
+  if (input.advance > total + 0.001) {
+    throw new ApiError(400, "reservation.advance_exceeds_total", "Advance cannot exceed the total");
+  }
+
+  const isConsignment = input.type === "CONSIGNMENT";
+
+  const reservation = await prisma.$transaction(async (tx) => {
+    for (const item of existing.items) {
+      if (!item.unitId) continue;
+      const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
+      if (unit) {
+        if (existing.type === "CONSIGNMENT" && unit.status === "OUT") {
+          await tx.unit.update({ where: { id: item.unitId }, data: { status: "IN_STOCK" } });
+          const movements = await tx.stockMovement.findMany({
+            where: { unitId: item.unitId, type: "OUT", note: { contains: existing.number } },
+          });
+          for (const m of movements) {
+            await tx.stockMovement.delete({ where: { id: m.id } });
+          }
+        } else if (existing.type === "RESERVATION" && unit.status === "RESERVED") {
+          await tx.unit.update({ where: { id: item.unitId }, data: { status: "IN_STOCK" } });
+          const movements = await tx.stockMovement.findMany({
+            where: { unitId: item.unitId, type: "RESERVED", note: { contains: existing.number } },
+          });
+          for (const m of movements) {
+            await tx.stockMovement.delete({ where: { id: m.id } });
+          }
+        }
+      }
+    }
+
+    const advance = Number(existing.advance);
+    if (advance > 0) {
+      await reverseMoney(tx, "RESERVATION", id);
+    }
+
+    const createdItems: Prisma.ReservationItemUncheckedCreateWithoutReservationInput[] = [];
+    for (const item of items) {
+      if (item.unitId) {
+        const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
+        if (!unit) throw new ApiError(404, "unit.not_found", "Unit not found");
+        if (unit.productId !== item.productId) {
+          throw new ApiError(400, "unit.product_mismatch", "Unit does not belong to the product");
+        }
+        if (unit.status !== "IN_STOCK") {
+          throw new ApiError(400, "unit.not_in_stock", `Unit ${unit.imei} is not available`);
+        }
+        if (isConsignment) {
+          await tx.unit.update({ where: { id: unit.id }, data: { status: "OUT" } });
+          await tx.stockMovement.create({
+            data: {
+              unitId: unit.id,
+              productId: item.productId,
+              type: "OUT",
+              note: `Consigned ${existing.number} to ${contact.name}`,
+            },
+          });
+        } else {
+          await tx.unit.update({ where: { id: unit.id }, data: { status: "RESERVED" } });
+          await tx.stockMovement.create({
+            data: {
+              unitId: unit.id,
+              productId: item.productId,
+              type: "RESERVED",
+              note: `Reserved ${existing.number}`,
+            },
+          });
+        }
+        createdItems.push({
+          productId: item.productId,
+          unitId: unit.id,
+          quantity: 1,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          total: item.total,
+        });
+      } else {
+        createdItems.push({
+          productId: item.productId,
+          unitId: null,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          total: item.total,
+        });
+      }
+    }
+
+    await tx.reservation.update({
+      where: { id },
+      data: {
+        type: input.type,
+        contactId: contact.id,
+        subtotal,
+        discount: input.discount,
+        total,
+        advance: input.advance,
+        note: input.note,
+      },
+    });
+
+    await tx.reservationItem.deleteMany({ where: { reservationId: id } });
+    await tx.reservationItem.createMany({
+      data: createdItems.map((ci) => ({ ...ci, reservationId: id })),
+    });
+
+    if (input.advance > 0) {
+      await moneyIn(tx, {
+        account: "cash",
+        amount: input.advance,
+        sourceType: "RESERVATION",
+        sourceId: id,
+        note: `Advance on ${existing.number}`,
+        userId,
+      });
+    }
+
+    return tx.reservation.findUnique({ where: { id }, include: includeReservation });
+  });
+
+  await writeAudit({
+    userId,
+    action: "RESERVATION.MODIFY",
+    entity: "Reservation",
+    entityId: id,
+    details: JSON.stringify({
+      number: existing.number,
+      type: input.type,
+      total,
+      advance: input.advance,
+      contact: contact.name,
+    }),
+  });
+
+  return reservation;
 }

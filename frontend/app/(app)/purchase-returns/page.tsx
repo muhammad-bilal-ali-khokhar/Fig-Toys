@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
-import type { Contact, Unit } from "@/lib/api-types";
+import type { Contact, TransactionDetail, Unit } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
@@ -54,6 +55,7 @@ type ReturnLine = {
 
 export default function ReturnsPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const { data: contacts } = useApi<Contact[]>("/contact");
   const [contactId, setContactId] = useState<string | null>(null);
   const [cart, setCart] = useState<ReturnLine[]>([]);
@@ -72,6 +74,22 @@ export default function ReturnsPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [modifyId, setModifyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const modifyParam = searchParams.get("modify");
+    if (!modifyParam) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const txn = await apiRequest<TransactionDetail>(`/transaction/${modifyParam}`);
+        if (!cancelled) loadForModify(txn);
+      } catch {
+        if (!cancelled) toast("Could not load the return to modify", "error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const showPanel = searching || results.length > 0;
 
@@ -336,6 +354,39 @@ export default function ReturnsPage() {
     void submit();
   }, !submitting && cart.length > 0);
 
+  function loadForModify(txn: TransactionDetail) {
+    setModifyId(txn.id);
+    setContactId(txn.contact.id);
+    setReturnNo(txn.number);
+    setReturnDate(txn.createdAt.slice(0, 10));
+    setCart(
+      txn.items.map((item) => ({
+        unitId: item.unit?.id ?? "",
+        imei: item.unit?.imei ?? "",
+        productLabel: `${item.product.brand} ${item.product.model}`,
+        cost: parseFloat(item.unitPrice),
+        purchaseId: "",
+        purchaseNumber: "",
+      })),
+    );
+    const cashPayment = txn.payments.find((p) => p.method === "CASH");
+    const creditPayment = txn.payments.find((p) => p.method === "CREDIT");
+    if (cashPayment && creditPayment) {
+      setPayMode("SPLIT");
+      setCash(String(parseFloat(cashPayment.amount)));
+      setCreditAmount(String(parseFloat(creditPayment.amount)));
+    } else if (creditPayment) {
+      setPayMode("CREDIT");
+      setCash("");
+      setCreditAmount(String(parseFloat(creditPayment.amount)));
+    } else if (cashPayment) {
+      setPayMode("CASH");
+      setCash(String(parseFloat(cashPayment.amount)));
+      setCreditAmount("");
+    }
+    toast(`Editing ${txn.number}`, "success");
+  }
+
   async function submit() {
     if (cart.length === 0) {
       toast("Add at least one unit to return", "error");
@@ -351,42 +402,60 @@ export default function ReturnsPage() {
     }
     setSubmitting(true);
     try {
-      const groups = new Map<string, ReturnLine[]>();
-      for (const line of cart) {
-        const arr = groups.get(line.purchaseId) ?? [];
-        arr.push(line);
-        groups.set(line.purchaseId, arr);
-      }
-      const groupsArr = Array.from(groups.entries());
-      const noMatch = returnNo.match(/PCR-(\d+)$/);
-      let nextNo = noMatch ? parseInt(noMatch[1], 10) : 1;
-      let allocated = 0;
-      for (let i = 0; i < groupsArr.length; i++) {
-        const [purchaseId, lines] = groupsArr[i];
-        const groupTotal = lines.reduce((sum, l) => sum + l.cost, 0);
-        const isLast = i === groupsArr.length - 1;
-        const payments = buildGroupPayments(groupTotal, isLast, allocated);
-        allocated += payments.find((p) => p.method === "CASH")?.amount ?? 0;
-        await apiRequest<{ number: string }>("/transaction/purchase/returns", {
-          method: "POST",
+      if (modifyId) {
+        const total = cart.reduce((sum, l) => sum + l.cost, 0);
+        const payments = buildGroupPayments(total, true, 0);
+        await apiRequest<{ number: string }>(`/transaction/${modifyId}/purchase-return`, {
+          method: "PUT",
           body: {
-            purchaseId,
-            unitIds: lines.map((l) => l.unitId),
+            purchaseId: cart[0]?.purchaseId ?? "",
+            unitIds: cart.map((l) => l.unitId),
             note: note.trim() || undefined,
             payments,
-            number: `PCR-${String(nextNo++).padStart(4, "0")}`,
+            number: returnNo,
             date: returnDate,
-            clientRef: crypto.randomUUID(),
           },
         });
+        toast(`Return modified`, "success");
+      } else {
+        const groups = new Map<string, ReturnLine[]>();
+        for (const line of cart) {
+          const arr = groups.get(line.purchaseId) ?? [];
+          arr.push(line);
+          groups.set(line.purchaseId, arr);
+        }
+        const groupsArr = Array.from(groups.entries());
+        const noMatch = returnNo.match(/PCR-(\d+)$/);
+        let nextNo = noMatch ? parseInt(noMatch[1], 10) : 1;
+        let allocated = 0;
+        for (let i = 0; i < groupsArr.length; i++) {
+          const [purchaseId, lines] = groupsArr[i];
+          const groupTotal = lines.reduce((sum, l) => sum + l.cost, 0);
+          const isLast = i === groupsArr.length - 1;
+          const payments = buildGroupPayments(groupTotal, isLast, allocated);
+          allocated += payments.find((p) => p.method === "CASH")?.amount ?? 0;
+          await apiRequest<{ number: string }>("/transaction/purchase/returns", {
+            method: "POST",
+            body: {
+              purchaseId,
+              unitIds: lines.map((l) => l.unitId),
+              note: note.trim() || undefined,
+              payments,
+              number: `PCR-${String(nextNo++).padStart(4, "0")}`,
+              date: returnDate,
+              clientRef: crypto.randomUUID(),
+            },
+          });
+        }
+        toast(`${cart.length} unit(s) returned`, "success");
       }
-      toast(`${cart.length} unit(s) returned`, "success");
       playSuccess();
       setCart([]);
       setNote("");
       setCash("");
       setCreditAmount("");
       setPayMode("CREDIT");
+      setModifyId(null);
       const list = await apiRequest<{ number: string }[]>(
         `/transaction?type=PURCHASE_RETURN&limit=1`,
       );

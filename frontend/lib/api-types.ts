@@ -428,7 +428,7 @@ export type TransactionDetail = {
     unitPrice: string;
     discount: string;
     total: string;
-    product: { brand: string; model: string; storage: string | null; ram: string | null };
+    product: { id: string; brand: string; model: string; storage: string | null; ram: string | null };
     unit: { id: string; imei: string; status: string; costPrice?: string } | null;
   }[];
   payments: {

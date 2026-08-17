@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import type { TransactionDetail } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
@@ -29,6 +30,7 @@ export function TransactionDetailModal({
   onChanged?: () => void;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [voiding, setVoiding] = useState(false);
@@ -187,6 +189,38 @@ export function TransactionDetailModal({
           {isReturn && detail && (
             <Button variant="destructive" onClick={voidReturn} disabled={voiding}>
               {voiding ? "Voiding…" : "Void return"}
+            </Button>
+          )}
+          {detail?.type === "SALE" && (
+            <Button variant="secondary" onClick={() => {
+              router.push(`/pos?modify=${detail.id}`);
+              onClose();
+            }}>
+              Modify
+            </Button>
+          )}
+          {detail?.type === "PURCHASE" && (
+            <Button variant="secondary" onClick={() => {
+              router.push(`/purchases?modify=${detail.id}`);
+              onClose();
+            }}>
+              Modify
+            </Button>
+          )}
+          {detail?.type === "SALE_RETURN" && (
+            <Button variant="secondary" onClick={() => {
+              router.push(`/sale-returns?modify=${detail.id}`);
+              onClose();
+            }}>
+              Modify
+            </Button>
+          )}
+          {detail?.type === "PURCHASE_RETURN" && (
+            <Button variant="secondary" onClick={() => {
+              router.push(`/purchase-returns?modify=${detail.id}`);
+              onClose();
+            }}>
+              Modify
             </Button>
           )}
           {detail && (

@@ -5,6 +5,7 @@ import {
   createReservation,
   listReservations,
   markRefundPaid,
+  modifyReservation,
   returnToStock,
 } from "./service";
 import type { CancelReservationInput, CreateReservationInput } from "./schemas";
@@ -39,4 +40,8 @@ export async function refundHandler(req: Request, res: Response) {
 
 export async function returnHandler(req: Request, res: Response) {
   res.json({ data: await returnToStock(req.params.id, req.user!.id) });
+}
+
+export async function modifyHandler(req: Request, res: Response) {
+  res.json({ data: await modifyReservation(req.params.id, req.body as CreateReservationInput, req.user!.id) });
 }

@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { brandOf, type BankAccount, type CompanyProfile, type Contact, type ReservationConflict, type ReservationDetail, type TransactionDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
@@ -111,6 +112,7 @@ const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
 
 export default function PosPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const { data: contacts, refetch: refetchContacts } = useApi<Contact[]>("/contact");
   const { data: bankData } = useApi<BankAccount[]>("/bank-account");
   const { data: profile } = useApi<CompanyProfile>("/settings/company");
@@ -154,9 +156,25 @@ export default function PosPage() {
   } | null>(null);
   const [saleDate, setSaleDate] = useState(() => toISODate(new Date()));
   const [invoiceNo, setInvoiceNo] = useState("SAL-0001");
+  const [modifyId, setModifyId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    const modifyParam = searchParams.get("modify");
+    if (!modifyParam) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const txn = await apiRequest<TransactionDetail>(`/transaction/${modifyParam}`);
+        if (!cancelled) loadForModify(txn);
+      } catch {
+        if (!cancelled) toast("Could not load the sale to modify", "error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const subtotal = useMemo(
     () => roundMoney(cart.reduce((sum, line) => sum + (line.unitPrice - lineDiscount(line)) * line.quantity, 0)),
@@ -545,12 +563,14 @@ export default function PosPage() {
 
     setSubmitting(true);
     try {
-      const txn = await apiRequest<TransactionDetail>("/transaction/sale", {
-        method: "POST",
+      const method = modifyId ? "PUT" : "POST";
+      const url = modifyId ? `/transaction/${modifyId}/sale` : "/transaction/sale";
+      const txn = await apiRequest<TransactionDetail>(url, {
+        method,
         body: {
           contactId: customerId,
           number: invoiceNo,
-          clientRef: (clientRefRef.current ??= crypto.randomUUID()),
+          clientRef: modifyId ? undefined : (clientRefRef.current ??= crypto.randomUUID()),
           items: cart.map((l) => ({
             productId: l.productId,
             unitId: l.unitId ?? undefined,
@@ -564,7 +584,8 @@ export default function PosPage() {
         },
       });
       setReceipt(txn);
-      toast(`Sale ${txn.number} completed`, "success");
+      toast(modifyId ? `${txn.number} modified` : `Sale ${txn.number} completed`, "success");
+      setModifyId(null);
       clientRefRef.current = null;
       const match = invoiceNo.match(/SAL-(\d+)$/);
       const next = match ? parseInt(match[1], 10) + 1 : 1;
@@ -579,6 +600,7 @@ export default function PosPage() {
 
   function reset() {
     setReceipt(null);
+    setModifyId(null);
     confirmedRef.current = false;
     clientRefRef.current = null;
     setLoadedReservation(null);
@@ -595,6 +617,75 @@ export default function PosPage() {
     setWalkInName("");
     setWalkInPhone("");
     setContactId(contacts?.[0]?.id ?? null);
+  }
+
+  function loadForModify(txn: TransactionDetail) {
+    setModifyId(txn.id);
+    setReceipt(null);
+    setContactId(txn.contact.id);
+    setSaleDate(txn.createdAt.slice(0, 10));
+    setInvoiceNo(txn.number);
+    setInvoiceDiscount(parseFloat(txn.discount) > 0 ? String(parseFloat(txn.discount)) : "");
+    setCart(
+      txn.items.map((item) => ({
+        key: item.unit ? `unit-${item.unit.id}` : `prod-${item.product.id}`,
+        productId: item.product.id,
+        label: [
+          item.product.brand,
+          item.product.model,
+          item.product.storage,
+          item.product.ram,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        imei: item.unit?.imei ?? null,
+        unitId: item.unit?.id ?? null,
+        unitPrice: parseFloat(item.unitPrice),
+        quantity: item.quantity,
+        discountPct: 0,
+        discountFlat: parseFloat(item.discount ?? "0") || 0,
+      })),
+    );
+    const cashPayment = txn.payments.find((p) => p.method === "CASH");
+    const cardPayment = txn.payments.find((p) => p.method === "CARD");
+    const creditPayment = txn.payments.find((p) => p.method === "CREDIT");
+    const bankPayment = txn.payments.find((p) => p.method === "BANK_TRANSFER");
+    if (txn.payments.length > 1) {
+      setMode("SPLIT");
+      setCash(cashPayment ? String(parseFloat(cashPayment.amount)) : "");
+      setCard(cardPayment ? String(parseFloat(cardPayment.amount)) : "");
+      setCredit(creditPayment ? String(parseFloat(creditPayment.amount)) : "");
+      setBankAmount(bankPayment ? String(parseFloat(bankPayment.amount)) : "");
+      if (bankPayment?.bankAccount) setBankId(bankPayment.bankAccount.id);
+    } else if (cashPayment) {
+      setMode("CASH");
+      setCash(String(parseFloat(cashPayment.amount)));
+      setCard("");
+      setCredit("");
+      setBankAmount("");
+    } else if (cardPayment) {
+      setMode("CARD");
+      setCard(String(parseFloat(cardPayment.amount)));
+      setCash("");
+      setCredit("");
+      setBankAmount("");
+    } else if (creditPayment) {
+      setMode("CREDIT");
+      setCredit(String(parseFloat(creditPayment.amount)));
+      setCash("");
+      setCard("");
+      setBankAmount("");
+    } else if (bankPayment) {
+      setMode("BANK");
+      setBankAmount(String(parseFloat(bankPayment.amount)));
+      if (bankPayment.bankAccount) setBankId(bankPayment.bankAccount.id);
+      setCash("");
+      setCard("");
+      setCredit("");
+    }
+    setQ("");
+    setResults([]);
+    toast(`Editing ${txn.number}`, "success");
   }
 
   const contactOptions = [
@@ -696,6 +787,9 @@ export default function PosPage() {
               {busy ? "Preparing…" : "Print receipt"}
             </Button>
           )} />
+          <Button variant="secondary" onClick={() => loadForModify(receipt)}>
+            Modify invoice
+          </Button>
           <Button onClick={reset}>
             <PlusIcon className="h-4 w-4" />
             New sale
@@ -714,7 +808,7 @@ export default function PosPage() {
       }}
     >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-bold text-ink-900">Sale Invoice</h1>
+        <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Invoice" : "Sale Invoice"}</h1>
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/sale-returns">
             <Button variant="grey">
@@ -1360,7 +1454,7 @@ export default function PosPage() {
                 type="submit"
                 disabled={submitting || cart.length === 0}
               >
-                {submitting ? "Processing…" : `Charge ${formatPKR(due)}`}
+                {submitting ? "Processing…" : modifyId ? `Update sale` : `Charge ${formatPKR(due)}`}
                 <Kbd>Ctrl+S</Kbd>
               </Button>
             </div>

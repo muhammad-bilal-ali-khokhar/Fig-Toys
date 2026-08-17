@@ -839,6 +839,660 @@ export async function listTransactions({
   });
 }
 
+export async function modifySale(id: string, input: CreateSaleInput, userId: string) {
+  const existing = await prisma.transaction.findUnique({
+    where: { id },
+    include: { items: true, payments: true },
+  });
+  if (!existing) throw new ApiError(404, "transaction.not_found", "Transaction not found");
+  if (existing.type !== "SALE") throw new ApiError(400, "transaction.not_sale", "Only sales can be modified");
+
+  const contact = await prisma.contact.findUnique({ where: { id: input.contactId } });
+  if (!contact) throw new ApiError(404, "contact.not_found", "Contact not found");
+
+  for (const item of input.items) {
+    const product = await prisma.product.findUnique({ where: { id: item.productId } });
+    if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+  }
+
+  const items = input.items.map((i) => {
+    const total = i.unitId
+      ? i.unitPrice - i.discount
+      : (i.unitPrice - i.discount) * i.quantity;
+    return { ...i, total };
+  });
+  const subtotal = items.reduce((sum, i) => sum + i.total, 0);
+  const { taxRate, cardFee: cardFeePct } = await getCompanyFinancials();
+  const tax = Math.round(subtotal * taxRate) / 100;
+  const cardUsed = input.payments.some((p) => p.method === "CARD");
+  const cardFee = cardUsed ? Math.round((subtotal - input.discount + tax) * cardFeePct) / 100 : 0;
+  const total = subtotal - input.discount + tax + cardFee;
+  if (total < 0) throw new ApiError(400, "transaction.negative_total", "Total cannot be negative");
+
+  const paidInput = input.payments.reduce((sum, p) => sum + p.amount, 0);
+  if (paidInput > total + 0.001) {
+    throw new ApiError(400, "payment.overpaid", "Payments exceed the total");
+  }
+
+  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+
+  const transaction = await prisma.$transaction(async (tx) => {
+    for (const item of existing.items) {
+      if (item.unitId) {
+        await tx.unit.update({
+          where: { id: item.unitId },
+          data: { status: "IN_STOCK" },
+        });
+        const movements = await tx.stockMovement.findMany({
+          where: { unitId: item.unitId, type: "OUT", note: "Sold" },
+        });
+        for (const m of movements) {
+          await tx.stockMovement.delete({ where: { id: m.id } });
+        }
+      } else {
+        const movements = await tx.stockMovement.findMany({
+          where: { productId: item.productId, type: "OUT", note: "Sold" },
+        });
+        for (const m of movements) {
+          await tx.stockMovement.delete({ where: { id: m.id } });
+        }
+      }
+    }
+
+    for (const p of existing.payments) {
+      if (p.method === "CREDIT") {
+        await tx.creditAccount.update({
+          where: { contactId: existing.contactId },
+          data: { balance: { decrement: Number(p.amount) } },
+        });
+      }
+    }
+
+    await reverseMoney(tx, "SALE", id);
+
+    await tx.payment.deleteMany({ where: { transactionId: id } });
+
+    for (const item of items) {
+      if (item.unitId) {
+        const updated = await tx.unit.updateMany({
+          where: {
+            id: item.unitId,
+            productId: item.productId,
+            status: { in: ["IN_STOCK", "RESERVED", "OUT"] },
+          },
+          data: { status: "SOLD" },
+        });
+        if (updated.count === 0) {
+          const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
+          if (!unit) throw new ApiError(404, "unit.not_found", "Unit not found");
+          if (unit.productId !== item.productId) {
+            throw new ApiError(400, "unit.product_mismatch", "Unit does not belong to the product");
+          }
+          throw new ApiError(400, "unit.not_in_stock", `Unit ${unit.imei} is not in stock`);
+        }
+        await tx.stockMovement.create({
+          data: { unitId: item.unitId, productId: item.productId, type: "OUT", note: "Sold" },
+        });
+      } else {
+        await tx.stockMovement.create({
+          data: { productId: item.productId, type: "OUT", qty: item.quantity, note: "Sold" },
+        });
+      }
+    }
+
+    await tx.transaction.update({
+      where: { id },
+      data: {
+        contactId: contact.id,
+        userId,
+        subtotal,
+        discount: input.discount,
+        tax,
+        cardFee,
+        total,
+        status: statusFor(total, paidInput),
+        note: input.note,
+        ...(createdAt ? { createdAt } : {}),
+      },
+    });
+
+    await tx.transactionItem.deleteMany({ where: { transactionId: id } });
+    await tx.transactionItem.createMany({
+      data: items.map((i) => ({
+        transactionId: id,
+        productId: i.productId,
+        unitId: i.unitId ?? null,
+        quantity: i.unitId ? 1 : i.quantity,
+        unitPrice: i.unitPrice,
+        discount: i.discount,
+        total: i.total,
+      })),
+    });
+
+    await applyPayments(tx, id, contact.id, input.payments);
+
+    return tx.transaction.findUnique({ where: { id } });
+  });
+
+  await writeAudit({
+    userId,
+    action: "SALE.MODIFY",
+    entity: "Transaction",
+    entityId: id,
+    details: JSON.stringify({ number: existing.number, total, contact: contact.name }),
+  });
+
+  return prisma.transaction.findUnique({
+    where: { id },
+    include: includeTransaction(),
+  });
+}
+
+export async function modifyPurchase(id: string, input: CreatePurchaseInput, userId: string) {
+  const existing = await prisma.transaction.findUnique({
+    where: { id },
+    include: { items: true, payments: true },
+  });
+  if (!existing) throw new ApiError(404, "transaction.not_found", "Transaction not found");
+  if (existing.type !== "PURCHASE") throw new ApiError(400, "transaction.not_purchase", "Only purchases can be modified");
+
+  const contact = await prisma.contact.findUnique({ where: { id: input.contactId } });
+  if (!contact) throw new ApiError(404, "contact.not_found", "Contact not found");
+
+  for (const item of input.items) {
+    const product = await prisma.product.findUnique({ where: { id: item.productId } });
+    if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+    if (item.imei) {
+      const existingUnit = await prisma.unit.findUnique({ where: { imei: item.imei } });
+      if (existingUnit && existingUnit.id !== id) {
+        throw new ApiError(400, "unit.imei_exists", `IMEI ${item.imei} already exists`);
+      }
+    }
+  }
+
+  const subtotal = input.items.reduce((sum, i) => sum + i.costPrice * (i.quantity ?? 1), 0);
+  const total = subtotal - input.discount;
+  if (total < 0) throw new ApiError(400, "transaction.negative_total", "Total cannot be negative");
+
+  const paidInput = input.payments.reduce((sum, p) => sum + p.amount, 0);
+  if (paidInput > total + 0.001) {
+    throw new ApiError(400, "payment.overpaid", "Payments exceed the total");
+  }
+
+  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+
+  const transaction = await prisma.$transaction(async (tx) => {
+    for (const item of existing.items) {
+      if (item.unitId) {
+        const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
+        if (unit && unit.status === "IN_STOCK") {
+          await tx.unit.delete({ where: { id: item.unitId } });
+          const movements = await tx.stockMovement.findMany({
+            where: { unitId: item.unitId, type: "IN", note: "Purchased" },
+          });
+          for (const m of movements) {
+            await tx.stockMovement.delete({ where: { id: m.id } });
+          }
+        } else if (unit) {
+          throw new ApiError(400, "unit.not_modifiable", `Unit ${unit.imei} has been sold/returned and cannot be modified`);
+        }
+      } else {
+        const movements = await tx.stockMovement.findMany({
+          where: { productId: item.productId, type: "IN", note: "Purchased", unitId: null },
+        });
+        for (const m of movements) {
+          await tx.stockMovement.delete({ where: { id: m.id } });
+        }
+      }
+    }
+
+    for (const p of existing.payments) {
+      if (p.method === "CREDIT") {
+        await tx.creditAccount.update({
+          where: { contactId: existing.contactId },
+          data: { balance: { decrement: Number(p.amount) } },
+        });
+      }
+    }
+
+    await reverseMoney(tx, "PURCHASE", id);
+    await tx.payment.deleteMany({ where: { transactionId: id } });
+
+    for (const item of input.items) {
+      if (item.imei) {
+        const unit = await tx.unit.create({
+          data: {
+            productId: item.productId,
+            imei: item.imei,
+            condition: item.condition,
+            status: "IN_STOCK",
+            source: item.condition === "USED" ? "BOUGHT_WALKIN" : "VENDOR_PURCHASE",
+            carrier: item.carrier ?? "NON_PTA",
+            batteryHealth: item.batteryHealth,
+            costPrice: item.costPrice,
+            grade: item.grade,
+            colorId: item.colorId,
+          },
+        });
+        await tx.stockMovement.create({
+          data: { unitId: unit.id, productId: item.productId, type: "IN", note: "Purchased" },
+        });
+      } else {
+        const qty = item.quantity ?? 1;
+        await tx.stockMovement.create({
+          data: { productId: item.productId, type: "IN", qty, note: "Purchased" },
+        });
+      }
+    }
+
+    await tx.transaction.update({
+      where: { id },
+      data: {
+        contactId: contact.id,
+        userId,
+        subtotal,
+        discount: input.discount,
+        total,
+        status: statusFor(total, paidInput),
+        note: input.note,
+        ...(createdAt ? { createdAt } : {}),
+      },
+    });
+
+    await tx.transactionItem.deleteMany({ where: { transactionId: id } });
+    for (const item of input.items) {
+      if (item.imei) {
+        const unit = await tx.unit.findFirst({ where: { imei: item.imei } });
+        await tx.transactionItem.create({
+          data: {
+            transactionId: id,
+            productId: item.productId,
+            unitId: unit?.id ?? null,
+            quantity: 1,
+            unitPrice: item.costPrice,
+            discount: 0,
+            total: item.costPrice,
+          },
+        });
+      } else {
+        const qty = item.quantity ?? 1;
+        await tx.transactionItem.create({
+          data: {
+            transactionId: id,
+            productId: item.productId,
+            unitId: null,
+            quantity: qty,
+            unitPrice: item.costPrice,
+            discount: 0,
+            total: item.costPrice * qty,
+          },
+        });
+      }
+    }
+
+    await applyPayments(tx, id, contact.id, input.payments, -1, -1);
+    return tx.transaction.findUnique({ where: { id } });
+  });
+
+  await writeAudit({
+    userId,
+    action: "PURCHASE.MODIFY",
+    entity: "Transaction",
+    entityId: id,
+    details: JSON.stringify({ number: existing.number, total, contact: contact.name }),
+  });
+
+  return prisma.transaction.findUnique({
+    where: { id },
+    include: includeTransaction(),
+  });
+}
+
+export async function modifySaleReturn(id: string, input: SaleReturnInput, userId: string) {
+  const existing = await prisma.transaction.findUnique({
+    where: { id },
+    include: { items: true, payments: true },
+  });
+  if (!existing) throw new ApiError(404, "transaction.not_found", "Transaction not found");
+  if (existing.type !== "SALE_RETURN") throw new ApiError(400, "transaction.not_sale_return", "Only sale returns can be modified");
+
+  const sale = await prisma.transaction.findUnique({ where: { id: input.saleId } });
+  if (!sale) throw new ApiError(404, "transaction.not_found", "Original sale not found");
+  if (sale.type !== "SALE") throw new ApiError(400, "transaction.not_sale", "Referenced transaction is not a sale");
+
+  for (const item of input.items) {
+    const product = await prisma.product.findUnique({ where: { id: item.productId } });
+    if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+  }
+
+  const number = input.number ?? existing.number;
+  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+
+  const saleItems = await prisma.transactionItem.findMany({
+    where: { transactionId: input.saleId },
+  });
+  const saleItemByUnit = new Map(saleItems.filter((i) => i.unitId).map((i) => [i.unitId as string, i]));
+  const saleItemByProduct = new Map(saleItems.filter((i) => !i.unitId).map((i) => [i.productId, i]));
+
+  const transaction = await prisma.$transaction(async (tx) => {
+    for (const item of existing.items) {
+      if (item.unitId) {
+        const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
+        if (unit) {
+          await tx.unit.update({
+            where: { id: item.unitId },
+            data: { status: "SOLD" },
+          });
+          const movements = await tx.stockMovement.findMany({
+            where: { unitId: item.unitId, type: "IN", note: "Sale return" },
+          });
+          for (const m of movements) {
+            await tx.stockMovement.delete({ where: { id: m.id } });
+          }
+        }
+      } else {
+        const movements = await tx.stockMovement.findMany({
+          where: { productId: item.productId, type: "IN", note: "Sale return", unitId: null },
+        });
+        for (const m of movements) {
+          await tx.stockMovement.delete({ where: { id: m.id } });
+        }
+      }
+    }
+
+    for (const p of existing.payments) {
+      if (p.method === "CREDIT") {
+        await tx.creditAccount.update({
+          where: { contactId: existing.contactId },
+          data: { balance: { increment: Number(p.amount) } },
+        });
+      }
+    }
+
+    await reverseMoney(tx, "SALE_RETURN", id);
+    await tx.payment.deleteMany({ where: { transactionId: id } });
+
+    const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
+    let total = 0;
+
+    for (const item of input.items) {
+      if (item.unitId) {
+        const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
+        if (!unit || unit.status !== "SOLD") {
+          throw new ApiError(400, "unit.not_sold", "Unit is not sold or not found");
+        }
+        const saleItem = saleItemByUnit.get(item.unitId);
+        const refund = saleItem
+          ? Number(saleItem.unitPrice) - Number(saleItem.discount)
+          : Number(unit.costPrice);
+        await tx.unit.update({
+          where: { id: item.unitId },
+          data: { status: "IN_STOCK", condition: "USED", source: "SALE_RETURN", returnedFromSource: unit.source },
+        });
+        await tx.stockMovement.create({
+          data: { unitId: item.unitId, productId: item.productId, type: "IN", note: "Sale return" },
+        });
+        total += refund;
+        createdItems.push({
+          productId: item.productId,
+          unitId: item.unitId,
+          quantity: 1,
+          unitPrice: refund,
+          discount: 0,
+          total: refund,
+        });
+      } else {
+        const saleItem = saleItemByProduct.get(item.productId);
+        const qty = item.quantity;
+        const refundPerUnit = saleItem ? Number(saleItem.unitPrice) - Number(saleItem.discount) : 0;
+        await tx.stockMovement.create({
+          data: { productId: item.productId, type: "IN", qty, note: "Sale return" },
+        });
+        total += refundPerUnit * qty;
+        createdItems.push({
+          productId: item.productId,
+          unitId: null,
+          quantity: qty,
+          unitPrice: refundPerUnit,
+          discount: 0,
+          total: refundPerUnit * qty,
+        });
+      }
+    }
+
+    const paidInput = input.payments.reduce((sum, p) => sum + p.amount, 0);
+    if (paidInput > total + 0.001) {
+      throw new ApiError(400, "payment.overpaid", "Refund exceeds return total");
+    }
+
+    const explicitPayments = input.payments.length > 0;
+    const payments = explicitPayments
+      ? input.payments
+      : [{ method: input.refundMethod, amount: total }];
+
+    const status = explicitPayments
+      ? statusFor(total, paidInput)
+      : input.refundMethod === "CASH"
+        ? "PAID"
+        : "PENDING";
+
+    await tx.transaction.update({
+      where: { id },
+      data: {
+        number,
+        contactId: sale.contactId,
+        userId,
+        subtotal: total,
+        discount: 0,
+        total,
+        status,
+        note: input.note ?? `Return for ${sale.number}`,
+        ...(createdAt ? { createdAt } : {}),
+      },
+    });
+
+    await tx.transactionItem.deleteMany({ where: { transactionId: id } });
+    await tx.transactionItem.createMany({ data: createdItems.map((ci) => ({ ...ci, transactionId: id })) });
+
+    for (const p of payments) {
+      await tx.payment.create({
+        data: {
+          transactionId: id,
+          method: p.method,
+          amount: p.amount,
+          reference: p.reference,
+          bankAccountId: p.bankAccountId,
+        },
+      });
+      if (p.method === "CREDIT") {
+        await tx.creditAccount.update({
+          where: { contactId: sale.contactId },
+          data: { balance: { decrement: p.amount } },
+        });
+      } else if (p.method === "CASH") {
+        await moneyOut(tx, { account: "cash", amount: p.amount, sourceType: "SALE_RETURN", sourceId: id, note: "Sale return refund" });
+      } else if (p.method === "BANK_TRANSFER") {
+        await moneyOut(tx, { account: "bank", amount: p.amount, bankAccountId: p.bankAccountId ?? undefined, sourceType: "SALE_RETURN", sourceId: id, note: "Sale return refund" });
+      }
+    }
+
+    return tx.transaction.findUnique({ where: { id } });
+  });
+
+  await writeAudit({
+    userId,
+    action: "SALE_RETURN.MODIFY",
+    entity: "Transaction",
+    entityId: id,
+    details: JSON.stringify({ number, total: Number(transaction!.total), of: sale.number }),
+  });
+
+  return prisma.transaction.findUnique({
+    where: { id },
+    include: includeTransaction(),
+  });
+}
+
+export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInput, userId: string) {
+  const existing = await prisma.transaction.findUnique({
+    where: { id },
+    include: { items: true, payments: true },
+  });
+  if (!existing) throw new ApiError(404, "transaction.not_found", "Transaction not found");
+  if (existing.type !== "PURCHASE_RETURN") throw new ApiError(400, "transaction.not_purchase_return", "Only purchase returns can be modified");
+
+  const purchase = await prisma.transaction.findUnique({ where: { id: input.purchaseId } });
+  if (!purchase) throw new ApiError(404, "transaction.not_found", "Original purchase not found");
+  if (purchase.type !== "PURCHASE") throw new ApiError(400, "transaction.not_purchase", "Referenced transaction is not a purchase");
+
+  const number = input.number ?? existing.number;
+  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+
+  const transaction = await prisma.$transaction(async (tx) => {
+    for (const item of existing.items) {
+      if (item.unitId) {
+        const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
+        if (unit) {
+          const originalSource = (unit.returnedFromSource as UnitSource) ?? "VENDOR_PURCHASE";
+          await tx.unit.update({
+            where: { id: item.unitId },
+            data: { status: "IN_STOCK", source: originalSource, returnedFromSource: null },
+          });
+          const movements = await tx.stockMovement.findMany({
+            where: { unitId: item.unitId, type: "OUT", note: "Purchase return" },
+          });
+          for (const m of movements) {
+            await tx.stockMovement.delete({ where: { id: m.id } });
+          }
+        }
+      }
+    }
+
+    for (const p of existing.payments) {
+      if (p.method === "CREDIT") {
+        await tx.creditAccount.update({
+          where: { contactId: existing.contactId },
+          data: { balance: { decrement: Number(p.amount) } },
+        });
+      }
+    }
+
+    await reverseMoney(tx, "PURCHASE_RETURN", id);
+    await tx.payment.deleteMany({ where: { transactionId: id } });
+
+    const units = await tx.unit.findMany({ where: { id: { in: input.unitIds } } });
+    if (units.length !== input.unitIds.length) {
+      throw new ApiError(400, "unit.not_found", "One or more units not found");
+    }
+
+    const purchaseItems = await tx.transactionItem.findMany({
+      where: { transactionId: input.purchaseId, unitId: { not: null } },
+      select: { unitId: true },
+    });
+    const purchaseUnitIds = new Set(purchaseItems.map((i) => i.unitId));
+
+    let total = 0;
+    const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
+
+    for (const unit of units) {
+      if (!purchaseUnitIds.has(unit.id)) {
+        throw new ApiError(400, "unit.not_from_purchase", `Unit ${unit.imei} does not belong to this purchase`);
+      }
+      if (unit.status !== "IN_STOCK") {
+        throw new ApiError(400, "unit.not_in_stock", `Unit ${unit.imei} is not in stock`);
+      }
+      await tx.unit.update({
+        where: { id: unit.id },
+        data: { status: "RETURNED", source: "PURCHASE_RETURN", returnedFromSource: unit.source },
+      });
+      await tx.stockMovement.create({
+        data: { unitId: unit.id, productId: unit.productId, type: "OUT", note: "Purchase return" },
+      });
+      total += Number(unit.costPrice);
+      createdItems.push({
+        productId: unit.productId,
+        unitId: unit.id,
+        quantity: 1,
+        unitPrice: Number(unit.costPrice),
+        discount: 0,
+        total: Number(unit.costPrice),
+      });
+    }
+
+    const paidInput = input.payments.reduce((sum, p) => sum + p.amount, 0);
+    if (paidInput > total + 0.001) {
+      throw new ApiError(400, "payment.overpaid", "Payments exceed the refund total");
+    }
+
+    const explicitPayments = input.payments.length > 0;
+    const payments = explicitPayments
+      ? input.payments
+      : [{ method: input.refundMethod, amount: total }];
+
+    const status = explicitPayments
+      ? statusFor(total, paidInput)
+      : input.refundMethod === "CASH"
+        ? "PAID"
+        : "PENDING";
+
+    await tx.transaction.update({
+      where: { id },
+      data: {
+        number,
+        contactId: purchase.contactId,
+        userId,
+        subtotal: total,
+        discount: 0,
+        total,
+        status,
+        note: input.note ?? `Return for ${purchase.number}`,
+        ...(createdAt ? { createdAt } : {}),
+      },
+    });
+
+    await tx.transactionItem.deleteMany({ where: { transactionId: id } });
+    await tx.transactionItem.createMany({ data: createdItems.map((ci) => ({ ...ci, transactionId: id })) });
+
+    for (const p of payments) {
+      await tx.payment.create({
+        data: {
+          transactionId: id,
+          method: p.method,
+          amount: p.amount,
+          reference: p.reference,
+          bankAccountId: p.bankAccountId,
+        },
+      });
+      if (p.method === "CREDIT") {
+        await tx.creditAccount.upsert({
+          where: { contactId: purchase.contactId },
+          create: { contactId: purchase.contactId, limit: 0, balance: p.amount },
+          update: { balance: { increment: p.amount } },
+        });
+      } else if (p.method === "CASH") {
+        await moneyIn(tx, { account: "cash", amount: p.amount, sourceType: "PURCHASE_RETURN", sourceId: id, note: "Purchase return received" });
+      } else if (p.method === "BANK_TRANSFER") {
+        await moneyIn(tx, { account: "bank", amount: p.amount, bankAccountId: p.bankAccountId ?? undefined, sourceType: "PURCHASE_RETURN", sourceId: id, note: "Purchase return received" });
+      }
+    }
+
+    return tx.transaction.findUnique({ where: { id } });
+  });
+
+  await writeAudit({
+    userId,
+    action: "PURCHASE_RETURN.MODIFY",
+    entity: "Transaction",
+    entityId: id,
+    details: JSON.stringify({ number, total: Number(transaction!.total), of: purchase.number }),
+  });
+
+  return prisma.transaction.findUnique({
+    where: { id },
+    include: includeTransaction(),
+  });
+}
+
 export async function getTransaction(id: string) {
   const transaction = await prisma.transaction.findUnique({
     where: { id },
