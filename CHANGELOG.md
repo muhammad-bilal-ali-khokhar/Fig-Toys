@@ -4,9 +4,22 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.14
+## v0.1.15
 
 - Released on: 2026-08-17
+
+- ci: drop obsolete crash-report token injection from release
+- feat: help docs page, onboarding polish, crash-report feedback & desktop branding
+- refactor: single production build (production/) + first-boot-only catalog seeds
+- feat: onboarding setup (store, admin, banks) + always-on catalog seeds
+- chore: add login dev marker (DEV-20260817) for cross-machine verification
+- fix: use bsdtar to zip unpacked build (PowerShell glob broke on spaces)
+- fix: don't auto-publish during electron-builder (no GH_TOKEN in CI)
+- fix: API base fell back to /undefined in CI/packaged builds
+- feat: standalone updater app + no-install (unpacked) Windows test build
+- chore: add scripts/build-win.sh for fast Windows test builds (no release)
+
+## v0.1.14
 
 - fix: frontend proxies to the packaged backend port
 
