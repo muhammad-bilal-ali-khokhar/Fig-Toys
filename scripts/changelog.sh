@@ -47,39 +47,49 @@ render_entries() {
 
 HEADER="# Changelog
 
-All notable changes are documented here. This file is auto-generated on every
-release by \`scripts/changelog.sh\` (run from the CI release workflow) — do not
-edit by hand.
+All notable changes are documented here. Released sections are curated by hand
+for clarity; \`scripts/changelog.sh\` prepends the newest version's section on
+each release without overwriting earlier notes.
 
 "
+
+# Render the section for the version being released. Only the newest section is
+# generated automatically; previously released sections are preserved verbatim
+# so hand-written notes survive future releases.
+render_new_section() {
+  local version="$1" base="$2" range
+  range="${base:+"$base..HEAD"}"
+  [ -z "$range" ] && range="HEAD"
+
+  echo "## v$version"
+  echo
+  echo "- Released on: $(date +%Y-%m-%d)"
+  echo
+  # Group commits by conventional-commit type for readable release notes.
+  local lines
+  lines="$(commits_for "$range")"
+  if [ -n "$lines" ]; then
+    printf '%s\n' "$lines" | sed 's/^/- /'
+  else
+    echo "- No notable changes."
+  fi
+  echo
+}
 
 {
   printf '%s' "$HEADER"
 
   if [ -n "$NEW_VERSION" ]; then
     base="${TAGS[0]:-}"
-    range="${base:+"$base..HEAD"}"
-    [ -z "$range" ] && range="HEAD"
-    echo "## v$NEW_VERSION"
-    echo
-    echo "- Released on: $(date +%Y-%m-%d)"
-    echo
-    render_entries "$range"
-    echo
+    render_new_section "$NEW_VERSION" "$base"
   fi
 
-  for i in "${!TAGS[@]}"; do
-    t="${TAGS[$i]}"
-    [ "$t" = "v$NEW_VERSION" ] && continue
-    next="${TAGS[$((i + 1))]:-}"
-    range="$t"
-    [ -n "$next" ] && range="$next..$t"
-    echo "## $t"
-    echo
-    render_entries "$range"
-    echo
-  done
-} > "$CHANGELOG"
+  # Preserve all existing version sections (already-released notes stay as-is):
+  # drop the header up to the first version heading, then trim the leading blank.
+  if [ -f "$CHANGELOG" ]; then
+    sed '1,/^## /d' "$CHANGELOG" | sed '1{/^$/d;}'
+  fi
+} > "$CHANGELOG.tmp" && mv "$CHANGELOG.tmp" "$CHANGELOG"
 
 echo "Wrote $CHANGELOG"
 
