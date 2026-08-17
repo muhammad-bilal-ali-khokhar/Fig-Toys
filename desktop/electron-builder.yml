@@ -10,7 +10,6 @@ files:
   - preload.js
   - logging.js
   - report.js
-  - content-update.js
   - loading.html
   - about.html
   - icon.png
@@ -19,7 +18,6 @@ files:
   - error.html
   - runtime.json
   - package.json
-  - dev-app-update.yml
 
 # Bundle the production builds (no source, no node_modules except the native
 # module bundled inside production/backend/native).

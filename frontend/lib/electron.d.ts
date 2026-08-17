@@ -52,11 +52,6 @@ declare global {
         get: () => Promise<string>;
         copy: (text: string) => Promise<boolean>;
       };
-      content?: {
-        check: () => Promise<{ available: boolean; contentVersion: string; applied: string } | null>;
-        apply: () => Promise<string | null>;
-        onAvailable: (cb: (info: { available: boolean; contentVersion: string; applied: string }) => void) => () => void;
-      };
       about?: {
         open: () => Promise<unknown>;
         close: () => Promise<boolean>;

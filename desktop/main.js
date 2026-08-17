@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
@@ -8,7 +8,6 @@ const http = require("node:http");
 const path = require("node:path");
 const logging = require("./logging");
 const report = require("./report");
-const contentUpdate = require("./content-update");
 const { autoUpdater } = require("electron-updater");
 
 // Allow update checks to run even in unpacked/dev builds (needs a
@@ -30,22 +29,13 @@ const SRC_BACKEND = path.join(ROOT, "backend");
 const SRC_FRONTEND = path.join(ROOT, "frontend");
 
 // Production bundles live in <repo>/production (or <resources>/production in a
-// packaged app). A content update may have placed a newer copy in the user-data
-// dir, which is preferred when present. Fall back to the source tree for
-// development.
-function userContentDir() {
-  return contentUpdate.appliedContentRoot();
-}
+// packaged app). Fall back to the source tree for development.
 function backendDir() {
-  const u = userContentDir();
-  if (u && fs.existsSync(path.join(u, "backend", "server.cjs"))) return path.join(u, "backend");
   return fs.existsSync(path.join(PROD_BACKEND, "server.cjs"))
     ? PROD_BACKEND
     : SRC_BACKEND;
 }
 function frontendDir() {
-  const u = userContentDir();
-  if (u && fs.existsSync(path.join(u, "frontend", "server.js"))) return path.join(u, "frontend");
   return fs.existsSync(path.join(PROD_FRONTEND, "server.js"))
     ? PROD_FRONTEND
     : SRC_FRONTEND;
@@ -53,8 +43,6 @@ function frontendDir() {
 // The bundled server.cjs, setup.cjs and schema.sql share one folder — the prod
 // bundle root in a packaged build, or the backend source tree in development.
 function bundleDir() {
-  const u = userContentDir();
-  if (u && fs.existsSync(path.join(u, "backend", "server.cjs"))) return path.join(u, "backend");
   return backendDir() === PROD_BACKEND
     ? PROD_BACKEND
     : SRC_BACKEND;
@@ -293,30 +281,6 @@ process.on("unhandledRejection", (reason) => {
 // ---------------------------------------------------------------------------
 function userDataDir() {
   return app.getPath("userData");
-}
-
-contentUpdate.init(userDataDir);
-
-// After the app is up, quietly ask whether a content (backend/frontend) update
-// is available and tell the renderer so it can offer Update now / Update later.
-// Never applies anything on its own.
-let contentCheckScheduled = false;
-function scheduleContentCheck() {
-  if (contentCheckScheduled) return;
-  contentCheckScheduled = true;
-  setTimeout(async () => {
-    try {
-      const info = await contentUpdate.checkContentUpdate();
-      if (!info) return;
-      for (const win of BrowserWindow.getAllWindows()) {
-        if (!win.isDestroyed()) {
-          win.webContents.send("content:available", info);
-        }
-      }
-    } catch (err) {
-      logging.error("content: availability check failed " + (err && err.stack ? err.stack : err));
-    }
-  }, 4000);
 }
 
 function runtimeFile() {
@@ -867,44 +831,6 @@ if (!app.requestSingleInstanceLock()) {
     return true;
   });
 
-  // Content (backend/frontend) update approval flow. check reports availability
-  // without applying; apply downloads + swaps and relaunches the app.
-  ipcMain.handle("content:check", async () => {
-    try {
-      return await contentUpdate.checkContentUpdate();
-    } catch (err) {
-      logging.error("content: check failed " + (err && err.stack ? err.stack : err));
-      return null;
-    }
-  });
-
-  ipcMain.handle("content:apply", async () => {
-    try {
-      const applied = await contentUpdate.applyContentUpdate();
-      if (applied) {
-        setTimeout(async () => {
-          // The renderer's HTTP cache may still hold JS chunks from the old
-          // frontend bundle; mixing old + new chunks causes "v is not a
-          // function" on route changes. Clear it so the new build loads clean.
-          try {
-            await session.defaultSession.clearCache();
-            await session.defaultSession.clearStorageData({
-              storages: ["cookies", "localstorage", "cachestorage"],
-            });
-          } catch (err) {
-            logging.error("content: cache clear failed " + (err && err.message ? err.message : err));
-          }
-          app.relaunch();
-          app.exit(0);
-        }, 800);
-      }
-      return applied;
-    } catch (err) {
-      logging.error("content: apply failed " + (err && err.stack ? err.stack : err));
-      return null;
-    }
-  });
-
   ipcMain.handle("about:open", () => openAboutWindow());
 
   ipcMain.handle("about:close", () => {
@@ -982,14 +908,6 @@ if (!app.requestSingleInstanceLock()) {
         fatalDialog("Could not prepare the local database", err);
         app.exit(1);
         return;
-      }
-
-      // Content self-update (backend/frontend bundle). Check whether a newer
-      // build is available but do NOT apply automatically — the UI shows an
-      // approval prompt and the owner decides to update now or later. Applied
-      // updates live in the user-data dir, no reinstall.
-      if (process.platform === "win32" && app.isPackaged && !process.execPath.includes("win-unpacked")) {
-        scheduleContentCheck();
       }
 
       setStatus("Starting backend server…");

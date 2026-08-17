@@ -113,10 +113,6 @@ jobs:
         working-directory: backend
         run: npm run build:production
 
-      - name: Zip content bundle + write manifest
-        working-directory: desktop
-        run: node scripts/make-content-bundle.mjs
-
       - name: Package installer
         working-directory: desktop
         run: npm run dist:win
@@ -152,6 +148,4 @@ jobs:
             desktop/release/*.exe
             desktop/release/latest.yml
             desktop/release/*.exe.blockmap
-            desktop/release/production.zip
-            desktop/release/manifest.json
           body_path: .release-notes.md
