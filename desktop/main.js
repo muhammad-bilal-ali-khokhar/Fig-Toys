@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
@@ -888,7 +888,6 @@ if (!app.requestSingleInstanceLock()) {
       if (applied) {
         // Clear the renderer HTTP cache so stale JS/CSS chunks from the old
         // bundle don't persist after the relaunch.
-        const { session } = require("electron");
         await session.defaultSession.clearCache();
         setTimeout(() => {
           app.relaunch();
@@ -1000,6 +999,10 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     // Open the real (framed) app window, then dismiss the loading screen.
+    // Clear the renderer HTTP cache on every startup so stale Next.js chunks
+    // from a previous content update never persist into the new session.
+    const { session } = require("electron");
+    await session.defaultSession.clearCache();
     createWindow(url);
     setupAppMenu();
     if (!loadingWin.isDestroyed() && process.env.FIG_STAY_ON_LOADING !== "1") loadingWin.close();
