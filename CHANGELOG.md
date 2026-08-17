@@ -4,9 +4,14 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.15
+## v0.1.16
 
 - Released on: 2026-08-17
+
+- feat: polish NSIS installer branding + fix publish repo
+- refactor: remove standalone updater, polish About window update UI
+
+## v0.1.15
 
 - ci: drop obsolete crash-report token injection from release
 - feat: help docs page, onboarding polish, crash-report feedback & desktop branding
