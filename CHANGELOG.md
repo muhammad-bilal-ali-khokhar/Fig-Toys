@@ -4,9 +4,13 @@ All notable changes are documented here. This file is auto-generated on every
 release by `scripts/changelog.sh` (run from the CI release workflow) — do not
 edit by hand.
 
-## v0.1.18
+## v0.1.19
 
 - Released on: 2026-08-17
+
+- feat: content self-update for backend/frontend without reinstall
+
+## v0.1.18
 
 - feat: show Windows-only update notice in desktop app settings
 
