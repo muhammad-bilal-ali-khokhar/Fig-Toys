@@ -18,7 +18,17 @@ export type ThemeId =
   | "teal"
   | "pink"
   | "kiwi"
-  | "watermelon";
+  | "watermelon"
+  | "midnight"
+  | "lavender"
+  | "coral"
+  | "sage"
+  | "copper"
+  | "nordic"
+  | "cherry"
+  | "carbon"
+  | "slate"
+  | "amber";
 
 export type ThemeDef = {
   id: ThemeId;
@@ -151,5 +161,65 @@ export const THEMES: ThemeDef[] = [
     label: "Watermelon",
     description: "Juicy pink-red on cream.",
     swatch: ["#f43f5e", "#4c0519", "#fdfbf7"],
+  },
+  {
+    id: "midnight",
+    label: "Midnight",
+    description: "Deep navy on dark charcoal.",
+    swatch: ["#1e3a5f", "#0c1929", "#f0f4f8"],
+  },
+  {
+    id: "lavender",
+    label: "Lavender",
+    description: "Soft lavender on pale wisteria.",
+    swatch: ["#a78bfa", "#7c3aed", "#faf5ff"],
+  },
+  {
+    id: "coral",
+    label: "Coral",
+    description: "Warm coral on soft peach.",
+    swatch: ["#fb7185", "#be123c", "#fff1f2"],
+  },
+  {
+    id: "sage",
+    label: "Sage",
+    description: "Muted sage green on warm linen.",
+    swatch: ["#86a88a", "#4a6e50", "#f4f7f4"],
+  },
+  {
+    id: "copper",
+    label: "Copper",
+    description: "Rich copper on warm clay.",
+    swatch: ["#c77a3c", "#8b4513", "#fdf6ee"],
+  },
+  {
+    id: "nordic",
+    label: "Nordic",
+    description: "Cool Scandinavian blue on crisp white.",
+    swatch: ["#5b8fb9", "#2c4a6e", "#f5f8fb"],
+  },
+  {
+    id: "cherry",
+    label: "Cherry",
+    description: "Deep cherry red on soft rose.",
+    swatch: ["#c2185b", "#880e4f", "#fce4ec"],
+  },
+  {
+    id: "carbon",
+    label: "Carbon",
+    description: "Dark carbon with electric blue accent.",
+    swatch: ["#3b82f6", "#111827", "#f9fafb"],
+  },
+  {
+    id: "slate",
+    label: "Slate",
+    description: "Professional blue-grey on light ash.",
+    swatch: ["#64748b", "#334155", "#f8fafc"],
+  },
+  {
+    id: "amber",
+    label: "Amber",
+    description: "Rich amber on warm cream.",
+    swatch: ["#f59e0b", "#b45309", "#fffbeb"],
   },
 ] as const;
