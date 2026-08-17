@@ -83,12 +83,14 @@ const headExact = spawnSync("git", ["describe", "--tags", "--exact-match", "HEAD
   encoding: "utf8",
   stdio: ["pipe", "pipe", "pipe"],
 });
-const describeRef = headExact.status === 0 ? "HEAD^" : "HEAD";
+const isTagged = headExact.status === 0;
+const describeRef = isTagged ? "HEAD^" : "HEAD";
 const lastTag = spawnSync("git", ["describe", "--tags", "--abbrev=0", describeRef], {
   encoding: "utf8",
 }).stdout.trim();
 if (lastTag) {
-  const changed = spawnSync("git", ["diff", "--name-only", `${lastTag}..HEAD`], { encoding: "utf8" })
+  const diffEnd = isTagged ? "HEAD~1" : "HEAD";
+  const changed = spawnSync("git", ["diff", "--name-only", `${lastTag}..${diffEnd}`], { encoding: "utf8" })
     .stdout.split("\n")
     .map((s) => s.trim())
     .filter(Boolean);
