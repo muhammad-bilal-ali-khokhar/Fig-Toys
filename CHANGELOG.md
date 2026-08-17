@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.44
+## v0.1.45
+
+- Released on: 2026-08-17
+
+- feat: add ReservationModifyPicker component and update reservations page
 
 - Released on: 2026-08-17
 
