@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.26
+## v0.1.27
+
+- Released on: 2026-08-17
+
+- fix: clear renderer cache after content update to avoid stale chunk errors
 
 - Released on: 2026-08-17
 
