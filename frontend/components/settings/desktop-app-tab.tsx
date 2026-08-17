@@ -14,6 +14,7 @@ type ReportConfig = { enabled: boolean; backendUrl: string; hasSecret: boolean }
 export function DesktopAppTab() {
   const { toast } = useToast();
   const isElectron = typeof window !== "undefined" && Boolean(window.fig?.isElectron);
+  const isWindows = typeof window !== "undefined" && window.fig?.platform === "win32";
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [logs, setLogs] = useState<string[] | null>(null);
@@ -153,6 +154,12 @@ export function DesktopAppTab() {
 
       <div className="rounded-3xl bg-white p-4">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Updates</p>
+        {!isWindows && (
+          <p className="mb-3 rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
+            Updates are only available for the Windows version of the desktop app. This build is not updated
+            through this panel.
+          </p>
+        )}
         <div className="mb-3 flex items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white">
             <UpdaterIcon className="h-5 w-5" />
