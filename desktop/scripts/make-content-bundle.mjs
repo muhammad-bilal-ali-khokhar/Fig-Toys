@@ -74,10 +74,19 @@ await new Promise((resolve, reject) => {
 });
 const sha256 = hash.digest("hex");
 
-// Determine the release type from changed files since the last tag.
+// Determine the release type from changed files since the previous tag.
+// In CI the build job checks out exactly at the new tag, so HEAD is tagged —
+// `git describe --abbrev=0` returns the current tag and the diff is empty.
+// Fix: when HEAD is exactly a tagged commit, use HEAD~1 to find the previous tag.
 let type = "content";
-const lastTag = spawnSync("git", ["describe", "--tags", "--abbrev=0"], { encoding: "utf8" })
-  .stdout.trim();
+const headExact = spawnSync("git", ["describe", "--tags", "--exact-match", "HEAD"], {
+  encoding: "utf8",
+  stdio: ["pipe", "pipe", "pipe"],
+});
+const describeRef = headExact.status === 0 ? "HEAD^" : "HEAD";
+const lastTag = spawnSync("git", ["describe", "--tags", "--abbrev=0", describeRef], {
+  encoding: "utf8",
+}).stdout.trim();
 if (lastTag) {
   const changed = spawnSync("git", ["diff", "--name-only", `${lastTag}..HEAD`], { encoding: "utf8" })
     .stdout.split("\n")
