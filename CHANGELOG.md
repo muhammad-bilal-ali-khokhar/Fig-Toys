@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.24
+## v0.1.25
+
+- Released on: 2026-08-17
+
+- feat: allow devtools in packaged app when launched with --dev
 
 - Released on: 2026-08-17
 
