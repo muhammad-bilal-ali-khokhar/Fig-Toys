@@ -1,10 +1,16 @@
 # Changelog
 
 All notable changes are documented here. Released sections are curated by hand
-for clarity; the `scripts/changelog.sh` generator prepends the newest version's
-section on each release without overwriting earlier notes.
+for clarity; `scripts/changelog.sh` prepends the newest version's section on
+each release without overwriting earlier notes.
 
-## v0.1.21 (2026-08-17)
+## v0.1.22
+
+- Released on: 2026-08-17
+
+- feat: re-enable devtools in dev mode via View menu + shortcuts
+- docs: detailed curated changelog for all versions
+- docs: detailed curated changelog + prepend-only generator
 
 ### Update approval & installer polish
 - **Content update approval flow.** Content updates (backend/frontend bundle)
