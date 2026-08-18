@@ -978,6 +978,7 @@
                             </a>
                             <p class="mt-3 text-center text-sm text-ink-500" id="size">64-bit</p>
                             <p class="mt-1 text-center text-sm text-ink-500" id="date"></p>
+                            <p class="mt-4 text-center text-sm text-ink-600 leading-relaxed whitespace-pre-line max-w-xl mx-auto" id="latest-desc"></p>
 
                             <div class="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
                                 <div class="bg-ink-50 border border-ink-200 rounded-2xl p-4 text-center">
@@ -1072,6 +1073,9 @@
                             year: "numeric", month: "long", day: "numeric",
                         });
                 }
+                if (d.description) {
+                    document.getElementById("latest-desc").textContent = d.description;
+                }
             } else {
                 document.getElementById("product-version").textContent = "v—";
                 document.getElementById("download-btn").href = BASE + "/Fig.Mobile.POS-setup.exe";
@@ -1100,6 +1104,12 @@
                     size.className = "text-sm text-ink-500 mt-1";
                     size.textContent = v.size ? v.size + " · 64-bit" : "";
                     info.append(title, size);
+                    if (v.description) {
+                        const desc = document.createElement("p");
+                        desc.className = "text-sm text-ink-600 mt-3 leading-relaxed whitespace-pre-line max-w-xl";
+                        desc.textContent = v.description;
+                        info.append(desc);
+                    }
                     const link = document.createElement("a");
                     link.className = "shrink-0 bg-brand-600 text-ink-50 px-5 py-2.5 rounded-full text-sm font-medium hover:bg-brand-700 transition-colors border border-brand-700";
                     link.href = v.url.setup;

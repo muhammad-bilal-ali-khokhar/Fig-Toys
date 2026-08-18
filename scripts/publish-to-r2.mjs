@@ -7,8 +7,40 @@
 //   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
 //   R2_BUCKET, R2_PUBLIC_URL, R2_VERSION (optional), R2_SOURCE_DIR (default desktop/release)
 import { createHash, createHmac } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+
+// Pull the human-written release description for a version from the curated
+// notes (docs/RELEASE_NOTES.md). Falls back to the first section (## Unreleased)
+// so the version being released carries the current work-in-progress notes.
+function releaseDescription(version) {
+  const notesPath = path.resolve("docs/RELEASE_NOTES.md");
+  if (!existsSync(notesPath)) return "";
+  const lines = readFileSync(notesPath, "utf8").split("\n");
+  let target = null;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^## v/.test(lines[i])) {
+      if (lines[i].trim() === `## v${version}`) target = i + 1;
+      else if (target !== null) break;
+    }
+  }
+  if (target === null) {
+    // No exact version heading yet — use the ## Unreleased section.
+    for (let i = 0; i < lines.length; i++) {
+      if (/^## /.test(lines[i])) {
+        if (lines[i].trim() === "## Unreleased") target = i + 1;
+        else break;
+      }
+    }
+  }
+  if (target === null) return "";
+  const body = [];
+  for (let i = target; i < lines.length; i++) {
+    if (/^## /.test(lines[i])) break;
+    body.push(lines[i]);
+  }
+  return body.join("\n").trim();
+}
 
 const ACCOUNT = process.env.R2_ACCOUNT_ID || "";
 const KEY = process.env.R2_ACCESS_KEY_ID || "";
@@ -120,6 +152,7 @@ async function main() {
   const latest = {
     version,
     size: bytes(setupBuf.length),
+    description: releaseDescription(version),
     url: {
       setup: `${PUBLIC}/${setupKey}`,
       latestYml: latestYmlKey ? `${PUBLIC}/${latestYmlKey}` : null,
@@ -159,6 +192,7 @@ async function main() {
     version,
     size: latest.size,
     publishedAt: latest.publishedAt || null,
+    description: latest.description,
     url: { setup: latest.url.setup, blockmap: latest.url.blockmap },
   };
   history = [entry, ...history.filter((v) => v.version !== version)].slice(0, KEEP);
