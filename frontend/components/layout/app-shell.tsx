@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Logo } from "@/components/brand/logo";
 import { NAV_ICONS } from "@/components/icons";
 import { LogoutIcon } from "@/components/icons";
@@ -23,6 +23,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: profile } = useApi<CompanyProfile>("/settings/company");
   const pathname = usePathname();
   const router = useRouter();
+  const isMac = typeof window !== "undefined" && window.fig?.platform === "darwin";
   const [unsaved, setUnsaved] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [pending, setPending] = useState(queueCount());
@@ -86,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden bg-ink-50 text-ink-900">
       <aside className="flex w-52 shrink-0 flex-col overflow-y-auto overscroll-none bg-white print:hidden">
-        <div className="flex items-center gap-2.5 px-4 py-4">
+        <div className={`flex items-center gap-2.5 px-4 ${isMac ? "pt-10 pb-4" : "py-4"}`} style={{ WebkitAppRegion: "drag" } as CSSProperties}>
           <Logo size={34} src={profile?.logoUrl} />
           <div className="min-w-0 flex-1 leading-tight">
             <p className="truncate text-sm font-bold" title={profile?.name ?? APP.nameFull}>{profile?.name ?? APP.nameFull}</p>

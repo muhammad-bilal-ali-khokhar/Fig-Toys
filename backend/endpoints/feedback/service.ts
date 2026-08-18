@@ -4,7 +4,7 @@ import { prisma } from "../../core/lib/prisma";
 import { COMPANY_ID } from "../../core/lib/company";
 import type { CrashReportInput } from "./schemas";
 
-const DEFAULT_REPO = "mykopk/Mobile-Shop-POS";
+const DEFAULT_REPO = "arsalanwahab/Fig-POS";
 
 function repo(): string {
   const custom = (env.FIG_GH_REPO || "").trim();

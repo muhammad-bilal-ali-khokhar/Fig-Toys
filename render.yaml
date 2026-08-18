@@ -7,7 +7,7 @@ services:
   - type: web
     name: fig-mobile-backend
     runtime: node
-    repo: https://github.com/mykopk/Mobile-Shop-POS
+    repo: https://github.com/arsalanwahab/Fig-POS
     rootDir: backend
     plan: free
     buildCommand: npm ci && npx prisma generate

@@ -39,7 +39,7 @@ npmRebuild: true
 publish:
   provider: github
   owner: arsalanwahab
-  repo: Mobile-Shop-POS
+  repo: Fig-POS
 
 # Windows is the only release target. macOS is not built or released.
 win:

@@ -366,25 +366,37 @@ function runNode(args, { cwd, env = {} }) {
 
 async function ensureDatabase(onStatus) {
   const db = dbPath();
-  if (fs.existsSync(db)) return;
 
-  fs.mkdirSync(path.dirname(db), { recursive: true });
-  console.log(`First run — creating fresh database at ${db}`);
-  const setup = path.join(bundleDir(), "setup.cjs");
-  const schema = path.join(bundleDir(), "schema.sql");
-  if (fs.existsSync(setup) && fs.existsSync(schema)) {
-    onStatus && onStatus("Creating database tables…");
-    await runNode([setup, db, schema], { cwd: bundleDir() });
-  } else if (!app.isPackaged) {
-    const prismaCli = path.join(SRC_BACKEND, "node_modules", "prisma", "build", "index.js");
-    await runNode([prismaCli, "db", "push", "--skip-generate"], {
-      cwd: SRC_BACKEND,
-      env: { DATABASE_URL: `file:${db}` },
-    });
-  } else {
-    throw new Error(
-      `Database setup files missing in the app bundle. Expected ${setup} and ${schema}.`,
-    );
+  if (!fs.existsSync(db)) {
+    fs.mkdirSync(path.dirname(db), { recursive: true });
+    console.log(`First run — creating fresh database at ${db}`);
+    const setup = path.join(bundleDir(), "setup.cjs");
+    const schema = path.join(bundleDir(), "schema.sql");
+    if (fs.existsSync(setup) && fs.existsSync(schema)) {
+      onStatus && onStatus("Creating database tables…");
+      await runNode([setup, db, schema], { cwd: bundleDir() });
+    } else if (!app.isPackaged) {
+      const prismaCli = path.join(SRC_BACKEND, "node_modules", "prisma", "build", "index.js");
+      await runNode([prismaCli, "db", "push", "--skip-generate"], {
+        cwd: SRC_BACKEND,
+        env: { DATABASE_URL: `file:${db}` },
+      });
+    } else {
+      throw new Error(
+        `Database setup files missing in the app bundle. Expected ${setup} and ${schema}.`,
+      );
+    }
+  }
+
+  // Upgrade existing databases in place so columns/tables added after an
+  // install are applied on the next launch. No-op on a fresh DB (schema.sql is
+  // already current). Present in the production bundle; dev/source DBs are
+  // always current so a missing runner there is fine.
+  const migrate = path.join(bundleDir(), "migrate-db.cjs");
+  const migrations = path.join(bundleDir(), "migrations");
+  if (fs.existsSync(migrate) && fs.existsSync(migrations)) {
+    onStatus && onStatus("Checking for database updates…");
+    await runNode([migrate, db, migrations], { cwd: bundleDir() });
   }
 }
 
@@ -415,7 +427,7 @@ function spawnBackend() {
     BACKUP_INTERVAL_HOURS: process.env.FIG_BACKUP_INTERVAL_HOURS || "24",
     BACKUP_RETENTION: process.env.FIG_BACKUP_RETENTION || "14",
     FIG_GH_TOKEN: getGhToken(),
-    FIG_GH_REPO: process.env.FIG_GH_REPO || "mykopk/Mobile-Shop-POS",
+    FIG_GH_REPO: process.env.FIG_GH_REPO || "arsalanwahab/Fig-POS",
     FIG_FEEDBACK_SECRET: process.env.FIG_FEEDBACK_SECRET || "",
     FIG_DESKTOP: "1",
   };
@@ -539,12 +551,10 @@ function createLoadingWindow() {
     height: 620,
     resizable: false,
     minimizable: false,
-    maximizable: false,
+maximizable: false,
     frame: false,
     transparent: true,
-    hasShadow: true,
-    icon: APP_ICON,
-    title: "Fig POS for Mobile Phones",
+    hasShadow: false,
     backgroundColor: "#00000000",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -653,7 +663,7 @@ function openAboutWindow() {
     maximizable: false,
     frame: false,
     transparent: true,
-    hasShadow: true,
+    hasShadow: false,
     icon: APP_ICON,
     title: "About Fig POS",
     backgroundColor: "#00000000",
@@ -686,6 +696,11 @@ function createWindow(url) {
     icon: APP_ICON,
     title: "Fig POS for Mobile Phones",
     backgroundColor: "#f6f5f2",
+    // Hide the native title bar but keep the OS window controls (traffic lights
+    // on macOS, min/max/close overlay on Windows/Linux). The renderer adds a
+    // draggable strip so the window can still be moved.
+    titleBarStyle: "hidden",
+    ...(process.platform !== "darwin" ? { titleBarOverlay: true } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -833,7 +848,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   ipcMain.handle("update:open-changelog", () => {
-    shell.openExternal("https://github.com/arsalanwahab/Mobile-Shop-POS/releases/latest");
+    shell.openExternal("https://github.com/arsalanwahab/Fig-POS/releases/latest");
     return true;
   });
 

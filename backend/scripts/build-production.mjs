@@ -7,7 +7,8 @@
 //
 // The database itself is NOT bundled: it is created on first server start in
 // the OS user-data directory. Run `npm run rebuild` first (electron-rebuild)
-// so the native module matches Electron's ABI.import { build } from "esbuild";
+// so the native module matches Electron's ABI.
+import { build } from "esbuild";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -48,6 +49,11 @@ const sql = execSync(
 );
 fs.writeFileSync(path.join(out, "schema.sql"), sql);
 fs.copyFileSync(path.join(dir, "setup-db.cjs"), path.join(out, "setup.cjs"));
+
+// Incremental migrations upgrade existing databases in place (setup.cjs only
+// creates fresh DBs). Bundle the runner + migration files.
+fs.copyFileSync(path.join(dir, "migrate-db.cjs"), path.join(out, "migrate-db.cjs"));
+fs.cpSync(path.join(dir, "migrations"), path.join(out, "migrations"), { recursive: true });
 
 // Native better-sqlite3 runtime deps (electron-builder prunes node_modules, so
 // we use a plain folder resolved via NODE_PATH).
