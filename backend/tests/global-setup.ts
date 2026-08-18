@@ -7,7 +7,7 @@ const dbFile = join(__dirname, "..", "data", "test.db");
 
 export default function globalSetup() {
   rmSync(dbFile, { force: true });
-  execSync("prisma db push", {
+  execSync("prisma db push --schema=prisma/schema.prisma", {
     cwd: join(__dirname, ".."),
     env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
     stdio: "inherit",
