@@ -11,12 +11,15 @@ export async function listUnits({
   condition,
   status,
   q,
+  productId,
 }: {
   condition?: string;
   status?: string;
   q?: string;
+  productId?: string;
 }) {
   const where: Prisma.UnitWhereInput = {
+    ...(productId ? { productId } : {}),
     ...(condition ? { condition: condition as UnitCondition } : {}),
     ...(status ? { status: status as UnitStatus } : {}),
     ...(q
@@ -104,6 +107,55 @@ export async function getUnitByImei(imei: string) {
       brand: unit.product.brand.name,
       color: unit.product.color?.name ?? null,
     },
+  };
+}
+
+export async function getDeviceLedger(imei: string) {
+  const unit = await prisma.unit.findUnique({
+    where: { imei },
+    include: {
+      product: { include: { brand: true, color: true } },
+      movements: { orderBy: { createdAt: "desc" } },
+      items: { include: { transaction: { include: { contact: true, user: true } } }, orderBy: { id: "asc" } },
+    },
+  });
+  if (!unit) throw new ApiError(404, "unit.not_found", "No unit found with that IMEI");
+
+  return {
+    unit: {
+      id: unit.id,
+      imei: unit.imei,
+      condition: unit.condition,
+      status: unit.status,
+      source: unit.source,
+      carrier: unit.carrier,
+      batteryHealth: unit.batteryHealth,
+      grade: unit.grade,
+      costPrice: unit.costPrice,
+      acquiredAt: unit.acquiredAt,
+      product: {
+        id: unit.product.id,
+        brand: unit.product.brand.name,
+        model: unit.product.model,
+        storage: unit.product.storage,
+        ram: unit.product.ram,
+        screenSize: unit.product.screenSize,
+        color: unit.product.color?.name ?? null,
+      },
+    },
+    movements: unit.movements,
+    ledger: unit.items.map((it) => ({
+      id: it.transactionId,
+      type: it.transaction.type,
+      number: it.transaction.number,
+      date: it.transaction.createdAt,
+      qty: it.quantity,
+      unitPrice: it.unitPrice,
+      discount: it.discount,
+      total: it.total,
+      contact: it.transaction.contact.name,
+      user: it.transaction.user.name,
+    })),
   };
 }
 

@@ -5,6 +5,7 @@ import {
   adjustUnit,
   bulkDeleteUnits,
   createUnit,
+  getDeviceLedger,
   getReturnEligibility,
   getSaleReturnEligibility,
   getUnit,
@@ -17,12 +18,13 @@ import {
 import type { AdjustInput, ImportUnitInput, UnitInput, UnitUpdateInput } from "./schemas";
 
 export async function listHandler(req: Request, res: Response) {
-  const { condition, status, q } = req.query;
+  const { condition, status, q, productId } = req.query;
   const canView = hasPermissionList(req.user?.permissions, PERMISSIONS.reportProfit);
   const units = await listUnits({
     condition: typeof condition === "string" ? condition : undefined,
     status: typeof status === "string" ? status : undefined,
     q: typeof q === "string" ? q : undefined,
+    productId: typeof productId === "string" ? productId : undefined,
   });
   res.json({
     data: units.map((u) => (canView ? u : { ...u, costPrice: undefined })),
@@ -31,6 +33,15 @@ export async function listHandler(req: Request, res: Response) {
 
 export async function imeiHandler(req: Request, res: Response) {
   res.json({ data: await getUnitByImei(req.params.imei) });
+}
+
+export async function deviceLedgerHandler(req: Request, res: Response) {
+  const result = await getDeviceLedger(req.params.imei);
+  if (!hasPermissionList(req.user?.permissions, PERMISSIONS.reportProfit)) {
+    res.json({ data: { ...result, unit: { ...result.unit, costPrice: undefined } } });
+    return;
+  }
+  res.json({ data: result });
 }
 
 export async function returnEligibleHandler(req: Request, res: Response) {

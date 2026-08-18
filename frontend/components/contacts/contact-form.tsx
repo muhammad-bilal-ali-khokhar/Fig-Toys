@@ -126,6 +126,9 @@ export function ContactForm({
     >
       <div className="space-y-3">
         <div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
           <label className="mb-1 block text-xs font-semibold text-ink-500">
             Photo <span className="font-normal text-ink-400">(optional)</span>
           </label>
@@ -133,9 +136,6 @@ export function ContactForm({
             value={form.photoUrl ?? ""}
             onChange={(v) => update({ photoUrl: v || null })}
           />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
             <label className="mb-1 block text-xs font-semibold text-ink-500">
               CNIC front <span className="font-normal text-ink-400">(optional)</span>
             </label>

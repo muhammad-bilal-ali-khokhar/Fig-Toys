@@ -512,6 +512,47 @@ export type StockMovement = {
   product: { id: string; brand: string; model: string; storage: string | null } | null;
 };
 
+export type DeviceLedgerUnit = {
+  id: string;
+  imei: string;
+  condition: "NEW" | "USED";
+  status: "IN_STOCK" | "RESERVED" | "SOLD" | "RETURNED" | "DAMAGED" | "WRITTEN_OFF";
+  source: string;
+  carrier: "NON_PTA" | "PTA" | "SIM_LOCKED";
+  batteryHealth: number | null;
+  grade: string | null;
+  costPrice?: string;
+  acquiredAt: string;
+  product: {
+    id: string;
+    brand: string;
+    model: string;
+    storage: string | null;
+    ram: string | null;
+    screenSize: string | null;
+    color: string | null;
+  };
+};
+
+export type DeviceLedgerRow = {
+  id: string;
+  type: string;
+  number: string;
+  date: string;
+  qty: number;
+  unitPrice: string;
+  discount: string;
+  total: string;
+  contact: string;
+  user: string;
+};
+
+export type DeviceLedger = {
+  unit: DeviceLedgerUnit;
+  movements: StockMovement[];
+  ledger: DeviceLedgerRow[];
+};
+
 export type ReturnEligibility = {
   eligible: boolean;
   code?: string;

@@ -7,6 +7,7 @@ import {
   adjustHandler,
   bulkDeleteHandler,
   createHandler,
+  deviceLedgerHandler,
   getHandler,
   imeiHandler,
   importHandler,
@@ -27,6 +28,7 @@ router.get("/movements", requirePermission(PERMISSIONS.unitView), asyncHandler(m
 router.get("/return-eligible", requirePermission(PERMISSIONS.unitView), asyncHandler(returnEligibleHandler));
 router.get("/sale-return-eligible", requirePermission(PERMISSIONS.unitView), asyncHandler(saleReturnEligibleHandler));
 router.get("/imei/:imei", requirePermission(PERMISSIONS.unitView), asyncHandler(imeiHandler));
+router.get("/ledger/:imei", requirePermission(PERMISSIONS.unitView), asyncHandler(deviceLedgerHandler));
 router.get("/:id", requirePermission(PERMISSIONS.unitView), asyncHandler(getHandler));
 router.post("/import", requirePermission(PERMISSIONS.unitImport), validate(importUnitsSchema), asyncHandler(importHandler));
 router.post("/adjust", requirePermission(PERMISSIONS.unitAdjust), validate(adjustSchema), asyncHandler(adjustHandler));
