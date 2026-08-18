@@ -48,16 +48,7 @@ a { color: inherit; }
 }
 
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
-.logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px; height: 30px;
-  border-radius: 9px;
-  background: var(--brand);
-  color: #fff;
-  font-weight: 800;
-}
+.logo { width: 30px; height: 30px; border-radius: 8px; display: block; }
 .brand-name { letter-spacing: 0.2px; }
 
 .nav { display: flex; align-items: center; gap: 22px; }
