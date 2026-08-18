@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build:production": "node scripts/prepare-production.mjs"
   },

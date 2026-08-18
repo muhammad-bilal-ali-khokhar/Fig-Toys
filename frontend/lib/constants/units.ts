@@ -17,6 +17,15 @@ export const CONDITION_TABS: { value: "" | "NEW" | "USED"; label: string }[] = [
   { value: "USED", label: CONDITION_LABELS.USED },
 ];
 
+export const STATUS_LABELS: Record<string, string> = {
+  IN_STOCK: "In stock",
+  RESERVED: "Reserved",
+  SOLD: "Sold",
+  RETURNED: "Returned",
+  DAMAGED: "Damaged",
+  WRITTEN_OFF: "Written off",
+};
+
 export type MovementType = "IN" | "OUT" | "ADJUST" | "TRANSFER" | "RESERVED" | "RELEASED";
 
 export const MOVEMENT_LABELS: Record<MovementType, string> = {

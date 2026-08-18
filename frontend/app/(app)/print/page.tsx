@@ -12,7 +12,7 @@ import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import { whatsappLink } from "@/lib/whatsapp";
 import { canViewCosts } from "@/lib/roles";
-import { CARRIER_LABELS } from "@/lib/constants/units";
+import { CARRIER_LABELS, STATUS_LABELS } from "@/lib/constants/units";
 import {
   APP,
   CONTACTS_DEFAULT_OPTIONS,
@@ -76,15 +76,6 @@ const TYPE_DOT: Record<string, string> = {
   PURCHASE_RETURN: "bg-ink-500",
   VOUCHER: "bg-brand-600",
   EXPENSE: "bg-error",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  IN_STOCK: "In stock",
-  RESERVED: "Reserved",
-  SOLD: "Sold",
-  RETURNED: "Returned",
-  DAMAGED: "Damaged",
-  WRITTEN_OFF: "Written off",
 };
 
 type PrintLayout = {
@@ -1172,7 +1163,7 @@ function InventoryDocument({
                     {[
                       u.product.color,
                       u.condition,
-                      STATUS_LABEL[u.status] ?? u.status,
+                      STATUS_LABELS[u.status] ?? u.status,
                       CARRIER_LABELS[u.carrier] ?? u.carrier,
                       u.grade ? `Grade ${u.grade}` : "",
                       u.batteryHealth != null ? `${u.batteryHealth}% batt` : "",
@@ -1276,7 +1267,7 @@ function InventoryTable({
                 {options.color && <td className="py-1 pr-1 align-top text-ink-700">{u.product.color ?? "—"}</td>}
                 {options.condition && <td className="py-1 pr-1 align-top text-ink-700">{u.condition}</td>}
                 {options.status && (
-                  <td className="py-1 pr-1 align-top text-ink-700">{STATUS_LABEL[u.status] ?? u.status}</td>
+                  <td className="py-1 pr-1 align-top text-ink-700">{STATUS_LABELS[u.status] ?? u.status}</td>
                 )}
                 {options.carrier && (
                   <td className="py-1 pr-1 align-top text-ink-700">{CARRIER_LABELS[u.carrier] ?? u.carrier}</td>

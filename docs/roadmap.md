@@ -35,7 +35,7 @@
 ## Phase 4 — Hardening & Polish
 - [x] Audit log viewer + admin screens
 - [x] Company profile: logo upload, footer, currency, tax
-- [x] **Print layouts**: premade layouts (58mm/80mm/A4 receipts, inventory lists, expense sheets) defined in `backend/data/print-layouts.json`, seeded into the DB on server start, served via `/api/print-layout` (system layouts) with a `POST /api/print-layout/import` JSON upload endpoint
+- [x] **Print layouts**: per-document print settings (`print-setting`) — 58mm/80mm/A4 receipt, invoice, purchase slip, credit statement formats; Print Studio + direct print use the matching setting (`/api/print-setting`)
 - [x] **Print formats**: per-document thermal/A4 defaults + optional WebUSB ESC/POS direct thermal print
 - [x] **Backup / restore** in Settings (admin-only)
 - [x] **Automatic backups**: `npm run backup` script + optional on-start/scheduled backups with retention (`AUTO_BACKUP_ON_START`, `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION`)
@@ -46,7 +46,7 @@
 - [x] **Purchase orders** (order → partial/complete receive into stock)
 - [ ] Search perf (indexes, debounce, pagination)
 - [ ] Bulk import/export catalog (partial: CSV import/export exists)
-- [x] **Windows desktop app + auto-releases** — Electron shell (`desktop/`): runs the local backend+frontend (or opens a hosted URL), switchable at runtime from Settings. One-click **Release** workflow (`.github/workflows/release.yml`) bumps the version, builds the installer on a Windows runner, and publishes the `.exe` to a GitHub Release; native `better-sqlite3` rebuilt for Windows+Electron
+- [x] **Windows desktop app + auto-releases** — Electron shell (`desktop/`): bundles the production backend + frontend, runs fully offline in Local mode (or opens a hosted URL). One-click **Release** workflow (`.github/workflows/release.yml`) bumps the version, builds the NSIS installer on a Windows runner, and publishes the `.exe` (+ `latest.yml` + `.blockmap` for OTA self-updates) to a GitHub Release; native `better-sqlite3` rebuilt for Windows+Electron. Installer detects an existing install and asks before updating.
 
 ## Phase 5 — Later
 - [ ] Offline queue for POS

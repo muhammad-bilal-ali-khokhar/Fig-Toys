@@ -35,5 +35,5 @@ Audit of the Next.js frontend and backend against `docs/PRD.md` and `docs/roadma
 - Credit reminders (SMS/WhatsApp), credit-limit enforcement toggle.
 - Accessory expiry tracking, supplier invoice attachment.
 - Tax (FBR) report, Z-report PDF export.
-- Multi-terminal remote mode + Electron desktop packaging (documented, not shipped).
+- Multi-terminal remote mode (documented, not yet deployed).
 - Chart-of-accounts / double-entry.

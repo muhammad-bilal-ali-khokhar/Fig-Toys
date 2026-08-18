@@ -37,7 +37,7 @@ fig-mobile-pos/
 │   │   ├── report/  dashboard/   #   /api/report, /api/dashboard
 │   │   ├── settings/             #   /api/settings (company profile)
 │   │   └── ...                   #   brand, category, color, inventory,
-│   │                             #   reservation, voucher, expense, print-layout
+│   │                             #   reservation, voucher, expense, print-setting
 │   ├── core/                     # shared infra (not per-endpoint)
 │   │   ├── config/               # env, constants
 │   │   ├── middleware/           # auth (JWT verify), error handler, zod validate
@@ -84,21 +84,34 @@ fig-mobile-pos/
 | Method & Path | Endpoint folder | Purpose |
 |---|---|---|
 | `POST /api/auth/login` | `endpoints/auth/` | Login (username+PIN) → JWT |
+| `POST /api/auth/login` | `endpoints/auth/` | Login (username+PIN) → JWT |
 | `GET/POST /api/contact` · `/api/contact/:id` · `/ledger` · `/credit` | `endpoints/contact/` | Unified contacts, ledger, credit, collect |
-| `GET/POST/PUT /api/product` · `/api/product/import` | `endpoints/product/` | Catalog CRUD + CSV bulk import (dup-safe) |
-| `GET/POST /api/category` · `PUT/DELETE /api/category/:id` | `endpoints/category/` | Product categories (add/rename/deactivate) || `GET /api/product/search?q=` | `endpoints/product/` | Debounced POS search (name/SKU/IMEI) |
+| `GET/POST /api/product` · `/api/product/import` · `/search` | `endpoints/product/` | Catalog CRUD + CSV bulk import (dup-safe) + debounced POS search (name/SKU/IMEI) |
+| `GET/POST /api/category` · `PUT/DELETE /api/category/:id` | `endpoints/category/` | Product categories (add/rename/deactivate, hierarchy) |
 | `GET/POST /api/brand` · `PUT/DELETE /api/brand/:id` | `endpoints/brand/` | Product brands (add/rename/deactivate) |
 | `GET/POST /api/color` · `PUT/DELETE /api/color/:id` | `endpoints/color/` | Product colors (add/rename/deactivate) |
-| `GET/POST /api/unit` · `GET /api/unit/imei/:imei` · `POST /api/unit/adjust` | `endpoints/unit/` | Units, IMEI trace, stock adjustment |
+| `GET/POST /api/city` | `endpoints/city/` | Cities (seeded lookup) |
+| `GET/POST /api/unit` · `GET /api/unit/imei/:imei` · `POST /api/unit/adjust` · `POST /api/unit/import` | `endpoints/unit/` | Units, IMEI trace, stock adjustment, CSV import |
 | `GET /api/transaction` · `POST /sale` · `POST /purchase` · `/sale/returns` · `/purchase/returns` · `/returns/:id/void` | `endpoints/transaction/` | Sales, purchases and returns in one model |
 | `GET/POST /api/payment/collect` | `endpoints/payment/` | Credit collections |
 | `GET/POST /api/bank-account` | `endpoints/bank-account/` | Shop bank accounts |
-| `GET /api/report/*` | `endpoints/report/` | Sales, profit, stock valuation, statements, payments-by-account |
+| `GET/POST /api/print-setting` | `endpoints/print-setting/` | Per-document print format settings |
+| `GET /api/report/*` | `endpoints/report/` | Sales, profit, stock valuation, statements, payments-by-account, Z-report |
 | `GET /api/dashboard` + widgets | `endpoints/dashboard/` | Analytics data + saved layouts |
+| `GET/POST /api/inventory` | `endpoints/inventory/` | Inventory lists + filters (NEW/USED, status) |
+| `GET/POST /api/reservation` · `/api/reservation/:id/...` | `endpoints/reservation/` | Reservations (hold, convert, cancel) |
 | `GET/POST /api/user` · `PUT /api/user/:id` | `endpoints/user/` | Users & roles (admin) |
-| `GET/PUT /api/settings/company` · `/sound` | `endpoints/settings/` | Company profile, sound prefs |
+| `POST /api/setup` | `endpoints/setup/` | Onboarding — store profile + first admin |
+| `GET/PUT /api/settings/company` · `/sound` · `/preferences` | `endpoints/settings/` | Company profile, sound, preferences |
 | `GET/POST /api/voucher` · `/voucher/:id/reverse` | `endpoints/voucher/` | Cash vouchers (CRV/CPV) + reversal |
+| `GET/POST /api/expense` | `endpoints/expense/` | Expenses with categories + contact linking |
 | `GET /api/audit` · `/meta` | `endpoints/audit/` | Audit log (filter + paginate) |
+| `GET/POST /api/cash-session` | `endpoints/cash-session/` | Cash open/close, Z-report reconciliation |
+| `GET /api/backup` · `POST /api/backup/restore` | `endpoints/backup/` | SQLite backup/restore |
+| `GET/POST /api/purchase-order` · `/receive` | `endpoints/purchase-order/` | Purchase orders + partial/complete receive |
+| `GET /api/money` | `endpoints/money/` | Money & bank summaries |
+| `POST /api/feedback` | `endpoints/feedback/` | In-app feedback / crash reports |
+| `GET /api/health` | — | Readiness check (desktop Local mode) |
 
 ## 5. Page / Screen Map (frontend)
 
@@ -110,15 +123,17 @@ fig-mobile-pos/
 | `/purchases` | List purchases + **Buy New / Buy Used / Buy Accessory** flows (tabs) | Manager, Admin |
 | `/purchase-returns` | Purchase returns (IMEI-based, partial) | Manager, Admin |
 | `/sale-returns` | Sale returns (IMEI-based, refund/cash-back) | Manager, Admin |
+| `/purchase-orders` | Purchase orders (order → partial/complete receive) | Manager, Admin |
 | `/inventory` | All units + filters (condition/status/carrier), scan & IMEI search | Manager, Admin |
 | `/products` | Catalog list + variant editing + manage categories/brands/colors | Manager, Admin |
 | `/contacts` | Unified contacts list (customers + vendors + walk-ins) | All (view limited) |
 | `/reservations` | Reservations (hold with advance, convert to sale, cancel) | Cashier+ |
 | `/vouchers` | Cash vouchers (CRV / CPV), modify & reverse | Manager, Admin |
 | `/expenses` | Expenses with categories + contact linking | Manager, Admin |
-| `/reports` | Report hub (overview, sales/purchase/profit/stock/cash summaries, list screens, ledger, receivables/payables) | Manager, Admin |
-| `/settings` | Company profile, preferences, financial, bank accounts, sounds, users & roles, activity log | Admin |
-| `/print` | Print studio (80mm/A4 templates, layouts, QR targets) | Cashier+ |
+| `/reports` | Report hub (overview, sales/purchase/profit/stock/cash summaries, list screens, ledger, receivables/payables, contacts, stock, Z-report) | Manager, Admin |
+| `/settings` | Company profile, preferences, financial, bank accounts, sounds, users & roles, activity log, backup, print & thermal | Admin |
+| `/print` | Print studio (58/80mm/A4 templates, per-document layouts, QR targets) | Cashier+ |
+| `/help` | Help & about | all |
 
 ## 6. NEW vs USED — Convenient Separation
 
@@ -227,10 +242,11 @@ For Remote mode the backend deploys as a standalone web service on **Render** (`
 
 ### Packaging (`desktop/`)
 
-- `desktop/electron/main.ts` — creates the window, reads the connection setting, and in Local mode spawns the bundled backend, waiting on its health check before loading the UI.
-- `desktop/electron/preload.ts` — exposes `window.figAPI` (get/set connection settings, resolve API base).
-- Static frontend build via Next.js `output: 'export'` — the app is SPA-style (fetch + `window.print()`), no SSR needed.
-- electron-builder config must `asarUnpack` the Prisma engines (`@prisma/engines`, `.prisma`) or the bundled app crashes on first DB call.
+- `desktop/main.js` — creates the window, reads the connection setting, and in Local mode spawns the bundled backend, waiting on its health check before loading the UI. Also handles OTA self-updates (electron-updater) and auto-backups.
+- `desktop/preload.js` — exposes `window.figAPI` (get/set connection settings, resolve API base, update events).
+- **Frontend** is built with Next.js `output: 'standalone'` (`npm run build` then `npm run build:production`), so the app is SPA-style (fetch + `window.print()`), no SSR needed.
+- **Backend** is bundled with esbuild into `production/backend` (Express API + bundled Prisma schema + native `better-sqlite3` rebuilt for Windows+Electron).
+- `desktop/electron-builder.yml` copies `production/backend` + `production/frontend` into the app's `extraResources`; electron-builder `npmRebuild` handles the native module. Installer is NSIS, publishes to GitHub Releases with `latest.yml` + `.blockmap` for OTA self-updates, and prompts before updating an existing install.
 
 ### Local mode flow
 
