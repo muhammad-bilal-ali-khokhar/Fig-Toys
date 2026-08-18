@@ -66,7 +66,7 @@ const sha256 = (d) => createHash("sha256").update(d).digest("hex");
 const hmac = (k, d) => createHmac("sha256", k).update(d).digest();
 const hmacHex = (k, d) => createHmac("sha256", k).update(d).digest("hex");
 
-async function putObject(key, body, contentType) {
+async function putObject(key, body, contentType, cacheControl = "public, max-age=300") {
   const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
   const dateStamp = amzDate.slice(0, 8);
   const payloadHash = sha256(body);
@@ -89,7 +89,7 @@ async function putObject(key, body, contentType) {
       "x-amz-date": amzDate,
       Authorization: `AWS4-HMAC-SHA256 Credential=${KEY}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
       "Content-Type": contentType,
-      "Cache-Control": "public, max-age=300",
+      "Cache-Control": cacheControl,
     },
     body,
   });
@@ -172,8 +172,8 @@ async function main() {
   if (latestYmlKey) {
     await putObject(latestYmlKey, readFileSync(path.join(SOURCE, latestYml)), "application/octet-stream");
   }
-  await putObject("latest.json", Buffer.from(JSON.stringify(latest, null, 2)), "application/json");
-  await putObject("latest.js", Buffer.from(`window.FIG_LATEST=${JSON.stringify(latest)};`), "application/javascript");
+  await putObject("latest.json", Buffer.from(JSON.stringify(latest, null, 2)), "application/json", "no-cache");
+  await putObject("latest.js", Buffer.from(`window.FIG_LATEST=${JSON.stringify(latest)};`), "application/javascript", "no-cache");
 
   // Maintain a versions.json listing the last 5 releases so visitors can
   // download recent versions (older installers stay in the bucket untouched).
@@ -200,11 +200,13 @@ async function main() {
     "versions.json",
     Buffer.from(JSON.stringify({ versions: history }, null, 2)),
     "application/json",
+    "no-cache",
   );
   await putObject(
     "versions.js",
     Buffer.from(`window.FIG_VERSIONS=${JSON.stringify({ versions: history })};`),
     "application/javascript",
+    "no-cache",
   );
 
   console.log("Done. Download page:");
