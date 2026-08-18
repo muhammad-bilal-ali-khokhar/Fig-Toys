@@ -609,7 +609,6 @@ function PrintStudioContent() {
               options={docOptions}
               onChange={(id) => {
                 setSelectedId(id);
-                setDetail(null);
               }}
               searchable
               trigger={
@@ -746,7 +745,7 @@ function PrintStudioContent() {
               <div
                 id="print-area"
                 style={{ width: fmt.previewWidth }}
-                className="shrink-0 bg-white shadow-lg transition-all"
+                className="shrink-0 bg-white shadow-lg transition-[width]"
               >
                 <InventoryDocument
                   units={units}
@@ -769,7 +768,7 @@ function PrintStudioContent() {
               <div
                 id="print-area"
                 style={{ width: fmt.previewWidth }}
-                className="shrink-0 bg-white shadow-lg transition-all"
+                className="shrink-0 bg-white shadow-lg transition-[width]"
               >
                 <ExpenseSheetDocument
                   expenses={expenses}
@@ -791,7 +790,7 @@ function PrintStudioContent() {
               <div
                 id="print-area"
                 style={{ width: fmt.previewWidth }}
-                className="shrink-0 bg-white shadow-lg transition-all"
+                className="shrink-0 bg-white shadow-lg transition-[width]"
               >
                 <ContactsDocument
                   contacts={contacts}
@@ -813,7 +812,7 @@ function PrintStudioContent() {
               <div
                 id="print-area"
                 style={{ width: fmt.previewWidth }}
-                className="shrink-0 bg-white shadow-lg transition-all"
+                className="shrink-0 bg-white shadow-lg transition-[width]"
               >
                 <VoucherDocument
                   voucher={selectedVoucher}
@@ -839,7 +838,7 @@ function PrintStudioContent() {
               <div
                 id="print-area"
                 style={{ width: fmt.previewWidth }}
-                className="shrink-0 bg-white shadow-lg transition-all"
+                className="shrink-0 bg-white shadow-lg transition-[width]"
               >
                 <ExpenseVoucherDocument
                   expense={selectedExpense}
@@ -856,13 +855,11 @@ function PrintStudioContent() {
                 </p>
               </div>
             )
-          ) : loadingDoc ? (
-            <p className="py-10 text-sm text-ink-400">Loading document…</p>
           ) : detail ? (
               <div
                 id="print-area"
                 style={{ width: fmt.previewWidth }}
-                className="shrink-0 bg-white shadow-lg transition-all"
+                className="shrink-0 bg-white shadow-lg transition-[width]"
               >
                 <ReceiptDocument
                   detail={detail}
@@ -874,6 +871,8 @@ function PrintStudioContent() {
                   bankAccounts={bankAccounts}
                 />
               </div>
+            ) : loadingDoc ? (
+              <p className="py-10 text-sm text-ink-400">Loading document…</p>
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
                 <PrinterIcon className="h-8 w-8 text-ink-300" />
@@ -1102,7 +1101,7 @@ function InventoryDocument({
   const costTotal = units.reduce((s, u) => s + (parseFloat(u.costPrice ?? "") || 0), 0);
   const sellTotal = units.reduce((s, u) => s + (parseFloat(u.product.sellPrice ?? "") || 0), 0);
   const pad = isA4 ? "px-10 py-8" : "px-4 py-4";
-  const base = isA4 ? "text-xs" : "text-[11px]";
+  const base = isA4 ? "text-xs" : "font-mono text-[11px]";
 
   return (
     <div className={`bg-white ${pad} ${base} text-ink-900`}>
@@ -1111,9 +1110,9 @@ function InventoryDocument({
           <p className={isA4 ? "break-words text-2xl font-bold tracking-tight text-ink-900" : "break-words text-base font-bold uppercase tracking-wide text-ink-900"}>
             {profile?.name ?? APP.nameFull}
           </p>
-          {options.shopInfo && profile?.tagline && <p className="text-ink-500">{profile.tagline}</p>}
+          {options.shopInfo && profile?.tagline && <p className="text-ink-800">{profile.tagline}</p>}
           {options.shopInfo && (profile?.address || profile?.phone) && (
-            <p className="text-ink-500">{[profile.address, profile.phone].filter(Boolean).join(" · ")}</p>
+            <p className="text-ink-800">{[profile.address, profile.phone].filter(Boolean).join(" · ")}</p>
           )}
         </div>
         <div className="shrink-0 text-right">
@@ -1122,16 +1121,16 @@ function InventoryDocument({
           </p>
           <div className={`${isA4 ? "mt-3" : "mt-2"} space-y-0.5 border-t-2 border-ink-900 pt-1.5`}>
             <div className="flex items-baseline justify-between gap-4 text-[10px]">
-              <span className="uppercase tracking-wider text-ink-500">{INVENTORY_TEXT.generated}</span>
+              <span className="uppercase tracking-wider text-ink-800">{INVENTORY_TEXT.generated}</span>
               <span className="font-semibold text-ink-900">{new Date().toLocaleString()}</span>
             </div>
             <div className="flex items-baseline justify-between gap-4 text-[10px]">
-              <span className="uppercase tracking-wider text-ink-500">{INVENTORY_TEXT.totalUnits}</span>
+              <span className="uppercase tracking-wider text-ink-800">{INVENTORY_TEXT.totalUnits}</span>
               <span className="font-semibold text-ink-900">{totalCount}</span>
             </div>
             {user?.name && (
               <div className="flex items-baseline justify-between gap-4 text-[10px]">
-                <span className="uppercase tracking-wider text-ink-500">{INVENTORY_TEXT.printedBy}</span>
+                <span className="uppercase tracking-wider text-ink-800">{INVENTORY_TEXT.printedBy}</span>
                 <span className="font-semibold text-ink-900">{user.name}</span>
               </div>
             )}
@@ -1146,7 +1145,7 @@ function InventoryDocument({
           {groups.map((g) => (
             <div key={g.key} className="mb-3">
               <p className="border-b-2 border-ink-900 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-900">
-                {g.key} <span className="font-normal text-ink-500">· {g.units.length}</span>
+                {g.key} <span className="font-normal text-ink-800">· {g.units.length}</span>
               </p>
               {g.units.map((u) => (
                 <div key={u.id} className="border-b border-dashed border-ink-200 py-1.5">
@@ -1159,7 +1158,7 @@ function InventoryDocument({
                     </p>
                   </div>
                   <p className="font-mono text-[10px] text-ink-700">{u.imei}</p>
-                  <p className="text-[10px] text-ink-500">
+                  <p className="text-[10px] text-ink-800">
                     {[
                       u.product.color,
                       u.condition,
@@ -1187,7 +1186,7 @@ function InventoryDocument({
 
       {options.signature && (
         <div className={`mt-10 ${isA4 ? "w-64" : "mt-6"}`}>
-          <div className="border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-400">
+          <div className="border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-700">
             {INVENTORY_TEXT.signature}
           </div>
         </div>
@@ -1195,7 +1194,7 @@ function InventoryDocument({
 
       {options.footer && (
         <div className={`${isA4 ? "mt-8" : "mt-5"} border-t border-dashed border-ink-200 pt-3`}>
-          <p className="text-center text-[10px] uppercase tracking-widest text-ink-400">
+          <p className="text-center text-[10px] uppercase tracking-widest text-ink-700">
             {profile?.footerText ?? RECEIPT_TEXT.footerFallback}
           </p>
         </div>
@@ -1230,7 +1229,7 @@ function InventoryTable({
   return (
     <table className="mt-4 w-full border-collapse">
       <thead>
-        <tr className="border-y-2 border-ink-900 text-left text-[9px] uppercase tracking-wider text-ink-500">
+        <tr className="border-y-2 border-ink-900 text-left text-[9px] uppercase tracking-wider text-ink-800">
           <th className="py-1.5 pr-1 font-semibold">{INVENTORY_TEXT.no}</th>
           {cols.map((c) => (
             <th key={c.key} className={`py-1.5 pr-1 font-semibold ${c.right ? "text-right" : ""}`}>
@@ -1252,7 +1251,7 @@ function InventoryTable({
             </tr>
             {g.units.map((u, i) => (
               <tr key={u.id} className="border-b border-ink-100">
-                <td className="py-1 pr-1 align-top text-[9px] text-ink-500">{i + 1}</td>
+                <td className="py-1 pr-1 align-top text-[9px] text-ink-800">{i + 1}</td>
                 {options.imeis && (
                   <td className="py-1 pr-1 align-top font-mono text-[9px] text-ink-700">{u.imei}</td>
                 )}
@@ -1261,7 +1260,7 @@ function InventoryTable({
                     <span className="font-semibold text-ink-900">
                       {u.product.brand} {u.product.model}
                     </span>
-                    {u.product.storage && <span className="text-ink-500"> {u.product.storage}</span>}
+                    {u.product.storage && <span className="text-ink-800"> {u.product.storage}</span>}
                   </td>
                 )}
                 {options.color && <td className="py-1 pr-1 align-top text-ink-700">{u.product.color ?? "—"}</td>}
@@ -1328,7 +1327,7 @@ function PrintModal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-xl p-1.5 text-ink-400 transition hover:bg-ink-50 hover:text-ink-900"
+            className="rounded-xl p-1.5 text-ink-700 transition hover:bg-ink-50 hover:text-ink-900"
           >
             <XIcon className="h-5 w-5" />
           </button>
@@ -1352,7 +1351,7 @@ function ExpenseSheetDocument({
 }) {
   const isA4 = format === "a4";
   const pad = isA4 ? "px-12 py-10" : "px-3 py-3";
-  const base = isA4 ? "text-sm" : "text-[11px]";
+  const base = isA4 ? "text-sm" : "font-mono text-[11px]";
   const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-ink-200";
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
@@ -1367,13 +1366,13 @@ function ExpenseSheetDocument({
             {profile?.name ?? APP.nameFull}
           </p>
           {options.shopInfo && profile?.tagline && (
-            <p className="mt-0.5 text-ink-500">{profile.tagline}</p>
+            <p className="mt-0.5 text-ink-800">{profile.tagline}</p>
           )}
           <p className="mt-1 text-sm font-bold uppercase tracking-widest text-ink-900">
             {EXPENSE_PRINT_TEXT.sheetTitle}
           </p>
           {options.date && (
-            <p className="mt-0.5 text-xs text-ink-500">{formatDateTime(new Date().toISOString())}</p>
+            <p className="mt-0.5 text-xs text-ink-800">{formatDateTime(new Date().toISOString())}</p>
           )}
         </div>
       )}
@@ -1382,7 +1381,7 @@ function ExpenseSheetDocument({
 
       <table className="w-full border-collapse">
         <thead>
-          <tr className="border-b border-ink-300 text-left text-[10px] font-semibold uppercase tracking-widest text-ink-500">
+          <tr className="border-b border-ink-300 text-left text-[10px] font-semibold uppercase tracking-widest text-ink-800">
             <th className="py-1 pr-2">{EXPENSE_PRINT_TEXT.no}</th>
             {options.number && <th className="py-1 pr-2">Ref</th>}
             {options.date && <th className="py-1 pr-2">{EXPENSE_PRINT_TEXT.date}</th>}
@@ -1395,12 +1394,12 @@ function ExpenseSheetDocument({
         <tbody>
           {expenses.map((e, i) => (
             <tr key={e.id} className="border-b border-ink-100 align-top">
-              <td className="py-1.5 pr-2 text-ink-500">{i + 1}</td>
+              <td className="py-1.5 pr-2 text-ink-800">{i + 1}</td>
               {options.number && (
                 <td className="py-1.5 pr-2 font-mono text-[10px] text-ink-700">{e.number}</td>
               )}
               {options.date && (
-                <td className="py-1.5 pr-2 whitespace-nowrap text-ink-600">
+                <td className="py-1.5 pr-2 whitespace-nowrap text-ink-900">
                   {new Date(e.date).toLocaleDateString()}
                 </td>
               )}
@@ -1410,7 +1409,7 @@ function ExpenseSheetDocument({
               {options.contact && (
                 <td className="py-1.5 pr-2">{e.contact?.name || "-"}</td>
               )}
-              {options.note && <td className="py-1.5 pr-2 text-ink-600">{e.note || "-"}</td>}
+              {options.note && <td className="py-1.5 pr-2 text-ink-900">{e.note || "-"}</td>}
               <td className="py-1.5 text-right font-semibold text-ink-900">
                 {formatPKR(parseFloat(e.amount))}
               </td>
@@ -1423,24 +1422,24 @@ function ExpenseSheetDocument({
         <>
           <div className={`my-4 ${divider}`} />
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-500">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-800">
               {EXPENSE_PRINT_TEXT.total}
             </p>
             <p className={`font-black text-ink-900 ${isA4 ? "text-2xl" : "text-xl"}`}>{formatPKR(total)}</p>
           </div>
-          <p className="mt-1 text-right text-[10px] text-ink-400">
+          <p className="mt-1 text-right text-[10px] text-ink-700">
             {expenses.length} {EXPENSE_PRINT_TEXT.count}
           </p>
           {profile?.footerText && (
             <div className={`${divider} mt-4 pt-3`}>
-              <p className="text-center text-[10px] uppercase tracking-widest text-ink-400">
+              <p className="text-center text-[10px] uppercase tracking-widest text-ink-700">
                 {profile.footerText}
               </p>
             </div>
           )}
           {options.signature && (
             <div className="avoid-break mt-10">
-              <div className="ml-auto w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-400">
+              <div className="ml-auto w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-700">
                 {EXPENSE_PRINT_TEXT.signature}
               </div>
             </div>
@@ -1453,7 +1452,7 @@ function ExpenseSheetDocument({
 
 export default function PrintPage() {
   return (
-    <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-ink-400">Loading…</div>}>
+    <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-ink-700">Loading…</div>}>
       <PrintStudioContent />
     </Suspense>
   );
@@ -1472,7 +1471,7 @@ function ContactsDocument({
 }) {
   const isA4 = format === "a4";
   const pad = isA4 ? "px-12 py-10" : "px-3 py-3";
-  const base = isA4 ? "text-sm" : "text-[11px]";
+  const base = isA4 ? "text-sm" : "font-mono text-[11px]";
   const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-ink-200";
 
   const sorted = useMemo(
@@ -1482,94 +1481,244 @@ function ContactsDocument({
   const totalReceivable = sorted.reduce((sum, c) => sum + (parseFloat(c.receivable) || 0), 0);
   const totalPayable = sorted.reduce((sum, c) => sum + (parseFloat(c.payable) || 0), 0);
 
+  const A4_ROWS_PER_PAGE = 20;
+  const a4Pages = useMemo(() => {
+    if (!isA4) return [];
+    const pages: Contact[][] = [];
+    for (let i = 0; i < sorted.length; i += A4_ROWS_PER_PAGE) {
+      pages.push(sorted.slice(i, i + A4_ROWS_PER_PAGE));
+    }
+    if (pages.length === 0) pages.push([]);
+    return pages;
+  }, [isA4, sorted]);
+
   return (
-    <div className={`bg-white ${pad} ${base} text-ink-900`}>
-      {options.header && (
-        <div className="text-center">
-          {profile?.logoUrl && (
-            <img src={profile.logoUrl} alt="" className="mx-auto mb-2 max-h-16 w-auto object-contain" />
-          )}
-          <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
-            {profile?.name ?? APP.nameFull}
-          </p>
-          {options.shopInfo && profile?.tagline && (
-            <p className="mt-0.5 text-ink-500">{profile.tagline}</p>
-          )}
-          <p className="mt-1 text-sm font-bold uppercase tracking-widest text-ink-900">
-            {CONTACTS_TEXT.title}
-          </p>
-          <p className="mt-0.5 text-xs text-ink-500">{formatDateTime(new Date().toISOString())}</p>
-        </div>
-      )}
-
-      <div className={`my-4 ${divider}`} />
-
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b border-ink-300 text-left text-[10px] font-semibold uppercase tracking-widest text-ink-500">
-            <th className="py-1 pr-2">{CONTACTS_TEXT.no}</th>
-            <th className="py-1 pr-2">{CONTACTS_TEXT.name}</th>
-            {options.type && <th className="py-1 pr-2">{CONTACTS_TEXT.type}</th>}
-            {options.phone && <th className="py-1 pr-2">{CONTACTS_TEXT.phone}</th>}
-            {options.email && <th className="py-1 pr-2">{CONTACTS_TEXT.email}</th>}
-            {options.city && <th className="py-1 pr-2">{CONTACTS_TEXT.city}</th>}
-            {options.cnic && <th className="py-1 pr-2">{CONTACTS_TEXT.cnic}</th>}
-            {options.address && <th className="py-1 pr-2">{CONTACTS_TEXT.address}</th>}
-            {options.notes && <th className="py-1 pr-2">{CONTACTS_TEXT.notes}</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((c, i) => (
-            <tr key={c.id} className="border-b border-ink-100 align-top">
-              <td className="py-1.5 pr-2 text-ink-500">{i + 1}</td>
-              <td className="py-1.5 pr-2 font-semibold text-ink-900">{c.name}</td>
-              {options.type && (
-                <td className="py-1.5 pr-2">{CONTACT_TYPE_LABELS[c.type] ?? c.type.replace("_", " ")}</td>
+    <div className={`${isA4 ? "space-y-6 print:space-y-0" : "bg-white"} ${isA4 ? "" : pad} ${base} text-ink-900`}>
+      {isA4 ? (
+        a4Pages.map((pageContacts, pageIndex) => {
+          const pageStart = pageIndex * A4_ROWS_PER_PAGE;
+          const isLast = pageIndex === a4Pages.length - 1;
+          return (
+            <div key={pageIndex} className="a4-page min-h-[1018px] bg-white px-12 py-10 shadow-lg print:h-auto print:shadow-none">
+              {pageIndex === 0 ? (
+                options.header && (
+                  <div className="flex items-start justify-between gap-8">
+                    <div className="max-w-xs">
+                      {(profile?.logoUrl ?? "/icon.png") && (
+                        <img src={profile?.logoUrl ?? "/icon.png"} alt="" className="mb-2 max-h-16 w-auto object-contain" />
+                      )}
+                      <p className="break-words text-2xl font-bold tracking-tight text-ink-900">
+                        {profile?.name ?? APP.nameFull}
+                      </p>
+                      {options.shopInfo && profile?.tagline && (
+                        <p className="mt-1 text-sm text-ink-800">{profile.tagline}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold uppercase tracking-wide text-ink-900">
+                        {CONTACTS_TEXT.title}
+                      </p>
+                      <div className="mt-3 space-y-1 border-t-2 border-ink-900 pt-2">
+                        <p className="text-sm text-ink-800">{CONTACTS_TEXT.generated}</p>
+                        <p className="text-sm font-semibold text-ink-900">{formatDateTime(new Date().toISOString())}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="mb-4 flex items-center justify-between text-center">
+                  <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
+                    {profile?.name ?? APP.nameFull}
+                  </p>
+                  <p className="text-sm font-bold uppercase tracking-widest text-ink-900">
+                    {CONTACTS_TEXT.title}
+                  </p>
+                </div>
               )}
-              {options.phone && <td className="py-1.5 pr-2 whitespace-nowrap text-ink-600">{c.phone || "-"}</td>}
-              {options.email && <td className="py-1.5 pr-2 break-all text-ink-600">{c.email || "-"}</td>}
-              {options.city && <td className="py-1.5 pr-2 text-ink-600">{c.city || "-"}</td>}
-              {options.cnic && <td className="py-1.5 pr-2 font-mono text-[10px] text-ink-600">{c.cnic || "-"}</td>}
-              {options.address && <td className="py-1.5 pr-2 text-ink-600">{c.address || "-"}</td>}
-              {options.notes && <td className="py-1.5 pr-2 text-ink-600">{c.notes || "-"}</td>}
-            </tr>
-          ))}
-        </tbody>
-      </table>
 
-      {options.footer && (
-        <>
-          <div className={`my-4 ${divider}`} />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-500">
-              {sorted.length} {sorted.length === 1 ? CONTACTS_TEXT.contact : CONTACTS_TEXT.contacts}
-            </p>
-            <div className="text-right">
-              <p className="text-[10px] uppercase tracking-widest text-ink-500">
+              {options.footer && (
+                <div className={`my-4 ${divider}`} />
+              )}
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-ink-900 text-left text-[10px] font-semibold uppercase tracking-widest text-ink-800">
+                      <th className="py-1.5 pr-2">{CONTACTS_TEXT.no}</th>
+                      <th className="py-1.5 pr-2">{CONTACTS_TEXT.name}</th>
+                      {options.type && <th className="py-1.5 pr-2">{CONTACTS_TEXT.type}</th>}
+                      {options.cnic && <th className="py-1.5 pr-2">{CONTACTS_TEXT.cnic}</th>}
+                      <th className="py-1.5 pr-2 text-right">{CONTACTS_TEXT.debit}</th>
+                      <th className="py-1.5 pr-2 text-right">{CONTACTS_TEXT.credit}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageContacts.map((c, i) => (
+                      <tr
+                        key={c.id}
+                        className={`align-top ${i % 2 ? "bg-ink-50/60" : ""} border-b border-ink-100`}
+                      >
+                        <td className="py-2 pr-2 text-ink-800">{pageStart + i + 1}</td>
+                        <td className="py-2 pr-2">
+                          <p className="font-semibold text-ink-900">{c.name}</p>
+                          {(options.phone && c.phone) ||
+                          (options.email && c.email) ||
+                          (options.city && c.city) ? (
+                            <p className="mt-0.5 text-[10px] text-ink-800">
+                              {[
+                                options.phone && c.phone ? c.phone : null,
+                                options.email && c.email ? c.email : null,
+                                options.city && c.city ? c.city : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          ) : null}
+                          {options.address && c.address && (
+                            <p className="mt-0.5 text-[10px] text-ink-800">{c.address}</p>
+                          )}
+                          {options.notes && c.notes && (
+                            <p className="mt-0.5 text-[10px] text-ink-800">{c.notes}</p>
+                          )}
+                        </td>
+                        {options.type && (
+                          <td className="py-2 pr-2">
+                            {CONTACT_TYPE_LABELS[c.type] ?? c.type.replace("_", " ")}
+                          </td>
+                        )}
+                        {options.cnic && (
+                          <td className="py-2 pr-2 font-mono text-[10px] text-ink-900">{c.cnic || "-"}</td>
+                        )}
+                        <td className="py-2 pr-2 text-right whitespace-nowrap text-ink-900">
+                          {parseFloat(c.receivable) > 0 ? formatPKR(c.receivable) : "-"}
+                        </td>
+                        <td className="py-2 pr-2 text-right whitespace-nowrap text-ink-900">
+                          {parseFloat(c.payable) > 0 ? formatPKR(c.payable) : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {isLast && (
+                    <tfoot>
+                      <tr className="border-t-2 border-ink-900">
+                        <td colSpan={2 + (options.type ? 1 : 0) + (options.cnic ? 1 : 0)} className="py-2 pr-2 text-right text-[10px] font-semibold uppercase tracking-widest text-ink-800">
+                          {sorted.length} {sorted.length === 1 ? CONTACTS_TEXT.contact : CONTACTS_TEXT.contacts}
+                        </td>
+                        <td className="py-2 pr-2 text-right font-bold text-ink-900">{formatPKR(totalReceivable)}</td>
+                        <td className="py-2 pr-2 text-right font-bold text-ink-900">{formatPKR(totalPayable)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+                {!isLast && (
+                  <p className="mt-1 text-right text-[10px] font-semibold uppercase tracking-widest text-ink-700">
+                    {CONTACTS_TEXT.page} {pageIndex + 1} / {a4Pages.length}
+                  </p>
+                )}
+
+                {isLast && options.footer && profile?.footerText && (
+                  <div className={`${divider} mt-4 pt-3`}>
+                    <p className="text-center text-[10px] uppercase tracking-widest text-ink-700">
+                      {profile.footerText}
+                    </p>
+                  </div>
+                )}
+                {isLast && options.signature && (
+                  <div className="avoid-break mt-10">
+                    <div className="ml-auto w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-700">
+                      {CONTACTS_TEXT.signature}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
+      ) : (
+        <div className="space-y-2.5">
+          {options.header && (
+            <div className="text-center">
+              {(profile?.logoUrl ?? "/icon.png") && (
+                <img src={profile?.logoUrl ?? "/icon.png"} alt="" className="mx-auto mb-2 max-h-16 w-auto object-contain grayscale contrast-125" />
+              )}
+              <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
+                {profile?.name ?? APP.nameFull}
+              </p>
+              {options.shopInfo && profile?.tagline && (
+                <p className="mt-0.5 text-ink-800">{profile.tagline}</p>
+              )}
+              <p className="mt-3 text-center text-base font-bold uppercase tracking-widest text-ink-900">
+                {CONTACTS_TEXT.title}
+              </p>
+              <p className="mt-0.5 text-xs text-ink-800">{formatDateTime(new Date().toISOString())}</p>
+            </div>
+          )}
+          {options.footer && (
+            <div className={`my-4 ${divider}`} />
+          )}
+          {sorted.map((c, i) => (
+            <div key={c.id} className="border-b border-dashed border-ink-200 pb-2.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="font-bold text-ink-900">{c.name}</p>
+                <p className="whitespace-nowrap text-[9px] text-ink-800">{i + 1}</p>
+              </div>
+              {options.type && (
+                <p className="text-[10px] text-ink-800">
+                  {CONTACT_TYPE_LABELS[c.type] ?? c.type.replace("_", " ")}
+                </p>
+              )}
+              {options.phone && c.phone && <p className="text-[10px] text-ink-800">{c.phone}</p>}
+              {options.email && c.email && <p className="text-[10px] text-ink-800">{c.email}</p>}
+              {options.city && c.city && <p className="text-[10px] text-ink-800">{c.city}</p>}
+              {options.cnic && c.cnic && <p className="font-mono text-[10px] text-ink-800">{c.cnic}</p>}
+              {options.address && c.address && <p className="text-[10px] text-ink-800">{c.address}</p>}
+              {options.notes && c.notes && <p className="text-[10px] text-ink-800">{c.notes}</p>}
+              {(parseFloat(c.receivable) > 0 || parseFloat(c.payable) > 0) && (
+                <div className="mt-1 space-y-0.5 text-[10px]">
+                  {parseFloat(c.receivable) > 0 && (
+                    <p className="flex justify-between gap-2 text-ink-900">
+                      <span className="uppercase tracking-widest text-ink-800">
+                        {CONTACTS_TEXT.debit}
+                      </span>
+                      <span className="font-semibold">{formatPKR(c.receivable)}</span>
+                    </p>
+                  )}
+                  {parseFloat(c.payable) > 0 && (
+                    <p className="flex justify-between gap-2 text-ink-900">
+                      <span className="uppercase tracking-widest text-ink-800">
+                        {CONTACTS_TEXT.credit}
+                      </span>
+                      <span className="font-semibold">{formatPKR(c.payable)}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+          <div className="pt-1">
+            <div className="flex justify-between gap-2 text-[10px]">
+              <p className="uppercase tracking-widest text-ink-800">
                 {CONTACTS_TEXT.receivable}{" "}
                 <span className="font-bold text-ink-900">{formatPKR(totalReceivable)}</span>
               </p>
-              <p className="text-[10px] uppercase tracking-widest text-ink-500">
+              <p className="uppercase tracking-widest text-ink-800">
                 {CONTACTS_TEXT.payable}{" "}
                 <span className="font-bold text-ink-900">{formatPKR(totalPayable)}</span>
               </p>
             </div>
           </div>
-          {profile?.footerText && (
+          {options.footer && profile?.footerText && (
             <div className={`${divider} mt-4 pt-3`}>
-              <p className="text-center text-[10px] uppercase tracking-widest text-ink-400">
+              <p className="text-center text-[10px] uppercase tracking-widest text-ink-700">
                 {profile.footerText}
               </p>
             </div>
           )}
           {options.signature && (
             <div className="avoid-break mt-10">
-              <div className="ml-auto w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-400">
+              <div className="w-full border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-700">
                 {CONTACTS_TEXT.signature}
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

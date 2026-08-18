@@ -24,13 +24,13 @@ export function SearchInput({
   return (
     <div className={`relative ${wrapperClassName ?? ""}`}>
       <SearchIcon
-        className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 ${iconClassName ?? "h-4 w-4"}`}
+        className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 ${iconClassName ?? "h-4 w-4"}`}
       />
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         variant={variant}
-        className={`pl-10 ${className ?? ""}`}
+        className={`pl-8 ${className ?? ""}`}
         {...rest}
       />
     </div>

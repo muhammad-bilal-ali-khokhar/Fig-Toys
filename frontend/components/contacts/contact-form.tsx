@@ -127,19 +127,23 @@ export function ContactForm({
       <div className="space-y-3">
         <div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
-          <label className="mb-1 block text-xs font-semibold text-ink-500">
-            Photo <span className="font-normal text-ink-400">(optional)</span>
-          </label>
-          <ImagePicker
-            value={form.photoUrl ?? ""}
-            onChange={(v) => update({ photoUrl: v || null })}
-          />
+            <label className="mb-1 block text-xs font-semibold text-ink-500">
+              Photo <span className="font-normal text-ink-400">(optional)</span>
+            </label>
+            <ImagePicker
+              shape="square"
+              value={form.photoUrl ?? ""}
+              onChange={(v) => update({ photoUrl: v || null })}
+            />
+          </div>
+          <div>
             <label className="mb-1 block text-xs font-semibold text-ink-500">
               CNIC front <span className="font-normal text-ink-400">(optional)</span>
             </label>
             <ImagePicker
+              shape="square"
               value={form.cnicFrontUrl ?? ""}
               onChange={(v) => update({ cnicFrontUrl: v || null })}
             />
@@ -149,6 +153,7 @@ export function ContactForm({
               CNIC back <span className="font-normal text-ink-400">(optional)</span>
             </label>
             <ImagePicker
+              shape="square"
               value={form.cnicBackUrl ?? ""}
               onChange={(v) => update({ cnicBackUrl: v || null })}
             />

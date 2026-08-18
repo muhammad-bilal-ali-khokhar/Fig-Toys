@@ -512,15 +512,30 @@ export default function ReservationsPage() {
       },
     ];
     return (
+      <>
       <div className="flex h-full items-center justify-center">
         <div className="w-full max-w-4xl">
           <div className="mb-8 flex items-center justify-between">
             <p className="text-sm font-semibold uppercase tracking-wide text-ink-500">
               What are you creating?
             </p>
-            <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
-              Modify
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
+                Modify
+              </Button>
+              <Link href="/reservations/all">
+                <Button variant="ghost">
+                  <ReservationIcon className="h-4 w-4" />
+                  All Reservations
+                </Button>
+              </Link>
+              <Link href="/reservations/cancel">
+                <Button variant="ghost">
+                  <XIcon className="h-4 w-4" />
+                  Cancel Reservation
+                </Button>
+              </Link>
+            </div>
           </div>
           <div className="grid gap-5 md:grid-cols-2">
             {options.map((o) =>
@@ -555,6 +570,14 @@ export default function ReservationsPage() {
           </div>
         </div>
       </div>
+      <ReservationModifyPicker
+        open={modifyPickerOpen}
+        onClose={() => setModifyPickerOpen(false)}
+        onSelect={(reservation) => {
+          loadForModify(reservation);
+        }}
+      />
+      </>
     );
   }
 

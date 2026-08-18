@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CameraIcon } from "@/components/icons";
 
@@ -45,8 +44,6 @@ export function ImagePicker({
   const dragDepth = useRef(0);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [urlMode, setUrlMode] = useState(false);
-  const [urlDraft, setUrlDraft] = useState(value);
 
   const isSquare = shape === "square";
   const previewClasses = isSquare
@@ -89,33 +86,6 @@ export function ImagePicker({
     setDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file) void onFile(file);
-  }
-
-  if (urlMode) {
-    return (
-      <div>
-        <Input
-          value={urlDraft}
-          onChange={(e) => setUrlDraft(e.target.value)}
-          placeholder="https://…"
-          autoFocus
-        />
-        <div className="mt-2 flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              onChange(urlDraft.trim());
-              setUrlMode(false);
-            }}
-          >
-            Apply URL
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setUrlMode(false)}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -179,18 +149,6 @@ export function ImagePicker({
           e.target.value = "";
         }}
       />
-      {!value && (
-        <button
-          type="button"
-          onClick={() => {
-            setUrlDraft(value);
-            setUrlMode(true);
-          }}
-          className="mt-1.5 text-xs font-medium text-brand-600 hover:underline"
-        >
-          or paste an image URL
-        </button>
-      )}
     </div>
   );
 }

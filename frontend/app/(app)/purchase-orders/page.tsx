@@ -328,7 +328,7 @@ export default function PurchaseOrdersPage() {
     setFlow(f);
   }
 
-  if (!flow) {
+  if (!flow && view !== "list") {
     const options = [
       {
         f: "NEW" as const,

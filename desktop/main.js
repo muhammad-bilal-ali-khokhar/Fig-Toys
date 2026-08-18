@@ -5,6 +5,7 @@ const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
+const net = require("node:net");
 const path = require("node:path");
 const logging = require("./logging");
 const report = require("./report");
@@ -57,14 +58,41 @@ function nativeDir() {
 }
 
 const DEV_ATTACH = process.argv.includes("--dev");
-const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 4701);
-const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 3100);
+
+// Local-mode servers bind to a single high, obscure 5-digit port each. The
+// ranges were chosen because almost nothing else binds there, and the port is
+// stable so localStorage (scoped to host:port) survives restarts — the desktop
+// gate cookie rejects direct browser access instead. If the port is already in
+// use we fail loudly rather than silently shifting (which would confuse the
+// app's other consumers of the resolved port).
+const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 47620);
+const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 58340);
+
+// Returns true if nothing is listening on 127.0.0.1:<port>.
+function isPortFree(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => server.close(() => resolve(true)));
+    server.listen(port, "127.0.0.1");
+  });
+}
 
 const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "", theme: "fig", report: { enabled: true, backendUrl: "", secret: "" } };
 
 const children = new Set();
 let mainWindow = null;
 let aboutWindow = null;
+
+// Per-launch secret used to gate the local frontend: the main process sets it
+// as a cookie on the server origin before the window loads, and the server
+// (Next middleware) rejects any request that doesn't carry it. This lets the
+// Electron window in while blocking a plain browser on the same machine.
+let desktopSecret = null;
+function getDesktopSecret() {
+  if (!desktopSecret) desktopSecret = randomBytes(16).toString("hex");
+  return desktopSecret;
+}
 
 // ---------------------------------------------------------------------------
 // OTA self-update. Installed builds check GitHub Releases, download any newer
@@ -420,10 +448,12 @@ async function ensureDatabase(onStatus) {
     fs.mkdirSync(path.dirname(db), { recursive: true });
     console.log(`First run — creating fresh database at ${db}`);
     const setup = path.join(bundleDir(), "setup.cjs");
-    const schema = path.join(bundleDir(), "schema.sql");
-    if (fs.existsSync(setup) && fs.existsSync(schema)) {
+    if (fs.existsSync(setup)) {
+      // setup.cjs only initializes the DB file + migration table. The schema
+      // itself is applied below by migrate-db.cjs (000_initial baseline + any
+      // later migrations), which is the single source of truth.
       onStatus && onStatus("Creating database tables…");
-      await runNode([setup, db, schema], { cwd: bundleDir() });
+      await runNode([setup, db], { cwd: bundleDir() });
     } else if (!app.isPackaged) {
       const prismaCli = path.join(SRC_BACKEND, "node_modules", "prisma", "build", "index.js");
       await runNode([prismaCli, "db", "push", "--skip-generate"], {
@@ -431,16 +461,14 @@ async function ensureDatabase(onStatus) {
         env: { DATABASE_URL: `file:${db}` },
       });
     } else {
-      throw new Error(
-        `Database setup files missing in the app bundle. Expected ${setup} and ${schema}.`,
-      );
+      throw new Error(`Database setup file missing in the app bundle. Expected ${setup}.`);
     }
   }
 
-  // Upgrade existing databases in place so columns/tables added after an
-  // install are applied on the next launch. No-op on a fresh DB (schema.sql is
-  // already current). Present in the production bundle; dev/source DBs are
-  // always current so a missing runner there is fine.
+  // Apply migrations: fresh DBs get the baseline + all migrations; existing
+  // DBs get only the ones not yet recorded (with a pre-migration backup and a
+  // post-migration integrity check). Present in the production bundle; dev DBs
+  // are kept current by prisma, so a missing runner there is fine.
   const migrate = path.join(bundleDir(), "migrate-db.cjs");
   const migrations = path.join(bundleDir(), "migrations");
   if (fs.existsSync(migrate) && fs.existsSync(migrations)) {
@@ -518,6 +546,7 @@ function spawnFrontend() {
         PORT: String(FRONTEND_PORT),
         HOSTNAME: "localhost",
         BACKEND_URL: `http://localhost:${BACKEND_PORT}`,
+        FIG_DESKTOP_SECRET: getDesktopSecret(),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -537,6 +566,7 @@ function spawnFrontend() {
       NODE_PATH: path.join(SRC_FRONTEND, "deps"),
       PORT: String(FRONTEND_PORT),
       BACKEND_URL: `http://localhost:${BACKEND_PORT}`,
+      FIG_DESKTOP_SECRET: getDesktopSecret(),
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -575,24 +605,13 @@ function track(child) {
 // ---------------------------------------------------------------------------
 // Loading screen shown immediately while DB setup + servers boot. It swaps to
 // the real app URL once everything is healthy, so first run never looks dead.
-function lockZoom(win) {
-  if (!win || !win.webContents) return;
-  const wc = win.webContents;
-  wc.setZoomFactor(1);
-  wc.on("zoom-changed", (event, direction) => {
-    event.preventDefault();
-    wc.setZoomFactor(1);
-  });
-}
-
-// Lock zoom and keep developer access (DevTools, reload) available for
-// inspection. No devtools/reload are disabled.
 function hardenWindow(win) {
   if (!win || !win.webContents) return;
   const wc = win.webContents;
-  lockZoom(win);
-  // Devtools and reload are always available for inspection. (Keyboard shortcut
-  // Ctrl+Shift+I toggles DevTools; View menu also exposes it.)
+  wc.on("before-input-event", (event, input) => {
+    if (input.control && input.key.toLowerCase() === "r") event.preventDefault();
+    if (input.control && input.shift && input.key.toLowerCase() === "i") event.preventDefault();
+  });
 }
 
 function createLoadingWindow() {
@@ -644,10 +663,6 @@ function setupAppMenu() {
     {
       label: "View",
       submenu: [
-        { role: "reload" },
-        { role: "forceReload" },
-        { role: "toggleDevTools" },
-        { type: "separator" },
         { role: "togglefullscreen" },
       ],
     },
@@ -739,10 +754,10 @@ function openAboutWindow() {
 function createWindow(url) {
   if (!mainWindow) {
     mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 960,
-    minHeight: 600,
+    width: 1440,
+    height: 900,
+    minWidth: 1080,
+    minHeight: 640,
     icon: APP_ICON,
     title: "Fig POS for Mobile Phones",
     backgroundColor: "#f6f5f2",
@@ -1021,6 +1036,19 @@ if (!app.requestSingleInstanceLock()) {
         return;
       }
 
+      // Verify the fixed ports are free before spawning. If one is taken, fail
+      // loudly instead of silently picking another port.
+      if (!(await isPortFree(BACKEND_PORT)) || !(await isPortFree(FRONTEND_PORT))) {
+        const err = new Error(
+          `Port in use. Backend ${BACKEND_PORT} and frontend ${FRONTEND_PORT} must both be free (set FIG_BACKEND_PORT / FIG_FRONTEND_PORT to change).`,
+        );
+        logging.error(err.message);
+        setStatus("A required port is already in use.");
+        fatalDialog("Fig POS for Mobile Phones could not start", err);
+        app.exit(1);
+        return;
+      }
+
       setStatus("Starting backend server…");
       ensureBackendData();
       track(spawnBackend());
@@ -1044,6 +1072,22 @@ if (!app.requestSingleInstanceLock()) {
     // from a previous content update never persist into the new session.
     const { session } = require("electron");
     await session.defaultSession.clearCache();
+
+    // Set the desktop gate cookie on the server origin so the Electron window
+    // passes the Next middleware, while a plain browser (no cookie) gets 403.
+    try {
+      await session.defaultSession.cookies.set({
+        url: `http://localhost:${FRONTEND_PORT}`,
+        name: "fig.desktop",
+        value: getDesktopSecret(),
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+      });
+    } catch (err) {
+      logging.error("Could not set desktop gate cookie: " + (err && err.message ? err.message : err));
+    }
+
     createWindow(url);
     setupAppMenu();
     if (!loadingWin.isDestroyed() && process.env.FIG_STAY_ON_LOADING !== "1") loadingWin.close();

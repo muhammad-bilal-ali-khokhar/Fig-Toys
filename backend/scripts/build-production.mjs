@@ -10,9 +10,13 @@
 // so the native module matches Electron's ABI.
 import { build } from "esbuild";
 import { execSync } from "node:child_process";
+import { createRequire } from "node:module";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const backend = path.resolve(dir, "..");
@@ -51,9 +55,11 @@ fs.writeFileSync(path.join(out, "schema.sql"), sql);
 fs.copyFileSync(path.join(dir, "setup-db.cjs"), path.join(out, "setup.cjs"));
 
 // Incremental migrations upgrade existing databases in place (setup.cjs only
-// creates fresh DBs). Bundle the runner + migration files.
+// initializes fresh DBs). Bundle the runner + migration files.
 fs.copyFileSync(path.join(dir, "migrate-db.cjs"), path.join(out, "migrate-db.cjs"));
 fs.cpSync(path.join(dir, "migrations"), path.join(out, "migrations"), { recursive: true });
+
+validateSchema(sql, path.join(out, "migrations"));
 
 // Native better-sqlite3 runtime deps (electron-builder prunes node_modules, so
 // we use a plain folder resolved via NODE_PATH).
@@ -76,3 +82,62 @@ if (!hasBinary) {
 }
 
 console.log("Production backend built at " + out);
+
+// The migrations are the single source of truth for the packaged database, so
+// they must produce exactly the schema that prisma/schema.prisma describes.
+// This catches the classic bug where a feature is added to schema.prisma but
+// its migration is forgotten (or vice versa): a fresh DB built from the
+// migrations would then diverge from schema.sql and the build fails.
+function validateSchema(schemaSql, migrationsDir) {
+  const Database = require("better-sqlite3");
+  const tmp = path.join(os.tmpdir(), `fig-schema-check-${process.pid}-${Date.now()}.db`);
+  const db = new Database(tmp);
+  try {
+    const files = fs
+      .readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".cjs"))
+      .sort();
+    if (!files.includes("000_initial.cjs")) {
+      throw new Error("Missing baseline migration 000_initial.cjs in the migrations folder.");
+    }
+    for (const file of files) {
+      require(path.join(migrationsDir, file))(db);
+    }
+
+    const normalize = (s) => s.replace(/\s+/g, " ").trim();
+
+    const migrated = db
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' AND name != 'schema_migrations'",
+      )
+      .all()
+      .map((r) => normalize(r.sql || ""))
+      .filter(Boolean)
+      .sort()
+      .join("\n");
+
+    const expected = schemaSql
+      .split(/;\s*\n/)
+      .map((s) => s.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n"))
+      .map(normalize)
+      .filter(Boolean)
+      .sort()
+      .join("\n");
+
+    if (migrated !== expected) {
+      throw new Error(
+        "SCHEMA MISMATCH: running all migrations does not produce the same schema as prisma/schema.prisma. " +
+          "If you changed the Prisma schema, add a new numbered migration (e.g. migrations/00X_your_feature.cjs) " +
+          "that applies the same change, then rebuild.",
+      );
+    }
+  } finally {
+    try {
+      db.close();
+    } catch {
+      /* ignore */
+    }
+    fs.rmSync(tmp, { force: true });
+  }
+  console.log("Migrations match schema.prisma — OK");
+}

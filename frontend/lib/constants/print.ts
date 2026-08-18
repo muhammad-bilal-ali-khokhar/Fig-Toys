@@ -351,6 +351,8 @@ export const CONTACTS_TEXT = {
   totalContacts: "Total contacts",
   receivable: "Total receivable",
   payable: "Total payable",
+  debit: "Receivable",
+  credit: "Payable",
   no: "No.",
   name: "Name",
   phone: "Phone",
@@ -363,5 +365,6 @@ export const CONTACTS_TEXT = {
   contact: "contact",
   contacts: "contacts",
   signature: "Authorized Signature",
+  page: "Page",
   noData: "No contacts found.",
 } as const;

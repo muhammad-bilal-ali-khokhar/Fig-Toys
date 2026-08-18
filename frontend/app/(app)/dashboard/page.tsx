@@ -47,6 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { PeriodPicker } from "@/components/reports/period-picker";
+import { GlobalSearch } from "@/components/global-search";
 import { ACTIVITY_ACTION_LABELS, TRANSACTION_TYPE_LABELS } from "@/lib/constants";
 import {
   DASHBOARD_WIDGET_SPANS,
@@ -771,6 +772,9 @@ export default function DashboardPage() {
       <div className="rounded-3xl bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-ink-500">Welcome back, {user?.name}.</p>
+          <div className="order-first w-full min-[640px]:order-none min-[640px]:max-w-md min-[900px]:w-80">
+            <GlobalSearch />
+          </div>
           <PeriodPicker value={range} onChange={setRange} />
         </div>
         <div className="mt-4 grid grid-cols-5 gap-1 min-[900px]:grid-cols-10">

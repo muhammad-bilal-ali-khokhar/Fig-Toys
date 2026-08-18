@@ -454,7 +454,7 @@ export default function SettingsPage() {
             ) : (
               <Group>
                 <div className="px-4 py-3">
-                  <Field label="Store logo">
+                  <Field label="Store logo" hint="Optional. Shown at the top of printed receipts and documents.">
                     <ImagePicker
                       shape="square"
                       value={form.logoUrl ?? ""}
