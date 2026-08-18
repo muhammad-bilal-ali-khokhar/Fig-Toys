@@ -111,13 +111,19 @@ async function main() {
   const setupBuf = readFileSync(setupPath);
   const version = VERSION || (setup.match(/-(\d+\.\d+\.\d+)\.exe$/) || [])[1] || "unknown";
 
+  // Each version's files live in a versioned folder, e.g. v0.1.50/.
+  const prefix = `v${version}/`;
+  const setupKey = `${prefix}${setup}`;
+  const blockmapKey = blockmap ? `${prefix}${blockmap}` : null;
+  const latestYmlKey = latestYml ? `${prefix}${latestYml}` : null;
+
   const latest = {
     version,
     size: bytes(setupBuf.length),
     url: {
-      setup: `${PUBLIC}/${setup}`,
-      latestYml: `${PUBLIC}/latest.yml`,
-      blockmap: blockmap ? `${PUBLIC}/${blockmap}` : null,
+      setup: `${PUBLIC}/${setupKey}`,
+      latestYml: latestYmlKey ? `${PUBLIC}/${latestYmlKey}` : null,
+      blockmap: blockmapKey ? `${PUBLIC}/${blockmapKey}` : null,
     },
   };
   if (latestYml) {
@@ -125,13 +131,13 @@ async function main() {
     if (m) latest.publishedAt = m[1].replace(/\.\d{3}Z/, "Z");
   }
 
-  console.log(`Publishing Fig POS ${version} → ${BUCKET}`);
-  await putObject(setup, setupBuf, "application/octet-stream");
-  if (blockmap) {
-    await putObject(blockmap, readFileSync(path.join(SOURCE, blockmap)), "application/octet-stream");
+  console.log(`Publishing Fig POS ${version} → ${BUCKET}/${prefix}`);
+  await putObject(setupKey, setupBuf, "application/octet-stream");
+  if (blockmapKey) {
+    await putObject(blockmapKey, readFileSync(path.join(SOURCE, blockmap)), "application/octet-stream");
   }
-  if (latestYml) {
-    await putObject(latestYml, readFileSync(path.join(SOURCE, latestYml)), "application/octet-stream");
+  if (latestYmlKey) {
+    await putObject(latestYmlKey, readFileSync(path.join(SOURCE, latestYml)), "application/octet-stream");
   }
   await putObject("latest.json", Buffer.from(JSON.stringify(latest, null, 2)), "application/json");
 
