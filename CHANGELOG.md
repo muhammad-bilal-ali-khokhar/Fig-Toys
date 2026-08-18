@@ -4,7 +4,13 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.50
+## v0.1.51
+
+- Released on: 2026-08-18
+
+- feat: keep last 5 versions in bucket (versions.json) with per-version download links
+- fix: download button stuck on # due to null version ref in fallback
+- fix: correct download domain to download.myko.pk; remove Sign in link
 
 - Released on: 2026-08-18
 
