@@ -1,152 +1,1124 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Fig Mobile POS — Download</title>
-  <meta name="description" content="Download Fig Mobile POS — point of sale for Pakistani mobile phone shops. New & used phones, IMEI tracking, credit, and analytics." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23853456'/%3E%3Ctext x='16' y='22' font-family='Arial' font-size='18' font-weight='bold' fill='white' text-anchor='middle'%3EF%3C/text%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fig POS - Your whole shop. One Fig.</title>
+    
+    <!-- Google Fonts: Inter as fallback for SF Pro -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#faf5f7', 100: '#f3e5eb', 200: '#e5c7d5', 300: '#d39ab5',
+                            400: '#bb6d91', 500: '#9b3f68', 600: '#853456', 700: '#6f2a48',
+                            800: '#57223b', 900: '#421a2e', 950: '#250c18'
+                        },
+                        ink: {
+                            50: '#faf8f3', 100: '#f3efe7', 200: '#e6ded1', 300: '#d3c7b6',
+                            400: '#aaa08f', 500: '#7d7467', 600: '#5c554b', 700: '#443f37',
+                            800: '#2d2924', 900: '#1c1916', 950: '#0f0d0b'
+                        },
+                        teal: {
+                            50: '#f2f8f1', 100: '#dcebd8', 200: '#bddbb5', 300: '#91c58a',
+                            400: '#65aa63', 500: '#4a8f4d', 600: '#3a733e', 700: '#2f5b33',
+                            800: '#27482b', 900: '#203a25', 950: '#102013'
+                        },
+                        gold: {
+                            50: '#fff9e8', 100: '#fff0bd', 200: '#ffe08a', 300: '#fbc95a',
+                            400: '#f5b832', 500: '#e9a21a', 600: '#c68112', 700: '#9e640f',
+                            800: '#774a10', 900: '#57360e', 950: '#321d06'
+                        },
+                        violet: {
+                            50: '#faf5fb', 100: '#f1e5f5', 200: '#dfc7e8', 300: '#c49bd5',
+                            400: '#a66abb', 500: '#7e3f95', 600: '#69347d', 700: '#572b68',
+                            800: '#452351', 900: '#351b3d', 950: '#1f1025'
+                        },
+                        semantic: {
+                            success: '#3f8f4a', error: '#c0392b', warning: '#c98a24', info: '#3b6ea8'
+                        }
+                    },
+                    spacing: {
+                        '128': '32rem',
+                        '144': '36rem',
+                    },
+                    transitionTimingFunction: {
+                        'apple': 'cubic-bezier(0.25, 1, 0.5, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Strict adherence to NO SHADOWS rule */
+        * {
+            box-shadow: none !important;
+            text-shadow: none !important;
+            filter: drop-shadow(0 0 0 transparent) !important;
+        }
+
+        body {
+            background-color: theme('colors.ink.50');
+            color: theme('colors.ink.950');
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Scroll Reveal Animations */
+        .reveal-up {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 1s cubic-bezier(0.25, 1, 0.5, 1), transform 1s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        
+        .reveal-scale {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 1.2s cubic-bezier(0.25, 1, 0.5, 1), transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .is-revealed {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        /* Hide scrollbar for clean UI elements */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Custom selection color */
+        ::selection {
+            background-color: theme('colors.brand.200');
+            color: theme('colors.brand.950');
+        }
+        
+        /* Sticky Hero specific styles */
+        .hero-sticky-container {
+            height: 250vh;
+        }
+        .hero-sticky-element {
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            overflow: hidden;
+        }
+    </style>
 </head>
-<body>
-  <header class="topbar">
-    <div class="brand">
-      <img class="logo" src="icon.png" alt="Fig Mobile POS" />
-      <span class="brand-name">Fig Mobile POS</span>
-    </div>
-    <nav class="nav">
-      <a class="toplink" href="#activate">How activation works</a>
-      <button id="theme-toggle" class="theme-btn" type="button" aria-label="Toggle dark mode">
-        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-      </button>
+<body class="selection:bg-brand-200">
+
+    <nav class="fixed top-0 w-full z-50 bg-ink-50/90 backdrop-blur-sm border-b border-ink-200 transition-colors duration-300" id="main-nav">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-8">
+                <!-- Fig Logo -->
+                <a href="#download" class="text-xl font-bold tracking-tight text-ink-950 flex items-center gap-2">
+                    <img class="w-7 h-7 rounded-lg" src="icon.png" alt="Fig" />
+                    Fig
+                </a>
+                <div class="hidden md:flex gap-6 text-sm font-medium text-ink-600">
+                    <a href="#product" class="hover:text-ink-950 transition-colors">Product</a>
+                    <a href="#features" class="hover:text-ink-950 transition-colors">Features</a>
+                    <a href="#reports" class="hover:text-ink-950 transition-colors">Reports</a>
+                    <a href="#how-it-works" class="hover:text-ink-950 transition-colors">How it works</a>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 text-sm font-medium">
+                <a href="#" class="hidden sm:block text-ink-600 hover:text-ink-950 transition-colors">Sign in</a>
+                <a href="#download" class="bg-brand-600 text-ink-50 px-4 py-2 rounded-full hover:bg-brand-700 transition-colors border border-brand-700">Get Started</a>
+            </div>
+        </div>
     </nav>
-  </header>
 
-  <main>
-    <section class="hero">
-      <div class="hero-text">
-        <p class="eyebrow">Point of Sale for Pakistani mobile phone shops</p>
-        <h1>Your shop on one screen.</h1>
-        <p class="lead">
-          New &amp; used phones, IMEI tracking, credit sales, expenses, and
-          analytics — built for the way Pakistani mobile shops actually work.
-          Works offline, syncs when it can.
-        </p>
-        <ul class="features" id="features">
-          <li>New vs used inventory, clearly separated</li>
-          <li>IMEI tracking on every device</li>
-          <li>Credit (udhaar) accounts for customers</li>
-          <li>Reports, expenses, and bank deposits in PKR (Rs)</li>
-          <li>Works without an internet connection</li>
-        </ul>
-      </div>
+    <main>
+        <section class="hero-sticky-container relative bg-ink-50">
+            <div class="hero-sticky-element pt-16">
+                <!-- Hero Text (fades out on scroll) -->
+                <div class="text-center px-6 max-w-4xl mx-auto mb-8 absolute top-32 left-0 right-0 z-10" id="hero-text">
+                    <span class="text-xs font-semibold tracking-widest uppercase text-brand-600 mb-4 block">Fig POS</span>
+                    <h1 class="text-5xl md:text-7xl lg:text-8xl font-semibold tracking-tighter leading-tight text-ink-950 mb-6">
+                        Your whole shop.<br>One Fig.
+                    </h1>
+                    <p class="text-xl md:text-2xl text-ink-600 font-normal max-w-2xl mx-auto mb-10">
+                        The POS built around the way Pakistani mobile shops actually work.
+                    </p>
+                    <div class="flex justify-center gap-4">
+                        <a href="#download" class="bg-brand-600 text-ink-50 px-8 py-4 rounded-full text-lg font-medium hover:bg-brand-700 transition-colors border border-brand-700">Get Started</a>
+                        <a href="#product" class="bg-ink-100 text-ink-950 px-8 py-4 rounded-full text-lg font-medium hover:bg-ink-200 transition-colors border border-ink-200">Explore Fig</a>
+                    </div>
+                </div>
 
-      <div class="download-card" id="card"><span id="download"></span>
-        <div class="card-head">
-          <span class="os-icon">&#9679;&#9679;&#9679;</span>
-          <div>
-            <p class="os-label">Windows 10 / 11</p>
-            <p class="size" id="size">64-bit</p>
-          </div>
-        </div>
-        <a class="download-btn" id="download" href="#" target="_blank" rel="noopener">
-          Download for Windows
-        </a>
-        <p class="version" id="version">Checking for updates…</p>
-        <p class="release-date" id="date"></p>
-        <p class="footnote">Runs fully offline. No server or account needed to install.</p>
-      </div>
-    </section>
+                <!-- Product Dashboard UI (scales up on scroll) -->
+                <div class="w-full px-4 md:px-8 flex justify-center absolute bottom-0 left-0 right-0 transform origin-bottom" id="hero-ui-wrapper" style="transform: scale(0.85) translateY(10%);">
+                    <div class="w-full max-w-6xl aspect-[16/10] bg-ink-50 border border-ink-200 rounded-t-3xl overflow-hidden flex flex-col">
+                        <!-- POS Top Bar -->
+                        <div class="h-14 border-b border-ink-200 flex items-center justify-between px-6 bg-ink-100">
+                            <div class="flex gap-4 items-center">
+                                <div class="w-8 h-8 rounded-full bg-brand-100 border border-brand-200 flex items-center justify-center text-brand-700 font-semibold text-xs">Fig</div>
+                                <div class="h-6 w-px bg-ink-200"></div>
+                                <span class="text-sm font-medium text-ink-900">Al-Madina Mobiles</span>
+                            </div>
+                            <div class="flex items-center gap-4 text-sm">
+                                <span class="text-ink-500 font-mono">14 Oct, 2:30 PM</span>
+                                <div class="px-3 py-1 bg-teal-100 border border-teal-200 text-teal-800 rounded-full text-xs font-medium flex items-center gap-1.5">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-teal-500"></div> Online
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- POS Main Content -->
+                        <div class="flex-1 flex overflow-hidden">
+                            <!-- Sidebar -->
+                            <div class="w-64 border-r border-ink-200 bg-ink-50 p-4 flex flex-col gap-2">
+                                <div class="bg-ink-100 text-ink-950 px-4 py-3 rounded-xl border border-ink-200 font-medium text-sm flex items-center gap-3">
+                                    <div class="w-4 h-4 border border-ink-400 rounded-sm"></div> Register
+                                </div>
+                                <div class="text-ink-600 px-4 py-3 rounded-xl font-medium text-sm flex items-center gap-3 hover:bg-ink-100 transition-colors">
+                                    <div class="w-4 h-4 border border-ink-400 rounded-full"></div> Inventory
+                                </div>
+                                <div class="text-ink-600 px-4 py-3 rounded-xl font-medium text-sm flex items-center gap-3 hover:bg-ink-100 transition-colors">
+                                    <div class="w-4 h-4 border border-ink-400 rounded-sm"></div> Ledger
+                                </div>
+                            </div>
+                            
+                            <!-- Main Grid -->
+                            <div class="flex-1 bg-ink-100 p-6 flex flex-col">
+                                <div class="relative mb-6">
+                                    <input type="text" placeholder="Search by IMEI, Model, or Customer..." class="w-full bg-ink-50 border border-ink-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-300 transition-colors">
+                                </div>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <!-- Product Card -->
+                                    <div class="bg-ink-50 border border-ink-200 rounded-2xl p-4 flex flex-col justify-between aspect-square">
+                                        <div>
+                                            <span class="text-xs font-semibold text-brand-600 mb-1 block">USED • PTA APPROVED</span>
+                                            <h3 class="font-medium text-ink-900 leading-tight">iPhone 15 Pro Max</h3>
+                                            <p class="text-xs text-ink-500 mt-1 font-mono">IMEI: 3569...8901</p>
+                                        </div>
+                                        <div class="text-lg font-semibold text-ink-950">Rs 345,000</div>
+                                    </div>
+                                    <div class="bg-ink-50 border border-ink-200 rounded-2xl p-4 flex flex-col justify-between aspect-square">
+                                        <div>
+                                            <span class="text-xs font-semibold text-teal-600 mb-1 block">NEW • NON-PTA</span>
+                                            <h3 class="font-medium text-ink-900 leading-tight">Samsung S24 Ultra</h3>
+                                            <p class="text-xs text-ink-500 mt-1 font-mono">Box Pack</p>
+                                        </div>
+                                        <div class="text-lg font-semibold text-ink-950">Rs 280,000</div>
+                                    </div>
+                                    <div class="bg-ink-50 border border-ink-200 rounded-2xl p-4 flex flex-col justify-between aspect-square">
+                                        <div>
+                                            <span class="text-xs font-semibold text-brand-600 mb-1 block">USED • JV</span>
+                                            <h3 class="font-medium text-ink-900 leading-tight">iPhone 13 Pro</h3>
+                                            <p class="text-xs text-ink-500 mt-1 font-mono">IMEI: 3521...4421</p>
+                                        </div>
+                                        <div class="text-lg font-semibold text-ink-950">Rs 145,000</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Cart -->
+                            <div class="w-80 bg-ink-50 border-l border-ink-200 flex flex-col">
+                                <div class="p-4 border-b border-ink-200 font-medium text-ink-900">Current Sale</div>
+                                <div class="flex-1 p-4 flex flex-col justify-center items-center text-ink-400 text-sm">
+                                    <div class="w-12 h-12 rounded-full border border-ink-300 flex items-center justify-center mb-2">
+                                        +
+                                    </div>
+                                    Scan IMEI or search
+                                </div>
+                                <div class="p-6 bg-ink-100 border-t border-ink-200">
+                                    <div class="flex justify-between text-sm text-ink-600 mb-2"><span>Subtotal</span><span>Rs 0</span></div>
+                                    <div class="flex justify-between font-semibold text-ink-950 text-lg mb-4"><span>Total</span><span>Rs 0</span></div>
+                                    <button class="w-full bg-ink-200 text-ink-400 py-3 rounded-xl font-medium border border-ink-300 cursor-not-allowed">Take Payment</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-    <section class="steps" id="activate">
-      <h2>Activation</h2>
-      <p class="steps-sub">Three steps and you're up and running.</p>
-      <div class="steps-grid">
-        <div class="step">
-          <span class="step-num">1</span>
-          <p>Buy a license</p>
-          <small>You receive a 10-digit activation code from your vendor.</small>
-        </div>
-        <div class="step">
-          <span class="step-num">2</span>
-          <p>Install &amp; open the app</p>
-          <small>On first run, Fig POS asks for your activation code.</small>
-        </div>
-        <div class="step">
-          <span class="step-num">3</span>
-          <p>Enter the code once</p>
-          <small>It activates online and then keeps working offline until expiry.</small>
-        </div>
-      </div>
-    </section>
-  </main>
+                <!-- Scrolling Overlay Metrics (Hidden initially, appear during scroll) -->
+                <div class="absolute inset-0 pointer-events-none flex items-center justify-center opacity-0 transition-opacity duration-500" id="hero-metrics">
+                    <div class="grid grid-cols-2 gap-8 max-w-4xl w-full px-6">
+                        <div class="bg-ink-50/90 backdrop-blur-md border border-ink-200 rounded-3xl p-8 transform translate-y-10 transition-transform duration-700 ease-out metric-card">
+                            <p class="text-sm font-medium text-ink-500 mb-2">Today's Sales</p>
+                            <p class="text-4xl lg:text-5xl font-semibold text-ink-950 tracking-tight">Rs 486,500</p>
+                        </div>
+                        <div class="bg-brand-900/90 backdrop-blur-md border border-brand-800 rounded-3xl p-8 transform translate-y-10 transition-transform duration-700 ease-out delay-100 metric-card">
+                            <p class="text-sm font-medium text-brand-300 mb-2">Net Profit</p>
+                            <p class="text-4xl lg:text-5xl font-semibold text-ink-50 tracking-tight">Rs 72,840</p>
+                        </div>
+                        <div class="bg-ink-50/90 backdrop-blur-md border border-ink-200 rounded-3xl p-8 transform translate-y-10 transition-transform duration-700 ease-out delay-200 metric-card">
+                            <p class="text-sm font-medium text-ink-500 mb-2">Units Sold</p>
+                            <p class="text-4xl lg:text-5xl font-semibold text-ink-950 tracking-tight">24 Phones</p>
+                        </div>
+                        <div class="bg-teal-900/90 backdrop-blur-md border border-teal-800 rounded-3xl p-8 transform translate-y-10 transition-transform duration-700 ease-out delay-300 metric-card">
+                            <p class="text-sm font-medium text-teal-300 mb-2">Stock Value</p>
+                            <p class="text-4xl lg:text-5xl font-semibold text-ink-50 tracking-tight">Rs 3.2M</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-  <footer>
-    <div class="footer-inner">
-      <div class="footer-brand">
-        <div class="brand">
-          <img class="logo" src="icon.png" alt="Fig Mobile POS" />
-          <span class="brand-name">Fig Mobile POS</span>
-        </div>
-        <p>Point of sale built for Pakistani mobile phone shops. New &amp; used phones, IMEI tracking, credit, and analytics — works fully offline.</p>
-      </div>
-      <div class="footer-col">
-        <h3>Product</h3>
-        <a href="#download">Download</a>
-        <a href="#activate">Activation</a>
-        <a href="#features">Features</a>
-      </div>
-      <div class="footer-col">
-        <h3>Support</h3>
-        <a href="#activate">Get a license</a>
-        <a href="mailto:support@figpos.pk">Contact support</a>
-      </div>
-      <div class="footer-col">
-        <h3>Legal</h3>
-        <a href="#">Privacy</a>
-        <a href="#">Terms</a>
-      </div>
-    </div>
-    <p class="footer-bottom">&copy; <span id="year"></span> Fig Mobile POS &middot; Made for Pakistani mobile shops &middot; Currency in PKR (Rs)</p>
-  </footer>
+        <section class="py-32 bg-brand-950 text-ink-50 relative overflow-hidden" id="features">
+            <div class="max-w-7xl mx-auto px-6 relative z-10">
+                <div class="max-w-2xl reveal-up">
+                    <h2 class="text-5xl md:text-7xl font-semibold tracking-tighter leading-tight mb-6">
+                        Every phone<br>has a story.
+                    </h2>
+                    <p class="text-xl text-brand-200 font-normal">
+                        Fig remembers all of it. From the moment it enters the shop to the final profit calculation.
+                    </p>
+                </div>
 
-  <script>
-    const BASE = "https://downloads.myko.pk";
-    (async () => {
-      try {
-        const res = await fetch(BASE + "/latest.json", { cache: "no-store" });
-        if (!res.ok) throw new Error("no manifest");
-        const d = await res.json();
-        document.getElementById("version").textContent = "Version " + d.version;
-        document.getElementById("download").href = d.url.setup;
-        if (d.size) {
-          document.getElementById("size").textContent = d.size + " &middot; 64-bit";
-        }
-        if (d.publishedAt) {
-          document.getElementById("date").textContent =
-            "Released " + new Date(d.publishedAt).toLocaleDateString(undefined, {
-              year: "numeric", month: "long", day: "numeric",
+                <div class="mt-24 max-w-4xl mx-auto">
+                    <!-- Phone Header -->
+                    <div class="border border-brand-800 rounded-2xl bg-brand-900 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 reveal-scale">
+                        <div>
+                            <h3 class="text-2xl font-semibold">iPhone 15 Pro <span class="text-brand-400 text-lg font-normal ml-2">256GB Natural Titanium</span></h3>
+                            <div class="flex items-center gap-3 mt-2 font-mono text-sm">
+                                <span class="text-brand-300">IMEI:</span>
+                                <span class="bg-brand-950 px-2 py-1 rounded border border-brand-800">356938104889214</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm text-brand-300 mb-1">Final Status</div>
+                            <div class="inline-flex items-center gap-2 px-3 py-1 bg-brand-950 border border-brand-800 rounded-full text-brand-300 text-sm font-medium">
+                                <div class="w-1.5 h-1.5 rounded-full bg-teal-400"></div> Sold
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Timeline -->
+                    <div class="mt-12 ml-6 md:ml-12 border-l border-brand-800 py-4 reveal-up">
+                        <!-- Node 1 -->
+                        <div class="relative pl-8 pb-12">
+                            <div class="absolute w-3 h-3 bg-brand-950 border-2 border-brand-500 rounded-full -left-[6.5px] top-1"></div>
+                            <div class="text-sm font-mono text-brand-400 mb-1">10 Oct, 11:30 AM</div>
+                            <div class="text-lg font-medium text-ink-50">Purchased</div>
+                            <div class="mt-2 text-brand-200 text-sm flex gap-4">
+                                <span>Vendor: Ali Traders</span>
+                                <span>Cost: Rs 285,000</span>
+                            </div>
+                        </div>
+                        <!-- Node 2 -->
+                        <div class="relative pl-8 pb-12">
+                            <div class="absolute w-3 h-3 bg-brand-950 border-2 border-brand-500 rounded-full -left-[6.5px] top-1"></div>
+                            <div class="text-sm font-mono text-brand-400 mb-1">10 Oct, 11:35 AM</div>
+                            <div class="text-lg font-medium text-ink-50">Added to Stock</div>
+                            <div class="mt-2 text-brand-200 text-sm">Condition set to A+, PTA Approved</div>
+                        </div>
+                        <!-- Node 3 -->
+                        <div class="relative pl-8 pb-12">
+                            <div class="absolute w-3 h-3 bg-brand-950 border-2 border-gold-500 rounded-full -left-[6.5px] top-1"></div>
+                            <div class="text-sm font-mono text-gold-400 mb-1">12 Oct, 4:15 PM</div>
+                            <div class="text-lg font-medium text-gold-100">Reserved</div>
+                            <div class="mt-2 text-brand-200 text-sm">Token received: Rs 5,000 from Customer: Ahmed</div>
+                        </div>
+                        <!-- Node 4 -->
+                        <div class="relative pl-8 pb-12">
+                            <div class="absolute w-3 h-3 bg-brand-950 border-2 border-teal-500 rounded-full -left-[6.5px] top-1"></div>
+                            <div class="text-sm font-mono text-teal-400 mb-1">13 Oct, 2:00 PM</div>
+                            <div class="text-lg font-medium text-teal-100">Sold</div>
+                            <div class="mt-2 text-brand-200 text-sm flex gap-4">
+                                <span>Price: Rs 305,000</span>
+                            </div>
+                        </div>
+                        <!-- Node 5 -->
+                        <div class="relative pl-8">
+                            <div class="absolute w-3 h-3 bg-brand-500 border-2 border-brand-500 rounded-full -left-[6.5px] top-1"></div>
+                            <div class="text-sm font-mono text-brand-400 mb-1">Calculation</div>
+                            <div class="text-xl font-medium text-ink-50">Profit Realized</div>
+                            <div class="mt-3 inline-block bg-brand-900 border border-brand-700 rounded-xl px-4 py-2 font-mono text-lg text-brand-100">
+                                Rs 20,000
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="py-32 bg-ink-50 border-b border-ink-200">
+            <div class="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row items-center gap-16">
+                <div class="lg:w-1/3 reveal-up">
+                    <h2 class="text-4xl md:text-5xl font-semibold tracking-tighter leading-tight mb-6 text-ink-950">
+                        One physical phone.<br>One complete record.
+                    </h2>
+                    <p class="text-lg text-ink-600 mb-8">
+                        Type an IMEI, and Fig shows you everything. No more digging through notebooks or multiple excel sheets.
+                    </p>
+                </div>
+                
+                <div class="lg:w-2/3 w-full reveal-scale">
+                    <div class="bg-ink-100 border border-ink-200 rounded-3xl p-2 max-w-2xl mx-auto">
+                        <!-- Search Bar Mock -->
+                        <div class="bg-ink-50 border border-ink-200 rounded-2xl flex items-center p-3 mb-2">
+                            <svg class="w-5 h-5 text-ink-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <input type="text" value="356938104XXXXX" readonly class="bg-transparent border-none outline-none text-ink-900 ml-3 w-full font-mono text-lg">
+                        </div>
+                        
+                        <!-- Result Card -->
+                        <div class="bg-ink-50 border border-ink-200 rounded-2xl p-6">
+                            <div class="flex justify-between items-start mb-8">
+                                <div>
+                                    <h4 class="text-2xl font-semibold text-ink-950">iPhone 15 Pro</h4>
+                                    <div class="flex gap-2 mt-2">
+                                        <span class="px-2 py-1 bg-ink-100 border border-ink-200 text-ink-600 text-xs font-medium rounded">Used</span>
+                                        <span class="px-2 py-1 bg-ink-100 border border-ink-200 text-ink-600 text-xs font-medium rounded">Condition A</span>
+                                        <span class="px-2 py-1 bg-ink-100 border border-ink-200 text-ink-600 text-xs font-medium rounded">PTA Approved</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-3 gap-4 border-t border-ink-200 pt-6">
+                                <div>
+                                    <div class="text-sm text-ink-500 mb-1">Purchase</div>
+                                    <div class="text-lg font-medium text-ink-900">Rs 285,000</div>
+                                </div>
+                                <div>
+                                    <div class="text-sm text-ink-500 mb-1">Sale</div>
+                                    <div class="text-lg font-medium text-ink-900">Rs 305,000</div>
+                                </div>
+                                <div>
+                                    <div class="text-sm text-ink-500 mb-1">Profit</div>
+                                    <div class="text-lg font-medium text-brand-600">Rs 20,000</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="py-32 bg-brand-950 border-t border-brand-900">
+            <div class="max-w-7xl mx-auto px-6 text-center reveal-up">
+                <h2 class="text-5xl md:text-7xl font-semibold tracking-tighter leading-tight mb-6 text-ink-50">
+                    Sell in seconds.
+                </h2>
+                <p class="text-xl text-brand-200 font-normal max-w-2xl mx-auto mb-16">
+                    Search. Select. Take payment. Done. Designed for the speed of a busy shop.
+                </p>
+                
+                <!-- Checkout UI Mockup -->
+                <div class="max-w-3xl mx-auto bg-brand-900 border border-brand-800 rounded-3xl overflow-hidden text-left reveal-scale">
+                    <div class="p-6 border-b border-brand-800 bg-brand-950 flex justify-between items-center">
+                        <span class="text-ink-50 font-medium text-lg">Checkout</span>
+                        <span class="text-brand-300 font-mono">Invoice #1042</span>
+                    </div>
+                    
+                    <div class="p-6 md:p-8 flex flex-col md:flex-row gap-8">
+                        <!-- Item List -->
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start pb-4 border-b border-brand-800 mb-4">
+                                <div>
+                                    <h4 class="text-ink-50 font-medium text-lg">iPhone 15 Pro</h4>
+                                    <p class="text-brand-300 text-sm font-mono mt-1">IMEI: 3569...8901</p>
+                                </div>
+                                <div class="text-ink-50 font-medium text-lg">Rs 305,000</div>
+                            </div>
+                            <div class="flex justify-between items-center pt-2">
+                                <span class="text-brand-200">Total Due</span>
+                                <span class="text-2xl font-semibold text-ink-50">Rs 305,000</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Split -->
+                        <div class="w-full md:w-80 bg-brand-950 border border-brand-800 rounded-2xl p-6">
+                            <h5 class="text-ink-50 font-medium mb-4">Payment Method</h5>
+                            
+                            <div class="space-y-3 mb-6">
+                                <div class="flex justify-between items-center p-3 border border-brand-700 rounded-xl bg-brand-900/50">
+                                    <span class="text-brand-100 text-sm">Cash</span>
+                                    <span class="text-ink-50 font-mono">Rs 150,000</span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 border border-brand-700 rounded-xl bg-brand-900/50">
+                                    <span class="text-brand-100 text-sm">Bank Transfer</span>
+                                    <span class="text-ink-50 font-mono">Rs 100,000</span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 border border-brand-400 rounded-xl bg-brand-800">
+                                    <span class="text-ink-50 text-sm font-medium">Customer Credit</span>
+                                    <span class="text-ink-50 font-mono font-medium">Rs 55,000</span>
+                                </div>
+                            </div>
+                            
+                            <button class="w-full bg-brand-500 text-ink-50 py-4 rounded-xl font-medium hover:bg-brand-600 transition-colors">
+                                Complete Sale
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Credit Section -->
+        <section class="py-32 bg-ink-50">
+            <div class="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center">
+                <div class="reveal-up">
+                    <h2 class="text-4xl md:text-6xl font-semibold tracking-tighter leading-tight mb-6 text-ink-950">
+                        Credit without<br>the confusion.
+                    </h2>
+                    <p class="text-lg text-ink-600 mb-8">
+                        Ditch the khata notebook. See exactly who owes what, and their complete transaction history, in one clean ledger.
+                    </p>
+                </div>
+                
+                <div class="bg-ink-100 border border-ink-200 rounded-3xl p-2 reveal-scale">
+                    <div class="bg-ink-50 border border-ink-200 rounded-2xl overflow-hidden">
+                        <div class="p-6 border-b border-ink-200 flex justify-between items-end bg-ink-100">
+                            <div>
+                                <h3 class="text-xl font-semibold text-ink-950">Ahmed Ali</h3>
+                                <p class="text-sm text-ink-500 mt-1">Wholesale Customer</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm text-ink-500 mb-1">Current Balance</p>
+                                <p class="text-2xl font-semibold text-brand-600">Rs 48,500 <span class="text-sm text-ink-400 font-normal">Dr</span></p>
+                            </div>
+                        </div>
+                        <div class="p-0">
+                            <div class="grid grid-cols-4 px-6 py-3 border-b border-ink-200 text-xs font-medium text-ink-500 bg-ink-50/50">
+                                <div>Date</div>
+                                <div class="col-span-2">Description</div>
+                                <div class="text-right">Amount</div>
+                            </div>
+                            <!-- Ledger Rows -->
+                            <div class="grid grid-cols-4 px-6 py-4 border-b border-ink-100 text-sm">
+                                <div class="text-ink-500 font-mono">Oct 14</div>
+                                <div class="col-span-2 text-ink-900">Sale (Inv #1042)</div>
+                                <div class="text-right font-medium text-brand-600">Rs 55,000</div>
+                            </div>
+                            <div class="grid grid-cols-4 px-6 py-4 border-b border-ink-100 text-sm bg-ink-100/30">
+                                <div class="text-ink-500 font-mono">Oct 10</div>
+                                <div class="col-span-2 text-ink-900">Payment Received</div>
+                                <div class="text-right font-medium text-teal-600">- Rs 20,000</div>
+                            </div>
+                             <div class="grid grid-cols-4 px-6 py-4 border-b border-ink-100 text-sm">
+                                <div class="text-ink-500 font-mono">Oct 05</div>
+                                <div class="col-span-2 text-ink-900">Sale (Inv #0988)</div>
+                                <div class="text-right font-medium text-brand-600">Rs 13,500</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- New x Used Split -->
+        <section class="flex flex-col md:flex-row min-h-[80vh] border-y border-ink-200">
+            <!-- Left: NEW -->
+            <div class="flex-1 bg-brand-50 border-r border-ink-200 p-12 md:p-24 flex flex-col justify-center reveal-up">
+                <h3 class="text-4xl font-semibold text-brand-800 tracking-tighter mb-12">NEW</h3>
+                <div class="space-y-6 max-w-sm">
+                    <div class="flex justify-between border-b border-brand-200 pb-2">
+                        <span class="text-brand-700">Vendor</span>
+                        <span class="font-medium text-brand-950">Tech Corp</span>
+                    </div>
+                    <div class="flex justify-between border-b border-brand-200 pb-2">
+                        <span class="text-brand-700">IMEI Tracking</span>
+                        <span class="font-medium text-brand-950 font-mono">Batch Import</span>
+                    </div>
+                    <div class="flex justify-between border-b border-brand-200 pb-2">
+                        <span class="text-brand-700">PTA Status</span>
+                        <span class="font-medium text-brand-950">Official</span>
+                    </div>
+                    <div class="flex justify-between border-b border-brand-200 pb-2">
+                        <span class="text-brand-700">Purchase Price</span>
+                        <span class="font-medium text-brand-950">Fixed</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right: USED -->
+            <div class="flex-1 bg-teal-50 p-12 md:p-24 flex flex-col justify-center reveal-up" style="transition-delay: 100ms;">
+                <h3 class="text-4xl font-semibold text-teal-800 tracking-tighter mb-12">USED</h3>
+                 <div class="space-y-6 max-w-sm">
+                    <div class="flex justify-between border-b border-teal-200 pb-2">
+                        <span class="text-teal-700">Walk-in Seller</span>
+                        <span class="font-medium text-teal-950">Requires CNIC</span>
+                    </div>
+                    <div class="flex justify-between border-b border-teal-200 pb-2">
+                        <span class="text-teal-700">IMEI Tracking</span>
+                        <span class="font-medium text-teal-950 font-mono">Individual Scan</span>
+                    </div>
+                    <div class="flex justify-between border-b border-teal-200 pb-2">
+                        <span class="text-teal-700">Condition</span>
+                        <span class="font-medium text-teal-950">A, B, C, Faulty</span>
+                    </div>
+                    <div class="flex justify-between border-b border-teal-200 pb-2">
+                        <span class="text-teal-700">Purchase Price</span>
+                        <span class="font-medium text-teal-950">Negotiated</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <div class="bg-ink-100 py-12 text-center border-b border-ink-200">
+            <p class="text-2xl font-medium text-ink-900 tracking-tight reveal-up">Different phones. One system.</p>
+        </div>
+
+        <section class="py-32 bg-ink-50" id="product">
+            <div class="max-w-7xl mx-auto px-6 reveal-up">
+                <h2 class="text-5xl md:text-7xl font-semibold tracking-tighter leading-tight mb-16 text-ink-950 text-center">
+                    Know what's<br>in the shop.
+                </h2>
+                
+                <!-- Inventory Metrics -->
+                <div class="grid grid-cols-3 gap-8 mb-12 max-w-4xl mx-auto text-center">
+                    <div>
+                        <div class="text-5xl font-semibold text-ink-950 tracking-tight mb-2">142</div>
+                        <div class="text-sm font-medium text-ink-500 uppercase tracking-widest">Total Phones</div>
+                    </div>
+                    <div>
+                        <div class="text-5xl font-semibold text-ink-950 tracking-tight mb-2">Rs 3.8M</div>
+                        <div class="text-sm font-medium text-ink-500 uppercase tracking-widest">Stock Value</div>
+                    </div>
+                    <div>
+                        <div class="text-5xl font-semibold text-brand-600 tracking-tight mb-2">18</div>
+                        <div class="text-sm font-medium text-brand-500 uppercase tracking-widest">Low Stock Models</div>
+                    </div>
+                </div>
+
+                <!-- Massive Table UI -->
+                <div class="bg-ink-50 border border-ink-200 rounded-3xl overflow-hidden reveal-scale">
+                    <div class="overflow-x-auto no-scrollbar">
+                        <table class="w-full text-left min-w-[800px]">
+                            <thead>
+                                <tr class="bg-ink-100 border-b border-ink-200 text-xs font-medium text-ink-500 uppercase tracking-wider">
+                                    <th class="p-4 pl-6">Phone Model</th>
+                                    <th class="p-4">IMEI</th>
+                                    <th class="p-4">Type / Cond</th>
+                                    <th class="p-4">PTA</th>
+                                    <th class="p-4 text-right">Cost</th>
+                                    <th class="p-4 text-right">List Price</th>
+                                    <th class="p-4 pr-6">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-sm divide-y divide-ink-100">
+                                <tr class="hover:bg-ink-100/50 transition-colors">
+                                    <td class="p-4 pl-6 font-medium text-ink-900">iPhone 15 Pro Max</td>
+                                    <td class="p-4 font-mono text-ink-600">356938104...</td>
+                                    <td class="p-4 text-ink-600">Used • A+</td>
+                                    <td class="p-4 text-ink-600">Approved</td>
+                                    <td class="p-4 text-right text-ink-900 font-mono">285,000</td>
+                                    <td class="p-4 text-right text-ink-900 font-mono">315,000</td>
+                                    <td class="p-4 pr-6"><span class="px-2 py-1 bg-teal-100 text-teal-800 border border-teal-200 rounded text-xs">In Stock</span></td>
+                                </tr>
+                                <tr class="hover:bg-ink-100/50 transition-colors">
+                                    <td class="p-4 pl-6 font-medium text-ink-900">Samsung Galaxy S24 Ultra</td>
+                                    <td class="p-4 font-mono text-ink-600">358821901...</td>
+                                    <td class="p-4 text-ink-600">New • Box</td>
+                                    <td class="p-4 text-ink-600">Non-PTA</td>
+                                    <td class="p-4 text-right text-ink-900 font-mono">260,000</td>
+                                    <td class="p-4 text-right text-ink-900 font-mono">280,000</td>
+                                    <td class="p-4 pr-6"><span class="px-2 py-1 bg-teal-100 text-teal-800 border border-teal-200 rounded text-xs">In Stock</span></td>
+                                </tr>
+                                <tr class="hover:bg-ink-100/50 transition-colors">
+                                    <td class="p-4 pl-6 font-medium text-ink-900">Redmi Note 13</td>
+                                    <td class="p-4 font-mono text-ink-600">864291034...</td>
+                                    <td class="p-4 text-ink-600">New • Box</td>
+                                    <td class="p-4 text-ink-600">Approved</td>
+                                    <td class="p-4 text-right text-ink-900 font-mono">42,000</td>
+                                    <td class="p-4 text-right text-ink-900 font-mono">48,000</td>
+                                    <td class="p-4 pr-6"><span class="px-2 py-1 bg-brand-100 text-brand-800 border border-brand-200 rounded text-xs">Reserved</span></td>
+                                </tr>
+                                <tr class="hover:bg-ink-100/50 transition-colors">
+                                    <td class="p-4 pl-6 font-medium text-ink-900">iPhone 13</td>
+                                    <td class="p-4 font-mono text-ink-600">352199882...</td>
+                                    <td class="p-4 text-ink-600">Used • B</td>
+                                    <td class="p-4 text-ink-600">JV</td>
+                                    <td class="p-4 text-right text-ink-900 font-mono">85,000</td>
+                                    <td class="p-4 text-right text-ink-900 font-mono">98,000</td>
+                                    <td class="p-4 pr-6"><span class="px-2 py-1 bg-ink-200 text-ink-700 border border-ink-300 rounded text-xs">Sold</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="py-32 bg-violet-950 text-ink-50" id="reports">
+            <div class="max-w-7xl mx-auto px-6 reveal-up">
+                <h2 class="text-5xl md:text-7xl font-semibold tracking-tighter leading-tight mb-16 text-center">
+                    See the<br>whole business.
+                </h2>
+                
+                <div class="grid lg:grid-cols-3 gap-6">
+                    <!-- Main Chart Area -->
+                    <div class="lg:col-span-2 bg-violet-900 border border-violet-800 rounded-3xl p-8 reveal-scale">
+                        <div class="flex justify-between items-center mb-8">
+                            <h3 class="text-xl font-medium">Sales vs Profit (7 Days)</h3>
+                            <select class="bg-violet-950 border border-violet-700 text-sm rounded-lg px-3 py-1 outline-none">
+                                <option>This Week</option>
+                            </select>
+                        </div>
+                        <!-- CSS Bar Chart -->
+                        <div class="h-64 flex items-end gap-2 sm:gap-4 md:gap-8 pt-4 border-b border-violet-800">
+                            <!-- Bars (Sales: Brand, Profit: Teal) -->
+                            <div class="flex-1 flex flex-col justify-end items-center group">
+                                <div class="w-full max-w-[40px] bg-brand-500 h-[60%] rounded-t-sm transition-all relative"></div>
+                                <div class="w-full max-w-[40px] bg-teal-500 h-[15%] rounded-t-sm mt-1 transition-all"></div>
+                                <span class="text-xs text-violet-300 mt-2">Mon</span>
+                            </div>
+                            <div class="flex-1 flex flex-col justify-end items-center">
+                                <div class="w-full max-w-[40px] bg-brand-500 h-[40%] rounded-t-sm"></div>
+                                <div class="w-full max-w-[40px] bg-teal-500 h-[10%] rounded-t-sm mt-1"></div>
+                                <span class="text-xs text-violet-300 mt-2">Tue</span>
+                            </div>
+                            <div class="flex-1 flex flex-col justify-end items-center">
+                                <div class="w-full max-w-[40px] bg-brand-500 h-[80%] rounded-t-sm"></div>
+                                <div class="w-full max-w-[40px] bg-teal-500 h-[25%] rounded-t-sm mt-1"></div>
+                                <span class="text-xs text-violet-300 mt-2">Wed</span>
+                            </div>
+                             <div class="flex-1 flex flex-col justify-end items-center">
+                                <div class="w-full max-w-[40px] bg-brand-500 h-[70%] rounded-t-sm"></div>
+                                <div class="w-full max-w-[40px] bg-teal-500 h-[20%] rounded-t-sm mt-1"></div>
+                                <span class="text-xs text-violet-300 mt-2">Thu</span>
+                            </div>
+                             <div class="flex-1 flex flex-col justify-end items-center">
+                                <div class="w-full max-w-[40px] bg-brand-500 h-[90%] rounded-t-sm"></div>
+                                <div class="w-full max-w-[40px] bg-teal-500 h-[30%] rounded-t-sm mt-1"></div>
+                                <span class="text-xs text-violet-300 mt-2">Fri</span>
+                            </div>
+                             <div class="flex-1 flex flex-col justify-end items-center">
+                                <div class="w-full max-w-[40px] bg-brand-500 h-[50%] rounded-t-sm"></div>
+                                <div class="w-full max-w-[40px] bg-teal-500 h-[12%] rounded-t-sm mt-1"></div>
+                                <span class="text-xs text-violet-300 mt-2">Sat</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-6 mt-6 justify-center text-sm">
+                            <div class="flex items-center gap-2"><div class="w-3 h-3 bg-brand-500 rounded-sm"></div> Gross Sales</div>
+                            <div class="flex items-center gap-2"><div class="w-3 h-3 bg-teal-500 rounded-sm"></div> Net Profit</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Side Metrics -->
+                    <div class="flex flex-col gap-6">
+                        <div class="bg-violet-900 border border-violet-800 rounded-3xl p-6 reveal-scale" style="transition-delay: 100ms;">
+                            <div class="text-violet-300 text-sm mb-1">Total Receivables</div>
+                            <div class="text-3xl font-semibold text-ink-50 font-mono">Rs 450,200</div>
+                            <div class="mt-4 border-t border-violet-800 pt-4 text-sm text-violet-400">From 14 customers</div>
+                        </div>
+                        <div class="bg-violet-900 border border-violet-800 rounded-3xl p-6 reveal-scale" style="transition-delay: 200ms;">
+                            <div class="text-violet-300 text-sm mb-1">Expenses (Month)</div>
+                            <div class="text-3xl font-semibold text-ink-50 font-mono">Rs 85,000</div>
+                            <div class="mt-4 flex gap-1 h-2 rounded-full overflow-hidden">
+                                <div class="bg-gold-500 w-[50%]" title="Rent"></div>
+                                <div class="bg-brand-500 w-[30%]" title="Salary"></div>
+                                <div class="bg-teal-500 w-[20%]" title="Bills"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="py-32 bg-gold-50 border-y border-gold-200 text-ink-950">
+            <div class="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
+                <div class="reveal-up">
+                    <h2 class="text-5xl md:text-7xl font-semibold tracking-tighter leading-tight mb-6">
+                        Every rupee.<br>Accounted for.
+                    </h2>
+                    <p class="text-xl text-ink-700 font-normal mb-8 max-w-md">
+                        Track cash drawers, multiple bank accounts, daily expenses, and complex split payments effortlessly.
+                    </p>
+                </div>
+                
+                <div class="bg-ink-50 border border-gold-200 rounded-3xl p-8 reveal-scale">
+                    <div class="text-sm font-medium text-ink-500 mb-6 uppercase tracking-widest">Split Payment Example</div>
+                    
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center pb-4 border-b border-ink-200">
+                            <span class="text-lg font-medium">Total Amount</span>
+                            <span class="text-2xl font-semibold font-mono">Rs 100,000</span>
+                        </div>
+                        
+                        <div class="pl-4 border-l-2 border-gold-400 space-y-4 py-2">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-gold-100 flex items-center justify-center text-gold-700 text-xs font-bold">C</div>
+                                    <span class="font-medium text-ink-800">Cash (Drawer 1)</span>
+                                </div>
+                                <span class="font-mono text-ink-600">Rs 50,000</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-ink-100 flex items-center justify-center text-ink-700 text-xs font-bold">B1</div>
+                                    <span class="font-medium text-ink-800">Meezan Bank</span>
+                                </div>
+                                <span class="font-mono text-ink-600">Rs 30,000</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-ink-100 flex items-center justify-center text-ink-700 text-xs font-bold">B2</div>
+                                    <span class="font-medium text-ink-800">HBL</span>
+                                </div>
+                                <span class="font-mono text-ink-600">Rs 20,000</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="grid md:grid-cols-2">
+            <!-- Offline Section -->
+            <section class="py-32 bg-brand-900 text-ink-50 border-r border-brand-800 px-6 lg:px-20 flex flex-col justify-center">
+                <div class="reveal-up">
+                    <h2 class="text-4xl md:text-5xl font-semibold tracking-tighter mb-4 text-brand-200">No internet?</h2>
+                    <h2 class="text-4xl md:text-6xl font-semibold tracking-tighter mb-12">Keep selling.</h2>
+                    
+                    <div class="space-y-6 max-w-sm">
+                        <div class="flex items-center gap-4 bg-brand-950 border border-brand-800 p-4 rounded-xl">
+                            <div class="w-3 h-3 rounded-full bg-brand-500 animate-pulse"></div>
+                            <span class="font-medium text-brand-100">Offline Mode Active</span>
+                        </div>
+                        <div class="pl-7 border-l border-brand-800 text-sm text-brand-300 space-y-3 py-2">
+                            <p>✓ Sale completed.</p>
+                            <p>✓ Receipt printed.</p>
+                            <p>✓ Inventory locally updated.</p>
+                        </div>
+                        <div class="flex items-center gap-4 bg-brand-950 border border-teal-800 p-4 rounded-xl transition-all duration-1000 mt-8">
+                            <div class="w-3 h-3 rounded-full bg-teal-400"></div>
+                            <span class="font-medium text-teal-100">Connection Restored • Synced</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Z Report Section -->
+            <section class="py-32 bg-ink-50 px-6 lg:px-20 flex flex-col justify-center">
+                <div class="reveal-up">
+                    <h2 class="text-4xl md:text-6xl font-semibold tracking-tighter mb-12 text-ink-950">
+                        Close the day<br>with certainty.
+                    </h2>
+                    
+                    <div class="bg-ink-100 border border-ink-200 rounded-xl p-8 max-w-sm font-mono text-sm shadow-sm relative">
+                        <!-- Receipt jagged edge top -->
+                        <div class="absolute top-0 left-0 right-0 h-2" style="background-image: radial-gradient(circle at 4px 0, transparent 4px, #f3efe7 5px); background-size: 10px 10px; background-position: -4px -2px;"></div>
+                        
+                        <div class="text-center font-bold text-lg mb-6 border-b border-dashed border-ink-300 pb-4 mt-2 uppercase tracking-widest text-ink-800">Z-Report</div>
+                        
+                        <div class="space-y-3 text-ink-700">
+                            <div class="flex justify-between"><span>Opening Cash</span><span>50,000</span></div>
+                            <div class="flex justify-between"><span>Cash Sales</span><span>425,000</span></div>
+                            <div class="flex justify-between text-brand-700"><span>Expenses</span><span>-18,500</span></div>
+                        </div>
+                        
+                        <div class="border-t border-dashed border-ink-300 my-4 pt-4 space-y-3 text-ink-900 font-medium">
+                            <div class="flex justify-between"><span>Expected Closing</span><span>456,500</span></div>
+                            <div class="flex justify-between"><span>Actual Counted</span><span>455,500</span></div>
+                        </div>
+                        
+                        <div class="border-t border-ink-300 my-4 pt-4 flex justify-between font-bold text-brand-600 bg-brand-50 p-2 rounded">
+                            <span>Variance</span><span>-1,000</span>
+                        </div>
+                        
+                         <!-- Receipt jagged edge bottom -->
+                         <div class="absolute bottom-0 left-0 right-0 h-2 transform rotate-180" style="background-image: radial-gradient(circle at 4px 0, transparent 4px, #f3efe7 5px); background-size: 10px 10px; background-position: -4px -2px;"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <section class="py-32 bg-ink-950 text-ink-50">
+            <div class="max-w-7xl mx-auto px-6 text-center reveal-up">
+                <h2 class="text-5xl md:text-7xl font-semibold tracking-tighter leading-tight mb-16 text-brand-100">
+                    Your shop. Your rules.
+                </h2>
+                
+                <div class="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto text-left">
+                    <div class="border border-ink-800 bg-ink-900 rounded-2xl p-6">
+                        <h3 class="font-mono text-brand-400 mb-4">ROLE: ADMIN</h3>
+                        <ul class="space-y-2 text-ink-300 text-sm">
+                            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> View Profits</li>
+                            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Edit Inventory</li>
+                            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Delete Sales</li>
+                        </ul>
+                    </div>
+                    <div class="border border-ink-800 bg-ink-900 rounded-2xl p-6">
+                        <h3 class="font-mono text-ink-400 mb-4">ROLE: MANAGER</h3>
+                        <ul class="space-y-2 text-ink-300 text-sm">
+                            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-ink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> <span class="line-through text-ink-600">View Profits</span></li>
+                            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Add Inventory</li>
+                            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Process Refunds</li>
+                        </ul>
+                    </div>
+                     <div class="border border-ink-800 bg-ink-900 rounded-2xl p-6">
+                        <h3 class="font-mono text-ink-400 mb-4">ROLE: CASHIER</h3>
+                        <ul class="space-y-2 text-ink-300 text-sm">
+                            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Create Sales</li>
+                            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-ink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> <span class="line-through text-ink-600">See Cost Price</span></li>
+                            <li class="flex items-center gap-2"><svg class="w-4 h-4 text-ink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> <span class="line-through text-ink-600">Edit Prices</span></li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="mt-16 border-t border-ink-800 pt-8 max-w-2xl mx-auto text-left reveal-up">
+                    <h4 class="text-ink-400 text-sm mb-4 font-mono">AUDIT LOG</h4>
+                    <div class="space-y-3 font-mono text-xs text-ink-300">
+                        <div class="flex justify-between border-b border-ink-800 pb-2">
+                            <span>Sale #1042 Created by <span class="text-ink-50">Cashier_1</span></span>
+                            <span class="text-ink-500">14:32</span>
+                        </div>
+                        <div class="flex justify-between border-b border-ink-800 pb-2">
+                            <span>Price override requested for <span class="text-ink-50">IMEI ...8901</span></span>
+                            <span class="text-ink-500">14:30</span>
+                        </div>
+                        <div class="flex justify-between border-b border-ink-800 pb-2">
+                            <span>Price override approved by <span class="text-brand-400">Admin</span></span>
+                            <span class="text-ink-500">14:31</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="py-40 bg-ink-100 overflow-hidden relative">
+            <div class="max-w-7xl mx-auto px-6 text-center relative z-10 reveal-up">
+                <h2 class="text-5xl md:text-7xl font-semibold tracking-tighter leading-tight mb-4 text-ink-950">
+                    Everything is connected.
+                </h2>
+                <p class="text-xl text-ink-600 font-normal mb-20 max-w-2xl mx-auto">
+                    So you always know what happened, down to the last rupee.
+                </p>
+                
+                <!-- Architecture Diagram -->
+                <div class="flex flex-col items-center max-w-4xl mx-auto font-mono text-sm relative">
+                    <!-- Vertical Line Connecting All -->
+                    <div class="absolute h-full w-px bg-brand-200 left-1/2 transform -translate-x-1/2 z-0"></div>
+                    
+                    <div class="relative z-10 bg-ink-50 border border-ink-200 px-6 py-3 rounded-full mb-8 text-ink-900 shadow-none">Vendor</div>
+                    <div class="relative z-10 bg-brand-100 border border-brand-200 px-6 py-3 rounded-full mb-8 text-brand-900 shadow-none">IMEI Scanned</div>
+                    <div class="relative z-10 bg-ink-50 border border-ink-200 px-6 py-3 rounded-full mb-8 text-ink-900 shadow-none">Inventory Updated</div>
+                    
+                    <div class="flex w-full justify-center gap-32 mb-8 relative">
+                        <!-- Horizontal connector -->
+                        <div class="absolute top-1/2 left-[calc(50%-4rem)] right-[calc(50%-4rem)] h-px bg-brand-200 -z-10"></div>
+                        <div class="relative z-10 bg-ink-50 border border-ink-200 px-6 py-3 rounded-full text-ink-900">Customer</div>
+                        <div class="relative z-10 bg-ink-50 border border-ink-200 px-6 py-3 rounded-full text-ink-900">Sale Created</div>
+                    </div>
+                    
+                    <div class="relative z-10 bg-gold-100 border border-gold-200 px-6 py-3 rounded-full mb-8 text-gold-900 shadow-none">Payment Applied</div>
+                    
+                    <div class="flex w-full justify-center gap-16 mb-8 relative">
+                        <div class="absolute top-1/2 left-[calc(50%-8rem)] right-[calc(50%-8rem)] h-px bg-brand-200 -z-10"></div>
+                        <div class="relative z-10 bg-ink-50 border border-ink-200 px-6 py-3 rounded-full text-ink-900">Credit Ledger</div>
+                        <div class="relative z-10 bg-teal-100 border border-teal-200 px-6 py-3 rounded-full text-teal-900">Cash Drawer</div>
+                    </div>
+                    
+                    <div class="relative z-10 bg-violet-100 border border-violet-200 px-6 py-3 rounded-full mb-8 text-violet-900 shadow-none">Profit Calculated</div>
+                    <div class="relative z-10 bg-brand-900 border border-brand-800 px-8 py-4 rounded-xl text-ink-50 font-sans font-medium text-lg shadow-none">Business Analytics</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="py-40 bg-ink-50 border-t border-ink-200" id="how-it-works">
+            <div class="max-w-4xl mx-auto px-6 text-center reveal-up">
+                <h1 class="text-6xl md:text-8xl font-semibold tracking-tighter leading-tight mb-8 text-ink-950">
+                    Run your shop.<br>Not your spreadsheets.
+                </h1>
+                <p class="text-xl text-ink-600 font-normal mb-12 max-w-2xl mx-auto">
+                    Fig POS brings phones, customers, credit, cash, inventory, and profit into one perfectly engineered system.
+                </p>
+                <div class="flex flex-col sm:flex-row justify-center gap-4 mb-16">
+                    <a href="#download" class="bg-brand-600 text-ink-50 px-10 py-5 rounded-full text-xl font-medium hover:bg-brand-700 transition-colors border border-brand-700">Get Started</a>
+                    <a href="#download" class="bg-ink-100 text-ink-950 px-10 py-5 rounded-full text-xl font-medium hover:bg-ink-200 transition-colors border border-ink-200">Talk to Sales</a>
+                </div>
+                
+                <div class="inline-flex items-center gap-2 text-ink-500 text-sm font-medium border border-ink-200 bg-ink-100 px-4 py-2 rounded-full">
+                    <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Built exclusively for Pakistani mobile shops.
+                </div>
+            </div>
+        </section>
+        
+        <section class="py-32 bg-ink-50 border-t border-ink-200" id="download">
+            <div class="max-w-4xl mx-auto px-6 text-center reveal-up">
+                <h2 class="text-5xl md:text-7xl font-semibold tracking-tighter leading-tight mb-6 text-ink-950">
+                    Download Fig.
+                </h2>
+                <p class="text-xl text-ink-600 font-normal mb-12 max-w-2xl mx-auto">
+                    Runs fully offline on Windows 10 / 11. No server, no account, no credit card to install.
+                </p>
+
+                <div class="max-w-md mx-auto bg-ink-100 border border-ink-200 rounded-3xl p-8">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-12 h-12 rounded-2xl bg-brand-100 border border-brand-200 flex items-center justify-center">
+                            <svg class="w-6 h-6 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                        </div>
+                        <div class="text-left">
+                            <p class="font-medium text-ink-900">Windows 10 / 11</p>
+                            <p class="text-sm text-ink-500" id="size">64-bit</p>
+                        </div>
+                    </div>
+                    <a href="#" id="download-btn" class="block w-full bg-brand-600 text-ink-50 py-4 rounded-full text-lg font-medium hover:bg-brand-700 transition-colors border border-brand-700">
+                        Download for Windows
+                    </a>
+                    <p class="mt-4 text-sm text-ink-500" id="version">Checking for updates…</p>
+                    <p class="text-sm text-ink-500" id="date"></p>
+                </div>
+
+                <div class="mt-20 text-left max-w-2xl mx-auto">
+                    <h3 class="text-2xl font-semibold text-ink-950 mb-6 text-center">Activation</h3>
+                    <div class="grid md:grid-cols-3 gap-6">
+                        <div class="bg-ink-100 border border-ink-200 rounded-2xl p-6">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-brand-600 text-ink-50 font-semibold mb-4">1</span>
+                            <p class="font-medium text-ink-900 mb-1">Buy a license</p>
+                            <p class="text-sm text-ink-500">You get a 10-digit activation code from your vendor.</p>
+                        </div>
+                        <div class="bg-ink-100 border border-ink-200 rounded-2xl p-6">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-brand-600 text-ink-50 font-semibold mb-4">2</span>
+                            <p class="font-medium text-ink-900 mb-1">Install &amp; open</p>
+                            <p class="text-sm text-ink-500">On first run, Fig asks for your activation code.</p>
+                        </div>
+                        <div class="bg-ink-100 border border-ink-200 rounded-2xl p-6">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-brand-600 text-ink-50 font-semibold mb-4">3</span>
+                            <p class="font-medium text-ink-900 mb-1">Enter once</p>
+                            <p class="text-sm text-ink-500">Activates online, then works offline until expiry.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="py-8 bg-ink-100 border-t border-ink-200 text-center text-ink-500 text-sm">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="flex items-center justify-center gap-2 mb-4">
+                    <img class="w-6 h-6 rounded-md" src="icon.png" alt="Fig" />
+                    <span class="font-semibold text-ink-800">Fig POS</span>
+                </div>
+                <p>&copy; 2026 Fig POS. A beautifully engineered operating system.</p>
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const BASE = "https://downloads.myko.pk";
+            (async () => {
+                try {
+                    const res = await fetch(BASE + "/latest.json", { cache: "no-store" });
+                    if (!res.ok) throw new Error("no manifest");
+                    const d = await res.json();
+                    document.getElementById("version").textContent = "Version " + d.version;
+                    document.getElementById("download-btn").href = d.url.setup;
+                    if (d.size) document.getElementById("size").textContent = d.size + " · 64-bit";
+                    if (d.publishedAt) {
+                        document.getElementById("date").textContent =
+                            "Released " + new Date(d.publishedAt).toLocaleDateString(undefined, {
+                                year: "numeric", month: "long", day: "numeric",
+                            });
+                    }
+                } catch (e) {
+                    document.getElementById("version").textContent =
+                        "Release info unavailable right now — try again in a moment.";
+                    document.getElementById("download-btn").href = BASE + "/Fig.Mobile.POS-setup.exe";
+                }
+            })();
+
+            // Intersection Observer for fade/scale in animations
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.15
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-revealed');
+                        observer.unobserve(entry.target); // Run once
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.reveal-up, .reveal-scale').forEach(el => {
+                observer.observe(el);
             });
-        }
-      } catch (e) {
-        document.getElementById("version").textContent =
-          "Release info unavailable right now — try again in a moment.";
-        document.getElementById("download").href = BASE + "/Fig.Mobile.POS-setup.exe";
-      }
-    })();
 
-    document.getElementById("year").textContent = new Date().getFullYear();
+            // Cinematic Hero Scroll Logic
+            const heroWrapper = document.getElementById('hero-ui-wrapper');
+            const heroText = document.getElementById('hero-text');
+            const heroMetrics = document.getElementById('hero-metrics');
+            const mainNav = document.getElementById('main-nav');
+            const metricCards = document.querySelectorAll('.metric-card');
 
-    const root = document.documentElement;
-    const stored = localStorage.getItem("theme");
-    if (stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-      root.classList.add("dark");
-    }
-    document.getElementById("theme-toggle").addEventListener("click", () => {
-      root.classList.toggle("dark");
-      localStorage.setItem("theme", root.classList.contains("dark") ? "dark" : "light");
-    });
-  </script>
+            window.addEventListener('scroll', () => {
+                const scrollY = window.scrollY;
+                const windowHeight = window.innerHeight;
+                
+                // Nav blur effect based on scroll
+                if (scrollY > 50) {
+                    mainNav.classList.add('bg-ink-50/90', 'backdrop-blur-md');
+                    mainNav.classList.remove('bg-transparent');
+                } else {
+                    // keep it slightly visible at top
+                }
+
+                // Calculate progress within the sticky section (0 to 1)
+                // The sticky container is 250vh tall. We care about the first 150vh of scrolling.
+                let progress = scrollY / (windowHeight * 1.5);
+                progress = Math.max(0, Math.min(progress, 1)); // Clamp between 0 and 1
+
+                // 1. Scale the UI Dashboard (0.85 -> 1.0)
+                const scale = 0.85 + (0.15 * progress);
+                // Translate Y slightly upwards to center it
+                const translateY = 10 - (10 * progress); 
+                
+                if (heroWrapper && progress < 1) {
+                    heroWrapper.style.transform = `scale(${scale}) translateY(${translateY}%)`;
+                } else if (heroWrapper) {
+                    heroWrapper.style.transform = `scale(1) translateY(0)`;
+                }
+
+                // 2. Fade out Hero Text
+                if (heroText) {
+                    const textOpacity = 1 - (progress * 2); // Fade out twice as fast
+                    heroText.style.opacity = Math.max(0, textOpacity);
+                    heroText.style.transform = `translateY(-${progress * 50}px)`;
+                }
+
+                // 3. Fade in Metrics when UI is nearly full screen
+                if (heroMetrics) {
+                    if (progress > 0.7) {
+                        heroMetrics.style.opacity = 1;
+                        metricCards.forEach((card, index) => {
+                            // Slight delay for each card using CSS transition delays, just triggering translate here
+                            setTimeout(() => {
+                                card.classList.remove('translate-y-10');
+                                card.classList.add('translate-y-0');
+                            }, index * 100);
+                        });
+                    } else {
+                        heroMetrics.style.opacity = 0;
+                        metricCards.forEach(card => {
+                            card.classList.add('translate-y-10');
+                            card.classList.remove('translate-y-0');
+                        });
+                    }
+                }
+            });
+            
+            // Trigger scroll event once to set initial states
+            window.dispatchEvent(new Event('scroll'));
+        });
+    </script>
 </body>
 </html>
