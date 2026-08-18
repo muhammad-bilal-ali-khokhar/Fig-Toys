@@ -7,6 +7,12 @@ Release body.
 
 ## Unreleased
 
+- **Human-written release descriptions** — every release now ships with a
+  clear, user-facing description instead of a raw dump of commit messages. The
+  download page at fig.myko.pk shows these notes under the latest version and
+  in the version history, and older releases (v0.1.47 and up) were backfilled
+  with their descriptions too.
+
 ## v0.1.51
 
 - **Versioned download folders** — each release is now stored in its own
