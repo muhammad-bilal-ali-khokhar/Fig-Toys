@@ -4,7 +4,13 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.48
+## v0.1.49
+
+- Released on: 2026-08-18
+
+- feat: Convex online license activation — 10-digit activation codes redeemed for signed license keys, secured admin endpoints, CLI issue/mint/details/redeem
+- feat: global search, print overhaul, reservations/settings updates; add backend search endpoint and migrations
+- logo
 
 - Released on: 2026-08-18
 
