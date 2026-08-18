@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.47
+## v0.1.48
+
+- Released on: 2026-08-18
+
+- feat: license key activation with device locking and activation screen
+- docs: update architecture/roadmap/feature-audit to match current build; dedupe status labels; add frontend typecheck script
 
 - Released on: 2026-08-18
 
