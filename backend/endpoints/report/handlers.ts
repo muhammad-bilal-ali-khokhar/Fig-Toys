@@ -67,6 +67,10 @@ export async function balancesHandler(req: Request, res: Response) {
   res.json({ data: await report.balances() });
 }
 
+export async function contactReportHandler(req: Request, res: Response) {
+  res.json({ data: await report.contactReport(await rangeWithTz(req)) });
+}
+
 export async function ledgerHandler(req: Request, res: Response) {
   const parsed = parseLedger(req);
   const tz = await getCompanyTimezone();

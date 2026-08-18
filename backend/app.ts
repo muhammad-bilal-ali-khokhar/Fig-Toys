@@ -16,7 +16,7 @@ import paymentRouter from "./endpoints/payment/routes";
 import dashboardRouter from "./endpoints/dashboard/routes";
 import settingsRouter from "./endpoints/settings/routes";
 import bankAccountRouter from "./endpoints/bank-account/routes";
-import printLayoutRouter from "./endpoints/print-layout/routes";
+import printSettingRouter from "./endpoints/print-setting/routes";
 import inventoryRouter from "./endpoints/inventory/routes";
 import reservationRouter from "./endpoints/reservation/routes";
 import voucherRouter from "./endpoints/voucher/routes";
@@ -64,7 +64,7 @@ export function createApp() {
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/settings", settingsRouter);
   app.use("/api/bank-account", bankAccountRouter);
-  app.use("/api/print-layout", printLayoutRouter);
+  app.use("/api/print-setting", printSettingRouter);
   app.use("/api/inventory", inventoryRouter);
   app.use("/api/reservation", reservationRouter);
   app.use("/api/voucher", voucherRouter);

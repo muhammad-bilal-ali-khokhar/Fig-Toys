@@ -17,7 +17,7 @@ Audit of the Next.js frontend and backend against `docs/PRD.md` and `docs/roadma
 ### Operations
 - **Backup / restore** — `GET /api/backup` (SQLite snapshot download) + `POST /api/backup/restore`; Settings > Backup & restore (admin only).
 - **Purchase orders** — `PurchaseOrder` + items; create, list, receive (partial/complete → creates a PURCHASE transaction + stock IN), cancel. Frontend `/purchase-orders`.
-- **Per-document print defaults** — `GET/PUT /api/settings/print-defaults` mapping each document type to thermal/A4; Print Studio preselects the format. Optional WebUSB ESC/POS direct thermal print (Settings > Print & thermal).
+- **Per-document print settings** — `GET/PUT /api/print-setting` storing one setting per document type (format 58/80/a4, options, qrType); Print Studio and direct print load the matching setting. Optional WebUSB ESC/POS direct thermal print (Settings > Print & thermal).
 
 ### Correctness fixes
 - Clearing a contact's credit limit to 0 now applies.

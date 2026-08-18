@@ -15,7 +15,6 @@ const TABLES_IN_ORDER = [
   "expense",
   "auditLog",
   "dashboardWidget",
-  "printLayout",
   "purchaseOrderItem",
   "purchaseOrder",
   "cashSession",

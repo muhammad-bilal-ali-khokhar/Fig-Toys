@@ -914,6 +914,26 @@ export function UpdaterIcon(props: IconProps) {
   ));
 }
 
+export function SendIcon(props: IconProps) {
+  const { className = "", ...rest } = props;
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`h-4 w-4 ${className}`}
+      aria-hidden="true"
+      {...rest}
+    >
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4Z" />
+    </svg>
+  );
+}
+
 export function HelpIcon(props: IconProps) {
   return base(props, (
     <>

@@ -120,12 +120,14 @@ export function VoucherForm({
   editing,
   onClose,
   onSaved,
+  onCreated,
 }: {
   contacts: Contact[] | null;
   banks: BankAccount[] | null;
   editing: Voucher | null;
   onClose: () => void;
   onSaved: () => void;
+  onCreated?: (voucher: Voucher) => void;
 }) {
   const { toast } = useToast();
   const [vType, setVType] = useState<"RECEIVING" | "PAYMENT">(editing?.type ?? "RECEIVING");
@@ -194,6 +196,7 @@ export function VoucherForm({
         const created = await apiRequest<Voucher>("/voucher", { method: "POST", body });
         voucherClientRef.current = null;
         toast(`${created.number} created`, "success");
+        onCreated?.(created);
       }
       onSaved();
     } catch (err) {

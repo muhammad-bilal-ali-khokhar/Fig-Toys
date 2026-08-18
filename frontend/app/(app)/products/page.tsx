@@ -23,7 +23,7 @@ import { ManageWindow } from "@/components/products/manage-window";
 import { SortHeader } from "@/components/ui/sort-header";
 import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
-import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon } from "@/components/icons";
+import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon, HeadphonesIcon, SmartphoneIcon } from "@/components/icons";
 import { CONDITION_FILTER_OPTIONS } from "@/lib/constants/products";
 
 type SortKey = "brand" | "color" | "categoryName" | "sku" | "sellPrice" | "retailPrice" | "costPrice";
@@ -62,6 +62,7 @@ export default function ProductsPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [manageTab, setManageTab] = useState<"category" | "brand" | "color">("category");
   const [formKey, setFormKey] = useState(0);
+  const [createType, setCreateType] = useState<"NEW" | "USED" | "ACCESSORY" | null>(null);
   const [historyProduct, setHistoryProduct] = useState<ProductSummary | null>(null);
   const [historyData, setHistoryData] = useState<ProductDetail | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -218,7 +219,8 @@ export default function ProductsPage() {
       ram: p.ram ?? "",
       screenSize: p.screenSize ?? "",
       colorId: p.colorId ?? "",
-      categoryId: p.categoryId,
+      categoryId: p.parentCategoryId ?? p.categoryId,
+      subcategoryId: p.parentCategoryId ? p.categoryId : "",
       sellPrice: String(p.sellPrice),
       costPrice: p.costPrice ? String(p.costPrice) : "",
       retailPrice: p.retailPrice ? String(p.retailPrice) : "",
@@ -308,6 +310,7 @@ export default function ProductsPage() {
       "Screen size",
       "Color",
       "Category",
+      "Subcategory",
       "SKU",
       "Sell price",
       ...(viewCosts ? ["Cost price"] : []),
@@ -321,7 +324,8 @@ export default function ProductsPage() {
         p.ram ?? "",
         p.screenSize ?? "",
         p.color ?? "",
-        p.categoryName,
+        p.parentCategoryName ?? p.categoryName,
+        p.parentCategoryName ? p.categoryName : "",
         p.sku ?? "",
         p.sellPrice,
         ...(viewCosts ? [p.costPrice ?? ""] : []),
@@ -361,6 +365,16 @@ export default function ProductsPage() {
   const selectedCount = filtered.filter((p) => selected.has(p.id)).length;
   const allSelected = filtered.length > 0 && selectedCount === filtered.length;
   const someSelected = selectedCount > 0 && selectedCount < filtered.length;
+
+  const parentCategories = activeCategories.filter((c) => !c.parentId);
+  const categoryOptions = parentCategories.flatMap((c) => {
+    const children = activeCategories.filter((ch) => ch.parentId === c.id);
+    if (children.length === 0) return [{ value: c.id, label: c.name }];
+    return [
+      { value: c.id, label: c.name },
+      ...children.map((ch) => ({ value: ch.id, label: `  ${ch.name}` })),
+    ];
+  });
 
   const activeFilterCount = [condition, categoryId, brandId, colorId].filter(Boolean).length;
 
@@ -502,7 +516,9 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-5 py-3 text-ink-700">{p.color ?? "—"}</td>
                     <td className="px-5 py-3">
-                      <Badge variant="neutral">{p.categoryName}</Badge>
+                      <Badge variant="neutral">
+                        {p.parentCategoryName ? `${p.parentCategoryName} > ${p.categoryName}` : p.categoryName}
+                      </Badge>
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-ink-700">{p.sku}</td>
                     <td className="px-5 py-3 text-right font-medium">{formatPKR(p.sellPrice)}</td>
@@ -650,7 +666,7 @@ export default function ProductsPage() {
               placeholder="All categories"
               options={[
                 { value: "", label: "All categories" },
-                ...activeCategories.map((c) => ({ value: c.id, label: c.name })),
+                ...categoryOptions,
               ]}
             />
           </div>

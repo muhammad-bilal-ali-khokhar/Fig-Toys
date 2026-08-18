@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld("fig", {
     get: () => ipcRenderer.invoke("error:get"),
     copy: (text) => ipcRenderer.invoke("error:copy", text),
   },
+  share: {
+    pdf: (dataUrl, name) => ipcRenderer.invoke("share:pdf", dataUrl, name),
+  },
   loading: {
     onStatus: (cb) => ipcRenderer.on("loading:status", (_event, text) => cb(text)),
   },

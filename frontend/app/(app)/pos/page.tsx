@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { brandOf, type BankAccount, type CompanyProfile, type Contact, type ReservationConflict, type ReservationDetail, type TransactionDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS, APP, MAX_MONEY_AMOUNT } from "@/lib/constants";
+import { CARRIER_LABELS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -19,12 +19,14 @@ import { Sheet } from "@/components/ui/sheet";
 import { PriceInput } from "@/components/ui/price-input";
 import { useToast } from "@/components/ui/toast";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
-import { PlusIcon, PosIcon, PrinterIcon, RefundIcon, ReservationIcon, XIcon } from "@/components/icons";
+import { PlusIcon, PosIcon, RefundIcon, ReservationIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
 import { TypePill } from "@/components/ui/type-pill";
-import { DirectPrint } from "@/components/print/direct-print";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { DiscountFields } from "@/components/discount-fields";
+import { BankPaymentRow, PaymentSummaryCard } from "@/components/payment-bottom";
+import { BankDepositSheet } from "@/components/bank-deposit-sheet";
+import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 
 type SearchResult = {
   id: string;
@@ -117,7 +119,15 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
   const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  useEffect(() => {
+    if (highlightedIndex < 0 || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-flat="${highlightedIndex}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex]);
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -271,6 +281,59 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [q, runSearch]);
+
+  type FlatItem = {
+    kind: "unit";
+    result: SearchResult;
+    unit: SearchResult["units"][number];
+    added: boolean;
+  } | {
+    kind: "product";
+    result: SearchResult;
+    added: boolean;
+  };
+
+  const flatItems = useMemo<FlatItem[]>(() => {
+    const items: FlatItem[] = [];
+    for (const result of results) {
+      if (result.units.length === 0) {
+        items.push({ kind: "product", result, added: cart.some((l) => l.key === `prod-${result.id}`) });
+      } else {
+        for (const unit of result.units) {
+          items.push({ kind: "unit", result, unit, added: cart.some((l) => l.key === `unit-${unit.id}`) });
+        }
+      }
+    }
+    return items;
+  }, [results, cart]);
+
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [results]);
+
+  function activateFlatItem(item: FlatItem) {
+    if (item.kind === "product") {
+      if (item.added) {
+        removeLine(`prod-${item.result.id}`);
+        toast(`${item.result.brand} ${item.result.model} removed from sale`, "success");
+      } else {
+        addLine(item.result);
+        setQ("");
+        setResults([]);
+        toast(`${item.result.brand} ${item.result.model} added`, "success");
+      }
+    } else {
+      if (item.added) {
+        removeLine(`unit-${item.unit.id}`);
+        toast(`${item.result.brand} ${item.result.model} · ${item.unit.imei.slice(-6)} removed from sale`, "success");
+      } else {
+        addLine(item.result, item.unit);
+        setQ("");
+        setResults([]);
+        toast(`${item.result.brand} ${item.result.model} · ${item.unit.imei} added`, "success");
+      }
+    }
+  }
 
   async function handleSearchEnter() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -615,95 +678,12 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
 
   if (receipt) {
     return (
-      <div className="mx-auto max-w-sm">
-        <div id="receipt" className="rounded-2xl bg-white p-6 font-mono text-sm">
-          {profile?.logoUrl && (
-            <img src={profile.logoUrl} alt="" className="mx-auto mb-2 block max-h-14 object-contain" />
-          )}
-          <p className="mx-auto max-w-full truncate px-2 text-center text-lg font-bold" title={profile?.name ?? APP.nameFull}>
-            {profile?.name ?? APP.nameFull}
-          </p>
-          <p className="text-center text-xs">{receipt.number}</p>
-          <div className="my-4" />
-          <p className="text-xs">{receipt.contact.name}</p>
-          <div className="my-4" />
-          <div className="space-y-1">
-            {receipt.items.map((item) => (
-              <div key={item.id} className="flex justify-between">
-                <span>
-                  {item.product.brand} {item.product.model}
-                  {item.unit ? <span className="block text-[10px] text-ink-400">{item.unit.imei}</span> : null}
-                </span>
-                <span>{formatPKR(item.total)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="my-4" />
-          {parseFloat(receipt.tax ?? "0") > 0 && (
-            <div className="flex justify-between text-xs">
-              <span>TAX</span>
-              <span>{formatPKR(receipt.tax)}</span>
-            </div>
-          )}
-          {parseFloat(receipt.cardFee ?? "0") > 0 && (
-            <div className="flex justify-between text-xs">
-              <span>CARD FEE</span>
-              <span>{formatPKR(receipt.cardFee)}</span>
-            </div>
-          )}
-          {parseFloat(receipt.discount ?? "0") > 0 && (
-            <div className="flex justify-between text-xs">
-              <span>DISCOUNT</span>
-              <span>−{formatPKR(receipt.discount)}</span>
-            </div>
-          )}
-          <div className="flex justify-between font-bold">
-            <span>TOTAL</span>
-            <span>{formatPKR(receipt.total)}</span>
-          </div>
-          {receipt.payments.map((p) => (
-            <div key={p.id} className="mt-1 flex justify-between text-xs">
-              <span className="uppercase">{p.method.replace("_", " ")}</span>
-              <span>{formatPKR(p.amount)}</span>
-            </div>
-          ))}
-          {receipt.payments
-            .filter((p) => p.method === "CASH" && p.tendered != null)
-            .map((p) => (
-              <div key={`${p.id}-tendered`} className="flex justify-between text-xs text-ink-400">
-                <span className="uppercase">Cash tendered</span>
-                <span>{formatPKR(parseFloat(p.tendered ?? "0"))}</span>
-              </div>
-            ))}
-          {receipt.payments
-            .filter((p) => p.method === "CASH" && p.change != null && parseFloat(p.change) > 0)
-            .map((p) => (
-              <div key={`${p.id}-change`} className="flex justify-between text-xs text-ink-400">
-                <span className="uppercase">Change</span>
-                <span>{formatPKR(parseFloat(p.change ?? "0"))}</span>
-              </div>
-            ))}
-          {receipt.status === "PARTIAL" && (
-            <p className="mt-3 text-center text-xs font-bold text-warning">PARTIAL PAYMENT</p>
-          )}
-          <p className="mt-4 text-center text-xs text-ink-400">Thank you for shopping with us!</p>
-        </div>
-        <div className="mt-4 flex justify-center gap-2">
-          <DirectPrint type="SALE" id={receipt.id} render={(open, busy) => (
-            <Button variant="secondary" onClick={open} disabled={busy}>
-              <PrinterIcon className="h-4 w-4" />
-              {busy ? "Preparing…" : "Print receipt"}
-            </Button>
-          )} />
-          <Button variant="secondary" onClick={() => loadForModify(receipt)}>
-            Modify invoice
-          </Button>
-          <Button onClick={reset}>
-            <PlusIcon className="h-4 w-4" />
-            New sale
-          </Button>
-        </div>
-      </div>
+      <TransactionReceipt
+        type="SALE"
+        detail={receipt}
+        onModify={loadForModify}
+        onNew={reset}
+      />
     );
   }
 
@@ -819,9 +799,19 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
               value={q}
               onChange={setQ}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "ArrowDown") {
                   e.preventDefault();
-                  void handleSearchEnter();
+                  if (flatItems.length > 0) setHighlightedIndex((i) => (i + 1) % flatItems.length);
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  if (flatItems.length > 0) setHighlightedIndex((i) => (i <= 0 ? flatItems.length - 1 : i - 1));
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (flatItems.length > 0 && highlightedIndex >= 0 && highlightedIndex < flatItems.length) {
+                    activateFlatItem(flatItems[highlightedIndex]);
+                  } else {
+                    void handleSearchEnter();
+                  }
                 }
               }}
               placeholder="Scan IMEI or search product…"
@@ -843,87 +833,92 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
 
             {panelPos && results.length > 0 && (
               <div
+                ref={listRef}
                 style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
                 className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
               >
-                {results.map((result) => {
-                  const inStock = result.units;
-                  return (
-                    <div key={result.id} className="rounded-xl hover:bg-ink-50">
-                      <div className="flex items-center justify-between gap-3 px-3 pt-3">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-ink-900">
-                            {[result.brand, result.model, result.storage, result.ram, result.screenSize, result.color]
-                              .filter(Boolean)
-                              .join(" ")}
-                          </p>
-                          <p className="text-xs text-ink-500">
-                            {formatPKR(result.sellPrice)} · {result.category.name}
-                          </p>
-                        </div>
-                        {inStock.length === 0 ? (
-                          cart.some((l) => l.key === `prod-${result.id}`) ? (
+                {(() => {
+                  let flatIdx = -1;
+                  return results.map((result) => {
+                    const inStock = result.units;
+                    const isProductRow = inStock.length === 0;
+                    if (isProductRow) flatIdx++;
+                    const productFlatIdx = isProductRow ? flatIdx : -1;
+                    const isProductHighlighted = productFlatIdx === highlightedIndex;
+                    return (
+                      <div key={result.id} className="rounded-xl">
+                        <div
+                          className={`flex items-center justify-between gap-3 px-3 pt-3 ${isProductHighlighted ? "bg-brand-50 rounded-xl" : ""}`}
+                          onMouseEnter={() => { if (isProductRow) setHighlightedIndex(productFlatIdx); }}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-ink-900">
+                              {[result.brand, result.model, result.storage, result.ram, result.screenSize, result.color]
+                                .filter(Boolean)
+                                .join(" ")}
+                            </p>
+                            <p className="text-xs text-ink-500">
+                              {formatPKR(result.sellPrice)} · {result.category.name}
+                            </p>
+                          </div>
+                          {inStock.length === 0 ? (
                             <button
+                              data-flat={productFlatIdx}
                               type="button"
-                              onClick={() => {
-                                removeLine(`prod-${result.id}`);
-                                toast(`${result.brand} ${result.model} removed from sale`, "success");
-                              }}
-                              className="shrink-0 rounded-xl bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-100"
+                              onClick={() => activateFlatItem({ kind: "product", result, added: cart.some((l) => l.key === `prod-${result.id}`) })}
+                              className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold ${
+                                cart.some((l) => l.key === `prod-${result.id}`)
+                                  ? "bg-brand-50 text-brand-600 hover:bg-brand-100"
+                                  : isProductHighlighted
+                                    ? "bg-brand-100 text-brand-600"
+                                    : "bg-ink-100 text-ink-600 hover:bg-brand-50"
+                              }`}
                             >
-                              ✓ Added
+                              {cart.some((l) => l.key === `prod-${result.id}`) ? "✓ Added" : "Add"}
                             </button>
-                          ) : (
-                            <Button variant="secondary" size="sm" className="px-3 shrink-0" onClick={() => addLine(result)}>
-                              <PlusIcon className="h-3.5 w-3.5" />
-                              Add
-                            </Button>
-                          )
-                        ) : null}
-                      </div>
-                      {inStock.length > 0 && (
-                        <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
-                          {inStock.map((unit) => {
-                            const added = cart.some((l) => l.key === `unit-${unit.id}`);
-                            return (
-                              <button
-                                key={unit.id}
-                                type="button"
-                                onClick={() => {
-                                  if (added) {
-                                    removeLine(`unit-${unit.id}`);
-                                    toast(`${result.brand} ${result.model} · ${unit.imei.slice(-6)} removed from sale`, "success");
-                                  } else {
-                                    addLine(result, unit);
-                                  }
-                                }}
-                                className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 ${
-                                  added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
-                                }`}
-                              >
-                                <span className={`truncate text-xs ${added ? "text-brand-600" : "text-ink-700"}`}>
-                                  {unit.imei}
-                                </span>
-                                <span className="flex shrink-0 items-center gap-2">
-                                  {unit.status === "RESERVED" && (
-                                    <Badge variant="warning">Reserved</Badge>
-                                  )}
-                                  <Badge variant="neutral">{unit.condition}</Badge>
-                                  <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
-                                  {added ? (
-                                    <span className="text-xs font-semibold text-brand-600">Added</span>
-                                  ) : (
-                                    <PlusIcon className="h-3.5 w-3.5 text-ink-400" />
-                                  )}
-                                </span>
-                              </button>
-                            );
-                          })}
+                          ) : null}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {inStock.length > 0 && (
+                          <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
+                            {inStock.map((unit) => {
+                              flatIdx++;
+                              const added = cart.some((l) => l.key === `unit-${unit.id}`);
+                              const isActive = flatIdx === highlightedIndex;
+                              return (
+                                <button
+                                  key={unit.id}
+                                  data-flat={flatIdx}
+                                  type="button"
+                                  onClick={() => activateFlatItem({ kind: "unit", result, unit, added })}
+                                  onMouseEnter={() => setHighlightedIndex(flatIdx)}
+                                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 ${
+                                    isActive ? "bg-brand-100" : added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
+                                  }`}
+                                >
+                                  <span className={`truncate text-xs ${added ? "text-brand-600" : "text-ink-700"}`}>
+                                    {unit.imei}
+                                  </span>
+                                  <span className="flex shrink-0 items-center gap-2">
+                                    {unit.status === "RESERVED" && (
+                                      <Badge variant="warning">Reserved</Badge>
+                                    )}
+                                    <Badge variant="neutral">{unit.condition}</Badge>
+                                    <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
+                                    {added ? (
+                                      <span className="text-xs font-semibold text-brand-600">Added</span>
+                                    ) : (
+                                      <PlusIcon className="h-3.5 w-3.5 text-ink-400" />
+                                    )}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
@@ -1120,57 +1115,32 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
                 </div>
               </div>
 
-              {bankRows.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-ink-50 px-3 py-2">
-                  {bankRows.map((row) => {
-                    const bank = bankAccounts.find((b) => b.id === row.bankId);
-                    return (
-                      <span key={row.id} className="text-xs text-ink-700">
-                        {bank?.bankName ?? "Bank"} · {row.amount ? formatPKR(parseFloat(row.amount)) : "—"}
-                      </span>
-                    );
-                  })}
-                  <Button variant="ghost" className="px-2 py-1 text-xs" onClick={() => setBankSheetOpen(true)}>
-                    Edit
-                  </Button>
-                </div>
-              )}
-
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Button
-                  variant="secondary"
-                  className="px-3 py-1.5 text-xs"
-                  disabled={bankRows.length >= bankAccounts.length}
-                  onClick={() => {
-                    if (bankRows.length === 0) {
-                      const next = bankAccounts[0];
-                      setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]);
-                    }
-                    setBankSheetOpen(true);
-                  }}
-                >
-                  <PlusIcon className="mr-1 h-3.5 w-3.5" />
-                  {bankRows.length > 0 ? "Edit banks" : "Add bank"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="px-3 py-1.5 text-xs"
-                  onClick={() =>
-                    setCash(
-                      clampMoneyInput(
-                        String(
-                          due -
-                            (parseFloat(card) || 0) -
-                            (parseFloat(credit) || 0) -
-                            bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                        ),
-                      ),
-                    )
+              <BankPaymentRow
+                bankRows={bankRows}
+                bankAccounts={bankAccounts}
+                onBankSheetOpen={() => setBankSheetOpen(true)}
+                onAddBank={() => {
+                  if (bankRows.length === 0) {
+                    const next = bankAccounts[0];
+                    setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]);
                   }
-                >
-                  Fill remaining as cash
-                </Button>
-              </div>
+                  setBankSheetOpen(true);
+                }}
+                fillLabel="Fill remaining as cash"
+                fillDisabled={bankRows.length >= bankAccounts.length}
+                onFill={() =>
+                  setCash(
+                    clampMoneyInput(
+                      String(
+                        due -
+                          (parseFloat(card) || 0) -
+                          (parseFloat(credit) || 0) -
+                          bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                      ),
+                    ),
+                  )
+                }
+              />
             </div>
           {loadedReservation && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -1211,50 +1181,20 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
         </div>
         </div>
 
-        <div className="rounded-3xl bg-white">
-          <div className="px-5 py-4">
-            <h3 className="text-sm font-semibold text-ink-900">Summary</h3>
-          </div>
-          <div className="px-5 pb-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-left">
-                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Total</p>
-                <p className="text-3xl font-bold leading-tight text-brand-600">{formatPKR(total)}</p>
-              </div>
-              <div className="space-y-1 text-right text-xs text-ink-500">
-                <p className="flex items-center justify-end gap-2">
-                  <span>Discount</span>
-                  <span className="w-20 text-right font-medium text-ink-700">{formatPKR(invoiceDisc)}</span>
-                </p>
-                <p className="flex items-center justify-end gap-2">
-                  <span>Tax</span>
-                  <span className="w-20 text-right font-medium text-ink-700">{formatPKR(tax)}</span>
-                </p>
-                {cardFee > 0 && (
-                  <p className="flex items-center justify-end gap-2">
-                    <span>Card fee</span>
-                    <span className="w-20 text-right font-medium text-ink-700">{formatPKR(cardFee)}</span>
-                  </p>
-                )}
-                {change > 0 && (
-                  <p className="flex items-center justify-end gap-2 text-brand-600">
-                    <span>Change</span>
-                    <span className="w-20 text-right font-medium">{formatPKR(change)}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="mt-4">
-              <Button
-                className="w-full"
-                type="submit"
-                disabled={submitting || cart.length === 0}
-              >
-                {submitting ? "Processing…" : modifyId ? `Update sale` : `Charge ${formatPKR(due)}`}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <PaymentSummaryCard
+          title="Summary"
+          total={total}
+          lines={[
+            { label: "Discount", amount: invoiceDisc },
+            { label: "Tax", amount: tax },
+            ...(cardFee > 0 ? [{ label: "Card fee", amount: cardFee }] : []),
+            ...(change > 0 ? [{ label: "Change", amount: change, accent: true }] : []),
+          ]}
+        >
+          <Button className="w-full" type="submit" disabled={submitting || cart.length === 0}>
+            {submitting ? "Processing…" : modifyId ? `Update sale` : `Charge ${formatPKR(due)}`}
+          </Button>
+        </PaymentSummaryCard>
       </div>
 
       <ModifyPicker
@@ -1316,75 +1256,13 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
         </div>
       </Sheet>
 
-      <Sheet open={bankSheetOpen} title="Bank deposits" onClose={() => setBankSheetOpen(false)} width="max-w-2xl">
-        <div className="space-y-3">
-          {bankAccounts.length === 0 ? (
-            <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-xs text-ink-500">
-              No registered bank accounts. Add them in Settings.
-            </p>
-          ) : (
-            bankRows.map((row) => (
-              <div key={row.id} className="flex items-center gap-2">
-                <Dropdown
-                  value={row.bankId}
-                  options={bankAccounts
-                    .filter((b) => b.id === row.bankId || !bankRows.some((x) => x.id !== row.id && x.bankId === b.id))
-                    .map((b) => ({
-                      value: b.id,
-                      label: b.bankName,
-                      trailing: (
-                        <span className="text-xs text-ink-400">
-                          {b.name} · {b.accountNo}
-                        </span>
-                      ),
-                    }))}
-                  onChange={(v) =>
-                    setBankRows((r) =>
-                      r.map((x) => (x.id === row.id ? { ...x, bankId: v } : x))
-                    )
-                  }
-                  className="flex-1"
-                  triggerClassName="flex-1 bg-ink-100"
-                  placeholder="Pick bank…"
-                />
-                <Input
-                  value={row.amount}
-                  onChange={(e) =>
-                    setBankRows((r) =>
-                      r.map((x) => (x.id === row.id ? { ...x, amount: clampMoneyInput(e.target.value) } : x))
-                    )
-                  }
-                  placeholder="Amount"
-                  inputMode="decimal"
-                  className="min-w-0 w-32"
-                />
-                <button
-                  type="button"
-                  aria-label="Remove bank"
-                  className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-100 hover:text-ink-900"
-                  onClick={() => setBankRows((r) => r.filter((x) => x.id !== row.id))}
-                >
-                  <XIcon className="h-4 w-4" />
-                </button>
-              </div>
-            ))
-          )}
-          {bankAccounts.length > 0 && bankRows.length < bankAccounts.length && (
-            <Button
-              variant="secondary"
-              className="w-full text-xs"
-              onClick={() => {
-                const used = bankRows.map((x) => x.bankId);
-                const next = bankAccounts.find((b) => !used.includes(b.id));
-                setBankRows((r) => [...r, { id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]);
-              }}
-            >
-              <PlusIcon className="mr-1 h-3.5 w-3.5" />
-              Add bank
-            </Button>
-          )}
-        </div>
-      </Sheet>
+      <BankDepositSheet
+        open={bankSheetOpen}
+        onClose={() => setBankSheetOpen(false)}
+        bankRows={bankRows}
+        onBankRowsChange={setBankRows}
+        bankAccounts={bankAccounts}
+      />
 
       <Dialog
         open={conflicts !== null}

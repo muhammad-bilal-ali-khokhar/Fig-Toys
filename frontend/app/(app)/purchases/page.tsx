@@ -2,29 +2,31 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Color, Contact, ProductSummary, Transaction, TransactionDetail } from "@/lib/api-types";
+import type { Color, Contact, ProductSummary, Transaction, TransactionDetail, BankAccount } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS, CARRIER_OPTIONS } from "@/lib/constants";
+import { CARRIER_LABELS, CARRIER_OPTIONS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { hasPermission } from "@/lib/roles";
-import { formatPKR } from "@/lib/money";
+import { formatPKR, clampMoneyInput } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PriceInput } from "@/components/ui/price-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
-import { Sheet } from "@/components/ui/sheet";
+import { BankPaymentRow, PaymentSummaryCard } from "@/components/payment-bottom";
+import { BankDepositSheet } from "@/components/bank-deposit-sheet";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
-import { Kbd } from "@/components/ui/kbd";
+import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playPop, playSuccess } from "@/lib/sound";
 import { Scanner } from "@/components/scanner";
-import { CameraIcon, CheckIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, ReportsIcon, SmartphoneIcon } from "@/components/icons";
+import { CameraIcon, CheckIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, ReportsIcon, SmartphoneIcon, XIcon } from "@/components/icons";
 
 type PendingUnit = {
   key: string;
@@ -67,7 +69,11 @@ export default function PurchasesPage() {
   const [contactId, setContactId] = useState<string | null>(null);
   const [cash, setCash] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
-  const [payMode, setPayMode] = useState<"CASH" | "CREDIT" | "SPLIT">("CASH");
+  const [bankRows, setBankRows] = useState<{ id: string; amount: string; bankId: string }[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [bankSheetOpen, setBankSheetOpen] = useState(false);
+  const { data: bankData } = useApi<BankAccount[]>("/bank-account");
+  const [discountPct, setDiscountPct] = useState(0);
   const [discount, setDiscount] = useState("");
   const [note, setNote] = useState("");
   const [rows, setRows] = useState<PendingUnit[]>([]);
@@ -96,6 +102,7 @@ export default function PurchasesPage() {
   const purchaseClientRef = useRef<string | null>(null);
   const [modifyId, setModifyId] = useState<string | null>(null);
   const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
+  const [receipt, setReceipt] = useState<TransactionDetail | null>(null);
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -142,6 +149,10 @@ export default function PurchasesPage() {
     }
   }, [barcodePopup, sameBarcode]);
 
+  useEffect(() => {
+    if (bankData) setBankAccounts(bankData);
+  }, [bankData]);
+
   const contactOptions = (contacts ?? []).map((c) => ({
     value: c.id,
     label: c.name,
@@ -166,7 +177,7 @@ export default function PurchasesPage() {
     () => rows.reduce((sum, r) => sum + (parseFloat(r.costPrice) || 0) * r.quantity, 0),
     [rows],
   );
-  const total = Math.max(0, subtotal - (parseFloat(discount) || 0));
+  const total = Math.max(0, subtotal - (subtotal * discountPct) / 100 - (parseFloat(discount) || 0));
 
   function onProductSelect(value: string) {
     setSelProductId(value);
@@ -433,7 +444,9 @@ export default function PurchasesPage() {
     setRows([]);
     setCash("");
     setCreditAmount("");
-    setPayMode("CASH");
+    setBankRows([]);
+    setBankSheetOpen(false);
+    setDiscountPct(0);
     setDiscount("");
     setNote("");
     setContactId(null);
@@ -448,6 +461,7 @@ export default function PurchasesPage() {
   }
 
   function loadForModify(txn: TransactionDetail) {
+    setReceipt(null);
     setModifyId(txn.id);
     setContactId(txn.contact.id);
     setPurchaseNo(txn.number);
@@ -481,47 +495,17 @@ export default function PurchasesPage() {
     );
     const cashPayment = txn.payments.find((p) => p.method === "CASH");
     const creditPayment = txn.payments.find((p) => p.method === "CREDIT");
-    if (cashPayment && creditPayment) {
-      setPayMode("SPLIT");
-      setCash(String(parseFloat(cashPayment.amount)));
-      setCreditAmount(String(parseFloat(creditPayment.amount)));
-    } else if (creditPayment) {
-      setPayMode("CREDIT");
-      setCash("");
-      setCreditAmount(String(parseFloat(creditPayment.amount)));
-    } else if (cashPayment) {
-      setPayMode("CASH");
-      setCash(String(parseFloat(cashPayment.amount)));
-      setCreditAmount("");
-    }
+    setCash(cashPayment ? String(parseFloat(cashPayment.amount)) : "");
+    setCreditAmount(creditPayment ? String(parseFloat(creditPayment.amount)) : "");
+    const bankPayments = txn.payments.filter((p) => p.method === "BANK_TRANSFER");
+    setBankRows(
+      bankPayments.map((p) => ({
+        id: p.id,
+        amount: String(parseFloat(p.amount)),
+        bankId: p.bankAccount?.id ?? "",
+      })),
+    );
     toast(`Editing ${txn.number}`, "success");
-  }
-
-  function onSplitCash(value: string) {
-    setCash(value);
-    const c = parseFloat(value);
-    if (c && c > 0) setCreditAmount(String(Math.max(0, total - c)));
-  }
-
-  function onSplitCredit(value: string) {
-    setCreditAmount(value);
-    const c = parseFloat(value);
-    if (c && c > 0) setCash(String(Math.max(0, total - c)));
-  }
-
-  function onCreditCash(value: string) {
-    setCash(value);
-    const c = parseFloat(value);
-    if (c && c > 0) {
-      setPayMode("SPLIT");
-      setCreditAmount(String(Math.max(0, total - c)));
-    }
-  }
-
-  function onPayModeChange(v: "CASH" | "CREDIT" | "SPLIT") {
-    setPayMode(v);
-    setCash("");
-    setCreditAmount("");
   }
 
   function pickFlow(f: "NEW" | "USED" | "ACCESSORY") {
@@ -576,23 +560,14 @@ export default function PurchasesPage() {
 
     setSubmitting(true);
     try {
-      let payments: { method: "CASH" | "CREDIT"; amount: number }[];
-      if (payMode === "SPLIT") {
-        const cashAmt = parseFloat(cash) || 0;
-        const creditAmt = parseFloat(creditAmount) || 0;
-        if (Math.abs(cashAmt + creditAmt - total) > 0.01) {
-          toast(`Cash + credit must equal ${formatPKR(total)}`, "error");
-          setSubmitting(false);
-          return;
-        }
-        payments = [
-          ...(cashAmt > 0 ? [{ method: "CASH" as const, amount: cashAmt }] : []),
-          ...(creditAmt > 0 ? [{ method: "CREDIT" as const, amount: creditAmt }] : []),
-        ];
-      } else {
-        payments = [
-          { method: payMode === "CREDIT" ? ("CREDIT" as const) : ("CASH" as const), amount: parseFloat(cash) || total },
-        ];
+      const payments: { method: "CASH" | "CREDIT" | "BANK_TRANSFER"; amount: number; bankAccountId?: string }[] = [];
+      const cashAmt = parseFloat(cash) || 0;
+      const creditAmt = parseFloat(creditAmount) || 0;
+      if (cashAmt > 0) payments.push({ method: "CASH", amount: cashAmt });
+      if (creditAmt > 0) payments.push({ method: "CREDIT", amount: creditAmt });
+      for (const row of bankRows) {
+        const amt = parseFloat(row.amount) || 0;
+        if (amt > 0) payments.push({ method: "BANK_TRANSFER", amount: amt, bankAccountId: row.bankId });
       }
       const method = modifyId ? "PUT" : "POST";
       const url = modifyId ? `/transaction/${modifyId}/purchase` : "/transaction/purchase";
@@ -604,19 +579,38 @@ export default function PurchasesPage() {
           payments,
           number: purchaseNo,
           date: purchaseDate,
-          discount: parseFloat(discount) || 0,
+          discount: (subtotal * discountPct) / 100 + (parseFloat(discount) || 0),
           note: note.trim() || undefined,
           clientRef: modifyId ? undefined : (purchaseClientRef.current ??= crypto.randomUUID()),
         },
       });
       toast(modifyId ? `${txn.number} modified` : `${txn.number} recorded (${formatPKR(txn.total)})`, "success");
       purchaseClientRef.current = null;
-      clearAll();
+      if (modifyId) {
+        clearAll();
+      } else {
+        const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`);
+        clearAll();
+        setReceipt(detail);
+      }
     } catch (err) {
       toast(err instanceof Error ? err.message : "Purchase failed", "error");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (receipt) {
+    return (
+      <div className="flex h-full items-start justify-center overflow-y-auto overscroll-none p-4">
+        <TransactionReceipt
+          type="PURCHASE"
+          detail={receipt}
+          onModify={loadForModify}
+          onNew={() => setReceipt(null)}
+        />
+      </div>
+    );
   }
 
   if (!flow) {
@@ -656,7 +650,7 @@ export default function PurchasesPage() {
                   key={o.f}
                   type="button"
                   onClick={() => pickFlow(o.f)}
-                  className="flex flex-col items-center justify-center gap-4 rounded-3xl bg-brand-600 p-8 text-center transition hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-xl hover:shadow-brand-600/25"
+                  className="flex flex-col items-center justify-center gap-4 rounded-3xl bg-brand-600 p-8 text-center hover:bg-brand-700"
                 >
                   <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20">
                     {o.icon}
@@ -669,7 +663,7 @@ export default function PurchasesPage() {
                   key={o.f}
                   type="button"
                   onClick={() => pickFlow(o.f)}
-                  className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-white p-6 text-center transition hover:-translate-y-0.5 hover:bg-ink-50 hover:shadow-lg hover:shadow-ink-900/5"
+                  className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-white p-6 text-center hover:bg-ink-50"
                 >
                   <span className={`flex h-16 w-16 items-center justify-center rounded-2xl ${o.accent}`}>
                     {o.icon}
@@ -687,36 +681,44 @@ export default function PurchasesPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-4 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setFlow(null)}
-          className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-ink-500 hover:text-ink-900"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-          {flow === "ACCESSORY" ? "Accessories" : flow === "USED" ? "Used Phone" : "New Phone"}
-        </button>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Button variant="grey" onClick={() => setModifyPickerOpen(true)}>
+          <button
+            type="button"
+            onClick={() => setFlow(null)}
+            className="text-ink-400 hover:text-ink-700"
+          >
+            <ChevronLeftIcon className="h-5 w-5" />
+          </button>
+          <h1 className="text-lg font-bold text-ink-900">
+            {modifyId ? "Modify Purchase" : "Purchase"}
+            <span className="ml-2 text-sm font-medium text-ink-400">
+              {flow === "ACCESSORY" ? "· Accessories" : flow === "USED" ? "· Used Phone" : "· New Phone"}
+            </span>
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
             Modify
           </Button>
-          <Link
-            href="/reports/purchases"
-            className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
-          >
-            <ReportsIcon className="h-4 w-4" />
-            Reports
+          <Link href="/purchase-returns">
+            <Button variant="ghost">
+              Purchase Returns
+            </Button>
           </Link>
-          <Link
-            href="/purchase-returns"
-            className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink-700 transition hover:bg-ink-50"
-          >
-            Purchase returns
+          <Link href="/reports/purchases">
+            <Button variant="ghost">
+              <ReportsIcon className="h-4 w-4" />
+              Reports
+            </Button>
           </Link>
+          <Button variant="destructive" onClick={clearAll}>
+            Clear
+          </Button>
         </div>
       </div>
-      <div className="grid shrink-0 gap-3 md:grid-cols-[2fr_1fr_1fr_1fr] md:items-end">
-        <div>
+      <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
             {tab === "NEW" ? "Vendor" : "Seller"}
           </p>
@@ -731,75 +733,86 @@ export default function PurchasesPage() {
           )}
         </div>
 
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Purchase #</p>
-          <Input value={purchaseNo} readOnly className="bg-ink-100" />
+          <Input value={purchaseNo} readOnly variant="white" />
         </div>
 
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date</p>
           <DatePicker value={purchaseDate} onChange={setPurchaseDate} />
         </div>
 
-        <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Total</p>
-          <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-sm font-bold text-ink-900">{formatPKR(total)}</p>
+        <div className="flex-1 min-w-0">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Discount</p>
+          <div className="flex items-center gap-2">
+            <PriceInput
+              value={discountPct}
+              max={100}
+              onChange={setDiscountPct}
+              className="flex-1 min-w-0 bg-ink-100"
+              suffix="%"
+            />
+            <PriceInput
+              value={parseFloat(discount) || 0}
+              max={MAX_MONEY_AMOUNT}
+              onChange={(n) => setDiscount(n > 0 ? String(n) : "")}
+              className="flex-1 min-w-0 bg-ink-100"
+              suffix="Rs"
+            />
+          </div>
         </div>
       </div>
 
-      <form
-        className="mt-6 shrink-0 rounded-2xl bg-white p-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (flow === "ACCESSORY") openBarcodePopup();
-          else openImeiPopup();
-        }}
-      >
+      <section className="mt-3 shrink-0">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">
           {flow === "ACCESSORY" ? "Add accessories" : "Add units"}
         </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (flow === "ACCESSORY") openBarcodePopup();
+            else openImeiPopup();
+          }}
+        >
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-64 flex-1">
-            <p className="mb-1 text-xs font-medium text-ink-500">Product</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p>
             <Dropdown
               value={selProductId}
               options={productOptions}
               onChange={onProductSelect}
               searchable
-              triggerClassName="bg-ink-50"
               placeholder="Select product…"
             />
           </div>
           <div className="w-32">
-            <p className="mb-1 text-xs font-medium text-ink-500">Cost (Rs)</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p>
             <Input
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="Auto-filled"
-              inputMode="numeric"
-              variant="filled"
-              className="py-2.5"
+              inputMode="decimal"
+              className="bg-ink-100"
             />
           </div>
           <div className="w-20">
-            <p className="mb-1 text-xs font-medium text-ink-500">Qty</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
             <Input
               value={qty}
               onChange={(e) => setQty(e.target.value)}
               inputMode="numeric"
-              variant="filled"
-              className="py-2.5"
+              className="bg-ink-100"
             />
           </div>
           {flow !== "ACCESSORY" && (
             <div className="w-40">
-              <p className="mb-1 text-xs font-medium text-ink-500">Color</p>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p>
               <Dropdown
                 value={colorId}
                 options={colorOptions}
                 onChange={setColorId}
                 searchable
-                triggerClassName="bg-ink-50"
                 placeholder="Select…"
               />
             </div>
@@ -807,32 +820,29 @@ export default function PurchasesPage() {
           {flow === "USED" && (
             <>
               <div className="w-36">
-                <p className="mb-1 text-xs font-medium text-ink-500">Carrier</p>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Carrier</p>
                 <Dropdown
                   value={carrier}
                   options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))}
                   onChange={(value) => setCarrier(value)}
-                  triggerClassName="bg-ink-50"
                 />
               </div>
               <div className="w-28">
-                <p className="mb-1 text-xs font-medium text-ink-500">Battery %</p>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p>
                 <Input
                   value={batteryHealth}
                   onChange={(e) => setBatteryHealth(e.target.value)}
                   inputMode="numeric"
                   placeholder="Optional"
-                  variant="filled"
-                  className="py-2.5"
+                  className="bg-ink-100"
                 />
               </div>
               <div className="w-24">
-                <p className="mb-1 text-xs font-medium text-ink-500">Grade</p>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p>
                 <Dropdown
                   value={grade}
                   options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))}
                   onChange={setGrade}
-                  triggerClassName="bg-ink-50"
                 />
               </div>
             </>
@@ -842,233 +852,208 @@ export default function PurchasesPage() {
             Add
           </Button>
         </div>
-      </form>
+        </form>
+      </section>
 
-      <div className="mt-6 flex-1 overflow-y-auto pt-0.5">
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Purchase items</span>
-            <span className="text-xs text-ink-500">{rows.length} {flow === "ACCESSORY" ? "item(s)" : "unit(s)"}</span>
-          </div>
-
-          <div className="overflow-x-auto rounded-2xl bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
-                  <th className="px-4 py-2.5 font-semibold">Item</th>
-                  {flow === "ACCESSORY" ? (
-                    <>
-                      <th className="px-4 py-2.5 font-semibold">Barcode</th>
-                      <th className="px-4 py-2.5 text-center font-semibold">Qty</th>
-                      <th className="px-4 py-2.5 text-right font-semibold">Cost</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="px-4 py-2.5 font-semibold">IMEI</th>
-                      <th className="px-4 py-2.5 font-semibold">Color</th>
-                      {flow === "USED" && <th className="px-4 py-2.5 font-semibold">Carrier</th>}
-                      {flow === "USED" && <th className="px-4 py-2.5 font-semibold">Battery</th>}
-                      {flow === "USED" && <th className="px-4 py-2.5 font-semibold">Grade</th>}
-                      <th className="px-4 py-2.5 text-right font-semibold">Cost</th>
-                    </>
-                  )}
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.key} className="border-t border-ink-100">
-                    <td className="px-4 py-3 font-medium text-ink-900">{row.productLabel}</td>
-                    {flow === "ACCESSORY" ? (
-                      <>
-                        <td className="px-4 py-3 font-mono text-xs text-ink-700">{row.barcode || "—"}</td>
-                        <td className="px-4 py-3 text-center">
-                          <Input
-                            value={String(row.quantity)}
-                            onChange={(e) => updateRowQty(row.key, e.target.value)}
-                            inputMode="numeric"
-                            className="w-16 py-1 text-center"
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Input
-                            value={row.costPrice}
-                            onChange={(e) => updateRowCost(row.key, e.target.value)}
-                            inputMode="numeric"
-                            className="w-28 py-1 text-right"
-                          />
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-3 font-mono text-xs text-ink-700">{row.imei}</td>
-                        <td className="px-4 py-3 text-ink-700">{row.colorLabel ?? "—"}</td>
-                        {flow === "USED" && <td className="px-4 py-3 text-ink-700">{CARRIER_LABELS[row.carrier]}</td>}
-                        {flow === "USED" && <td className="px-4 py-3 text-ink-700">{row.batteryHealth ? `${row.batteryHealth}%` : "—"}</td>}
-                        {flow === "USED" && <td className="px-4 py-3 text-ink-700">{row.grade}</td>}
-                        <td className="px-4 py-3 text-right">
-                          <Input
-                            value={row.costPrice}
-                            onChange={(e) => updateRowCost(row.key, e.target.value)}
-                            inputMode="numeric"
-                            className="w-28 py-1 text-right"
-                          />
-                        </td>
-                      </>
-                    )}
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => removeRow(row.key)}
-                        className="text-ink-400 hover:text-error"
-                        aria-label="Remove"
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={flow === "ACCESSORY" ? 5 : flow === "USED" ? 8 : 5} className="px-5 py-8 text-center text-sm text-ink-400">
-                      No items added yet. Pick a product above and press Add.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      <div className="mt-3 mb-3 flex shrink-0 items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Purchase items</span>
+        <span className="text-xs text-ink-500">{rows.length} {flow === "ACCESSORY" ? "item(s)" : "unit(s)"}</span>
       </div>
 
-      <div className="-mx-6 -mb-6 mt-6 shrink-0 border-t border-ink-100 bg-white px-6 py-5">
-        <div className="w-full max-w-2xl">
-          <div className="grid grid-cols-[1fr_1.5fr] items-end gap-3">
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Payment</p>
-              <Dropdown
-                value={payMode}
-                options={[
-                  { value: "CASH", label: "Cash" },
-                  { value: "CREDIT", label: "Credit" },
-                  { value: "SPLIT", label: "Cash + Credit" },
-                ]}
-                onChange={(v) => onPayModeChange(v as "CASH" | "CREDIT" | "SPLIT")}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 z-10 bg-white">
+            <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
+              <th className="px-4 py-3">Item</th>
+              {flow === "ACCESSORY" ? (
+                <>
+                  <th className="px-4 py-3">Barcode</th>
+                  <th className="w-20 px-4 py-3 text-center">Qty</th>
+                  <th className="w-28 px-4 py-3 text-right">Cost</th>
+                </>
+              ) : (
+                <>
+                  <th className="px-4 py-3">IMEI</th>
+                  <th className="px-4 py-3">Color</th>
+                  {flow === "USED" && <th className="px-4 py-3">Carrier</th>}
+                  {flow === "USED" && <th className="px-4 py-3">Battery</th>}
+                  {flow === "USED" && <th className="px-4 py-3">Grade</th>}
+                  <th className="w-28 px-4 py-3 text-right">Cost</th>
+                </>
+              )}
+              <th className="w-12 px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {(() => {
+              const grouped = new Map<string, typeof rows>();
+              for (const row of rows) {
+                const key = row.productId;
+                const arr = grouped.get(key) ?? [];
+                arr.push(row);
+                grouped.set(key, arr);
+              }
+              return Array.from(grouped.entries()).map(([productId, groupRows]) => (
+                <Fragment key={productId}>
+                  <tr className="bg-ink-50/80">
+                    <td colSpan={flow === "ACCESSORY" ? 4 : (flow === "USED" ? 8 : 5)} className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
+                        <span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span>
+                        <span className="text-xs text-ink-400">{groupRows.length} × {formatPKR(parseFloat(groupRows[0].costPrice) || 0)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {groupRows.map((row) => (
+                    <tr key={row.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                      {flow === "ACCESSORY" ? (
+                        <>
+                          <td className="px-4 py-2.5 pl-9">
+                            <span className="text-[13px] font-medium text-ink-900">{row.barcode || "—"}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <Input
+                              value={String(row.quantity)}
+                              onChange={(e) => updateRowQty(row.key, e.target.value)}
+                              inputMode="numeric"
+                              className="w-16 py-1 text-center"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <Input
+                              value={row.costPrice}
+                              onChange={(e) => updateRowCost(row.key, e.target.value)}
+                              inputMode="numeric"
+                              className="w-28 py-1 text-right"
+                            />
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-4 py-2.5 pl-9">
+                            <span className="text-[13px] font-medium text-ink-900">{row.imei}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-ink-700">{row.colorLabel ?? "—"}</td>
+                          {flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{CARRIER_LABELS[row.carrier]}</td>}
+                          {flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{row.batteryHealth ? `${row.batteryHealth}%` : "—"}</td>}
+                          {flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{row.grade}</td>}
+                          <td className="px-4 py-2.5 text-right">
+                            <Input
+                              value={row.costPrice}
+                              onChange={(e) => updateRowCost(row.key, e.target.value)}
+                              inputMode="numeric"
+                              className="w-28 py-1 text-right"
+                            />
+                          </td>
+                        </>
+                      )}
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(row.key)}
+                          title="Remove"
+                          className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
+                        >
+                          <XIcon className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ));
+            })()}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={flow === "ACCESSORY" ? 4 : (flow === "USED" ? 8 : 5)} className="px-4 py-8 text-center text-sm text-ink-400">
+                  No items added yet. Pick a product above and press Add.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-6 grid shrink-0 gap-4 lg:grid-cols-3">
+        <div className="rounded-3xl bg-white lg:col-span-2">
+          <div className="flex items-center justify-between px-5 py-4">
+            <h3 className="text-sm font-semibold text-ink-900">Payment</h3>
+            <p className="text-xs text-ink-400">
+              Total <span className="font-semibold text-ink-900">{formatPKR(total)}</span>
+            </p>
+          </div>
+          <div className="px-5 pb-5">
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
+                  <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
+                  <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                </div>
+              </div>
+
+              <BankPaymentRow
+                bankRows={bankRows}
+                bankAccounts={bankAccounts}
+                onBankSheetOpen={() => setBankSheetOpen(true)}
+                onAddBank={() => {
+                  if (bankRows.length === 0) {
+                    const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0];
+                    setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]);
+                  }
+                  setBankSheetOpen(true);
+                }}
+                fillLabel="Fill remaining as credit"
+                fillDisabled={bankRows.length >= bankAccounts.length}
+                onFill={() =>
+                  setCreditAmount(
+                    clampMoneyInput(
+                      String(
+                        total -
+                          (parseFloat(cash) || 0) -
+                          bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                      ),
+                    ),
+                  )
+                }
               />
             </div>
-            {payMode === "SPLIT" ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash paid</p>
-                  <Input
-                    value={cash}
-                    onChange={(e) => onSplitCash(e.target.value)}
-                    placeholder="0"
-                    inputMode="numeric"
-                    className="bg-ink-100"
-                  />
-                </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">On credit (debt)</p>
-                  <Input
-                    value={creditAmount}
-                    onChange={(e) => onSplitCredit(e.target.value)}
-                    placeholder="0"
-                    inputMode="numeric"
-                    className="bg-ink-100"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                  {payMode === "CREDIT" ? "Cash paid (optional)" : "Cash paid"}
-                </p>
-                <Input
-                  value={cash}
-                  onChange={(e) =>
-                    payMode === "CREDIT" ? onCreditCash(e.target.value) : setCash(e.target.value)
-                  }
-                  placeholder={payMode === "CREDIT" ? "Leave blank for full credit" : "Leave blank for full amount"}
-                  inputMode="numeric"
-                  className="bg-ink-100"
-                />
-              </div>
-            )}
-          </div>
-          {payMode === "SPLIT" && (
-            <p className="mt-1.5 text-[11px] text-ink-400">
-              Cash + credit must add up to the total ({formatPKR(total)}).{" "}
-              {(() => {
-                const remain = total - ((parseFloat(cash) || 0) + (parseFloat(creditAmount) || 0));
-                return remain > 0.01
-                  ? `Remaining: ${formatPKR(remain)}`
-                  : remain < -0.01
-                    ? "Over the total"
-                    : "Balanced";
-              })()}
-            </p>
-          )}
-        </div>
-
-        <div className="mt-3 grid gap-3 lg:max-w-2xl lg:grid-cols-[1fr_2fr]">
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Discount (Rs)</p>
-            <Input
-              value={discount}
-              onChange={(e) => setDiscount(e.target.value)}
-              placeholder="0"
-              inputMode="numeric"
-              className="bg-ink-100"
-            />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Note</p>
-            <Input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Optional note on this purchase"
-              className="bg-ink-100"
-            />
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-4 border-t border-ink-100 pt-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-baseline gap-3">
-              <span className="text-sm font-medium text-ink-500">Subtotal</span>
-              <span className="text-base font-semibold text-ink-500">{formatPKR(subtotal)}</span>
-            </div>
-            {discount && (parseFloat(discount) || 0) > 0 && (
-              <div className="flex items-baseline gap-3">
-                <span className="text-sm font-medium text-ink-500">Total</span>
-                <span className="text-3xl font-bold text-brand-600">{formatPKR(total)}</span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="grey" className="px-4 py-2" onClick={clearAll}>
-              Clear
-            </Button>
-            <Button
-              className="min-w-72 px-8 py-4 text-base"
-              onClick={submit}
-              disabled={submitting || rows.length === 0}
-            >
-              {submitting
-                ? modifyId ? "Updating…" : "Recording…"
-                : modifyId
-                  ? `Update purchase · ${formatPKR(total)}`
-                  : payMode === "CREDIT"
-                    ? `Buy on credit · ${formatPKR(total)}`
-                    : payMode === "SPLIT"
-                      ? `Cash + credit · ${formatPKR(total)}`
-                      : `Pay ${formatPKR(total)}`}
-              <Kbd>Ctrl+S</Kbd>
-            </Button>
-          </div>
-        </div>
+        <PaymentSummaryCard
+          title="Summary"
+          total={total}
+          lines={[
+            ...(discountPct > 0 || (parseFloat(discount) || 0) > 0
+              ? [{ label: `Discount${discountPct > 0 ? ` ${discountPct}%` : ""}`, amount: -((subtotal * discountPct) / 100 + (parseFloat(discount) || 0)) }]
+              : []),
+            ...(parseFloat(cash) > 0 ? [{ label: "Cash", amount: parseFloat(cash) }] : []),
+            ...(parseFloat(creditAmount) > 0 ? [{ label: "Credit", amount: parseFloat(creditAmount) }] : []),
+            ...(bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) > 0
+              ? [{ label: "Bank", amount: bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) }]
+              : []),
+          ]}
+        >
+          <Button className="w-full" onClick={submit} disabled={submitting || rows.length === 0}>
+            {submitting
+              ? modifyId ? "Updating…" : "Recording…"
+              : modifyId
+                ? `Update purchase · ${formatPKR(total)}`
+                : `Pay ${formatPKR(total)}`}
+          </Button>
+        </PaymentSummaryCard>
       </div>
+
+      <BankDepositSheet
+        open={bankSheetOpen}
+        onClose={() => setBankSheetOpen(false)}
+        bankRows={bankRows}
+        onBankRowsChange={setBankRows}
+        bankAccounts={bankAccounts}
+      />
 
       {popup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">

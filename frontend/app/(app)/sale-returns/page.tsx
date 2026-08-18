@@ -1,23 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
-import type { ReturnEligibility, TransactionDetail, Unit } from "@/lib/api-types";
+import { brandOf, type BankAccount, type ReturnEligibility, type TransactionDetail, type Unit } from "@/lib/api-types";
+import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS } from "@/lib/constants";
 import { formatPKR, clampMoneyInput } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PriceInput } from "@/components/ui/price-input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
+import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
 import { Scanner } from "@/components/scanner";
 import { SearchInput } from "@/components/ui/search-input";
 import { CameraIcon, PlusIcon, PrinterIcon, XIcon } from "@/components/icons";
+import { BankPaymentRow, PaymentSummaryCard } from "@/components/payment-bottom";
+import { BankDepositSheet } from "@/components/bank-deposit-sheet";
 import Link from "next/link";
 
 type SearchResult = {
@@ -48,11 +53,17 @@ type ReturnLine = {
 export default function SaleReturnsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const { data: bankData } = useApi<BankAccount[]>("/bank-account");
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [cart, setCart] = useState<ReturnLine[]>([]);
   const [note, setNote] = useState("");
   const [cash, setCash] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
+  const [bankRows, setBankRows] = useState<{ id: string; amount: string; bankId: string }[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [returnNo, setReturnNo] = useState("RET-0001");
@@ -61,11 +72,21 @@ export default function SaleReturnsPage() {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (highlightedIndex < 0 || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-flat="${highlightedIndex}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex]);
+
   const [modifyId, setModifyId] = useState<string | null>(null);
   const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
+  const [receipt, setReceipt] = useState<TransactionDetail | null>(null);
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -130,6 +151,10 @@ export default function SaleReturnsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (bankData) setBankAccounts(bankData);
+  }, [bankData]);
+
   const runSearch = useCallback(
     async (term: string): Promise<SearchResult[]> => {
       const query = term.trim();
@@ -168,6 +193,18 @@ export default function SaleReturnsPage() {
     };
   }, [q, runSearch]);
 
+  const flatUnits = useMemo(() => {
+    const units: { unit: SearchResult["units"][number]; productIndex: number }[] = [];
+    results.forEach((r, i) => {
+      r.units.forEach((u) => units.push({ unit: u, productIndex: i }));
+    });
+    return units;
+  }, [results]);
+
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [results]);
+
   function eligibilityMessage(res: EligibilityResult) {
     switch (res.code) {
       case "unit.not_sold":
@@ -199,6 +236,8 @@ export default function SaleReturnsPage() {
       }
       if (!customerId || customerId !== res.contact.id) {
         setCustomerId(res.contact.id);
+        setContactName(res.contact.name);
+        setContactPhone(res.contact.phone ?? "");
         toast(
           customerId ? `Customer switched to ${res.contact.name}` : `Customer set to ${res.contact.name}`,
           "success",
@@ -209,8 +248,8 @@ export default function SaleReturnsPage() {
         return;
       }
       const label = [
-        res.unit.product.brand,
-        res.unit.product.model,
+        brandOf(res.unit!.product),
+        res.unit!.product.model,
         res.unit.product.storage,
         res.unit.product.ram,
         res.unit.product.screenSize,
@@ -265,11 +304,14 @@ export default function SaleReturnsPage() {
       return;
     }
     setResults([]);
+    setHighlightedIndex(-1);
     await tryAddImei(product.units[0].imei);
   }
 
   function pickUnit(unit: { id: string; imei: string }) {
     setResults([]);
+    setHighlightedIndex(-1);
+    setQ("");
     void tryAddImei(unit.imei);
   }
 
@@ -281,14 +323,19 @@ export default function SaleReturnsPage() {
 
   const cashAmt = parseFloat(cash) || 0;
   const creditAmt = parseFloat(creditAmount) || 0;
+  const bankAmt = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+  const totalPaid = cashAmt + creditAmt + bankAmt;
 
   useSaveShortcut(() => {
     void submit();
   }, !submitting && cart.length > 0);
 
   function loadForModify(txn: TransactionDetail) {
+    setReceipt(null);
     setModifyId(txn.id);
     setCustomerId(txn.contact.id);
+    setContactName(txn.contact.name);
+    setContactPhone(txn.contact.phone ?? "");
     setReturnNo(txn.number);
     setReturnDate(txn.createdAt.slice(0, 10));
     setCart(
@@ -306,16 +353,29 @@ export default function SaleReturnsPage() {
     const creditPayment = txn.payments.find((p) => p.method === "CREDIT");
     setCash(cashPayment ? String(parseFloat(cashPayment.amount)) : "");
     setCreditAmount(creditPayment ? String(parseFloat(creditPayment.amount)) : "");
+    const bankPayments = txn.payments.filter((p) => p.method === "BANK_TRANSFER");
+    setBankRows(
+      bankPayments.map((p) => ({
+        id: p.id,
+        amount: String(parseFloat(p.amount)),
+        bankId: p.bankAccount?.id ?? "",
+      })),
+    );
     toast(`Editing ${txn.number}`, "success");
   }
 
   function reset() {
+    setReceipt(null);
     setCart([]);
     setNote("");
     setCash("");
     setCreditAmount("");
+    setBankRows([]);
+    setBankSheetOpen(false);
     setModifyId(null);
     setCustomerId(null);
+    setContactName("");
+    setContactPhone("");
     setQ("");
     setResults([]);
   }
@@ -325,18 +385,19 @@ export default function SaleReturnsPage() {
       toast("Add at least one unit to return", "error");
       return;
     }
-    if (cashAmt > 0.01 && creditAmt > 0.01) {
-      const total = cashAmt + creditAmt;
-      if (Math.abs(total - refundTotal) > 0.01) {
-        toast(`Cash + credit must equal ${formatPKR(refundTotal)}`, "error");
-        return;
-      }
+    if (Math.abs(totalPaid - refundTotal) > 0.01) {
+      toast(`Payments must equal ${formatPKR(refundTotal)}`, "error");
+      return;
     }
     setSubmitting(true);
     try {
-      const payments: { method: "CASH" | "CREDIT"; amount: number }[] = [];
+      const payments: { method: "CASH" | "CREDIT" | "BANK_TRANSFER"; amount: number; bankAccountId?: string }[] = [];
       if (cashAmt > 0) payments.push({ method: "CASH", amount: cashAmt });
       if (creditAmt > 0) payments.push({ method: "CREDIT", amount: creditAmt });
+      for (const row of bankRows) {
+        const amt = parseFloat(row.amount) || 0;
+        if (amt > 0) payments.push({ method: "BANK_TRANSFER", amount: amt, bankAccountId: row.bankId });
+      }
 
       if (modifyId) {
         const firstSaleId = cart[0]?.saleId ?? "";
@@ -344,7 +405,7 @@ export default function SaleReturnsPage() {
           method: "PUT",
           body: {
             saleId: firstSaleId,
-            items: cart.map((l) => ({ productId: l.productId, unitId: l.unitId })),
+            items: cart.map((l) => ({ productId: l.productId, unitId: l.unitId, refund: l.refund })),
             note: note.trim() || undefined,
             payments,
             number: returnNo,
@@ -362,27 +423,40 @@ export default function SaleReturnsPage() {
         const groupsArr = Array.from(groups.entries());
         const noMatch = returnNo.match(/RET-(\d+)$/);
         let nextNo = noMatch ? parseInt(noMatch[1], 10) : 1;
-        let allocated = 0;
+        let cashAllocated = 0;
+        let bankAllocated = bankRows.map(() => 0);
         for (let i = 0; i < groupsArr.length; i++) {
           const [saleId, lines] = groupsArr[i];
           const groupTotal = lines.reduce((sum, l) => sum + l.refund, 0);
           const isLast = i === groupsArr.length - 1;
-          const groupPayments: { method: "CASH" | "CREDIT"; amount: number }[] = [];
+          const groupPayments: { method: "CASH" | "CREDIT" | "BANK_TRANSFER"; amount: number; bankAccountId?: string }[] = [];
           const groupCash =
             cashAmt <= 0
               ? 0
               : isLast
-                ? Math.max(0, cashAmt - allocated)
+                ? Math.max(0, cashAmt - cashAllocated)
                 : Math.round((cashAmt * groupTotal) / refundTotal);
-          const groupCredit = creditAmt > 0 ? groupTotal : Math.max(0, groupTotal - groupCash);
+          let groupBank = 0;
+          for (let b = 0; b < bankRows.length; b++) {
+            const rowAmt = parseFloat(bankRows[b].amount) || 0;
+            if (rowAmt <= 0) continue;
+            const share = isLast
+              ? Math.max(0, rowAmt - bankAllocated[b])
+              : Math.round((rowAmt * groupTotal) / refundTotal);
+            if (share > 0) groupPayments.push({ method: "BANK_TRANSFER", amount: share, bankAccountId: bankRows[b].bankId });
+            groupBank += share;
+            bankAllocated[b] += share;
+          }
+          const covered = groupCash + groupBank;
+          const groupCredit = Math.max(0, groupTotal - covered);
           if (groupCash > 0) groupPayments.push({ method: "CASH", amount: groupCash });
           if (groupCredit > 0) groupPayments.push({ method: "CREDIT", amount: groupCredit });
-          allocated += groupCash;
+          cashAllocated += groupCash;
           await apiRequest<{ number: string }>("/transaction/sale/returns", {
             method: "POST",
             body: {
               saleId,
-              items: lines.map((l) => ({ productId: l.productId, unitId: l.unitId })),
+              items: lines.map((l) => ({ productId: l.productId, unitId: l.unitId, refund: l.refund })),
               note: note.trim() || undefined,
               payments: groupPayments,
               number: `RET-${String(nextNo++).padStart(4, "0")}`,
@@ -402,11 +476,29 @@ export default function SaleReturnsPage() {
       const match = last.match(/RET-(\d+)$/);
       const next = match ? parseInt(match[1], 10) + 1 : 1;
       setReturnNo(`RET-${String(next).padStart(4, "0")}`);
+      if (!modifyId) {
+        const newest = await apiRequest<TransactionDetail[]>(`/transaction?type=SALE_RETURN&limit=1`);
+        const id = newest?.[0]?.id;
+        if (id) setReceipt(await apiRequest<TransactionDetail>(`/transaction/${id}`));
+      }
     } catch (err) {
       toast(err instanceof Error ? err.message : "Return failed", "error");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (receipt) {
+    return (
+      <div className="flex h-full items-start justify-center overflow-y-auto overscroll-none p-4">
+        <TransactionReceipt
+          type="SALE_RETURN"
+          detail={receipt}
+          onModify={loadForModify}
+          onNew={() => setReceipt(null)}
+        />
+      </div>
+    );
   }
 
   return (
@@ -444,7 +536,11 @@ export default function SaleReturnsPage() {
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
           <div className="flex h-9 items-center rounded-2xl bg-white px-3.5 text-sm">
             <span className="truncate text-ink-500">
-              {customerId ? "Auto-assigned from the unit" : "Auto-assigns from the unit"}
+              {contactName
+                ? contactPhone
+                  ? `${contactName} · ${contactPhone}`
+                  : contactName
+                : "Auto-assigns from the unit"}
             </span>
           </div>
         </div>
@@ -467,9 +563,20 @@ export default function SaleReturnsPage() {
             value={q}
             onChange={setQ}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              const hasResults = flatUnits.length > 0;
+              if (e.key === "ArrowDown") {
                 e.preventDefault();
-                void handleEnterOrScan(q);
+                if (hasResults) setHighlightedIndex((i) => (i + 1) % flatUnits.length);
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                if (hasResults) setHighlightedIndex((i) => (i <= 0 ? flatUnits.length - 1 : i - 1));
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                if (hasResults && highlightedIndex >= 0 && highlightedIndex < flatUnits.length) {
+                  pickUnit(flatUnits[highlightedIndex].unit);
+                } else {
+                  void handleEnterOrScan(q);
+                }
               }
             }}
             placeholder="Scan IMEI of a sold unit or search product…"
@@ -491,41 +598,52 @@ export default function SaleReturnsPage() {
 
           {panelPos && results.length > 0 && (
             <div
+              ref={listRef}
               style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
               className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
             >
-              {results.map((result) => (
-                <div key={result.id} className="rounded-xl hover:bg-ink-50">
-                  <div className="px-3 pt-3">
-                    <p className="truncate font-medium text-ink-900">
-                      {[result.brand, result.model, result.storage, result.ram, result.screenSize, result.color]
-                        .filter(Boolean)
-                        .join(" ")}
-                    </p>
-                    <p className="text-xs text-ink-500">
-                      {result.category.name} · {result.units.length} unit(s)
-                    </p>
-                  </div>
-                  {result.units.length > 0 && (
-                    <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
-                      {result.units.map((unit) => (
-                        <button
-                          key={unit.id}
-                          type="button"
-                          onClick={() => pickUnit(unit)}
-                          className="flex w-full items-center justify-between gap-3 rounded-xl bg-ink-50 px-3 py-2 transition hover:bg-brand-50"
-                        >
-                          <span className="truncate text-xs text-ink-700">{unit.imei}</span>
-                          <span className="flex shrink-0 items-center gap-2">
-                            <Badge variant="neutral">{unit.condition}</Badge>
-                            <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
-                          </span>
-                        </button>
-                      ))}
+              {results.map((result, ri) => {
+                let unitOffset = 0;
+                for (let i = 0; i < ri; i++) unitOffset += results[i].units.length;
+                return (
+                  <div key={result.id} className="rounded-xl">
+                    <div className="px-3 pt-3">
+                      <p className="truncate font-medium text-ink-900">
+                        {[brandOf(result), result.model, result.storage, result.ram, result.screenSize, result.color]
+                          .filter(Boolean)
+                          .join(" ")}
+                      </p>
+                      <p className="text-xs text-ink-500">
+                        {result.category.name} · {result.units.length} unit(s)
+                      </p>
                     </div>
-                  )}
-                </div>
-              ))}
+                    {result.units.length > 0 && (
+                      <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
+                        {result.units.map((unit, ui) => {
+                          const flatIdx = unitOffset + ui;
+                          const isActive = flatIdx === highlightedIndex;
+                          return (
+                            <button
+                              key={unit.id}
+                              data-flat={flatIdx}
+                              type="button"
+                              onClick={() => pickUnit(unit)}
+                              onMouseEnter={() => setHighlightedIndex(flatIdx)}
+                              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 transition ${isActive ? "bg-brand-50" : "bg-ink-50 hover:bg-brand-50"}`}
+                            >
+                              <span className="truncate text-xs text-ink-700">{unit.imei}</span>
+                              <span className="flex shrink-0 items-center gap-2">
+                                <Badge variant="neutral">{unit.condition}</Badge>
+                                <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -540,37 +658,53 @@ export default function SaleReturnsPage() {
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-white">
             <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
-              <th className="px-4 py-3">IMEI</th>
-              <th className="px-4 py-3">Product</th>
-              <th className="px-4 py-3">Sale</th>
+              <th className="px-4 py-3">Item</th>
+              <th className="w-32 px-4 py-3">Sale #</th>
               <th className="w-28 px-4 py-3 text-right">Refund</th>
               <th className="w-12 px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {cart.map((line) => (
-              <tr key={line.unitId} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
-                <td className="px-4 py-3 font-mono text-xs text-ink-700">{line.imei}</td>
-                <td className="px-4 py-3 text-ink-900">{line.productLabel}</td>
-                <td className="px-4 py-3 text-ink-700">{line.saleNumber}</td>
-                <td className="px-4 py-3 text-right font-semibold text-ink-900">
-                  {formatPKR(line.refund)}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    onClick={() => removeLine(line.unitId)}
-                    title="Remove"
-                    className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
-                  >
-                    <XIcon className="h-4 w-4" />
-                  </button>
-                </td>
-              </tr>
+              <Fragment key={line.unitId}>
+                <tr className="bg-ink-50/80">
+                  <td className="px-4 py-2.5" colSpan={4}>
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
+                      <span className="truncate text-sm font-semibold text-ink-900">{line.productLabel}</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                  <td className="px-4 py-2.5 pl-9">
+                    <span className="text-[13px] font-medium text-ink-900">{line.imei}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-ink-700">{line.saleNumber}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <PriceInput
+                      value={line.refund}
+                      onChange={(n) => {
+                        setCart((prev) => prev.map((l) => (l.unitId === line.unitId ? { ...l, refund: n } : l)));
+                      }}
+                      className="h-8 w-28 text-right text-sm"
+                    />
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => removeLine(line.unitId)}
+                      title="Remove"
+                      className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
+                    >
+                      <XIcon className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              </Fragment>
             ))}
             {cart.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink-400">
+                <td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">
                   Cart is empty. Scan or search for sold units.
                 </td>
               </tr>
@@ -588,76 +722,60 @@ export default function SaleReturnsPage() {
             </p>
           </div>
           <div className="px-5 pb-5">
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash paid</p>
-                <Input
-                  value={cash}
-                  onChange={(e) => setCash(clampMoneyInput(e.target.value))}
-                  placeholder="0"
-                  inputMode="decimal"
-                  className="bg-ink-100"
-                />
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash paid</p>
+                  <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">On credit</p>
+                  <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                </div>
               </div>
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">On credit</p>
-                <Input
-                  value={creditAmount}
-                  onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))}
-                  placeholder="0"
-                  inputMode="decimal"
-                  className="bg-ink-100"
-                />
-              </div>
-            </div>
-            <div className="mt-3">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Note</p>
-              <Input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Optional reason for the return"
-                className="bg-ink-100"
+
+              <BankPaymentRow
+                bankRows={bankRows}
+                bankAccounts={bankAccounts}
+                onBankSheetOpen={() => setBankSheetOpen(true)}
+                onAddBank={() => {
+                  if (bankRows.length === 0) {
+                    const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0];
+                    setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]);
+                  }
+                  setBankSheetOpen(true);
+                }}
+                fillLabel="Fill remaining as credit"
+                fillDisabled={bankRows.length >= bankAccounts.length}
+                onFill={() =>
+                  setCreditAmount(
+                    clampMoneyInput(
+                      String(
+                        refundTotal -
+                          (parseFloat(cash) || 0) -
+                          bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                      ),
+                    ),
+                  )
+                }
               />
             </div>
           </div>
         </div>
 
-        <div className="rounded-3xl bg-white">
-          <div className="px-5 py-4">
-            <h3 className="text-sm font-semibold text-ink-900">Summary</h3>
-          </div>
-          <div className="px-5 pb-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-left">
-                <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Refund total</p>
-                <p className="text-3xl font-bold leading-tight text-brand-600">{formatPKR(refundTotal)}</p>
-              </div>
-              <div className="space-y-1 text-right text-xs text-ink-500">
-                {cashAmt > 0 && (
-                  <p className="flex items-center justify-end gap-2">
-                    <span>Cash</span>
-                    <span className="w-20 text-right font-medium text-ink-700">{formatPKR(cashAmt)}</span>
-                  </p>
-                )}
-                {creditAmt > 0 && (
-                  <p className="flex items-center justify-end gap-2">
-                    <span>Credit</span>
-                    <span className="w-20 text-right font-medium text-ink-700">{formatPKR(creditAmt)}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="mt-4">
-              <Button
-                className="w-full"
-                type="submit"
-                disabled={submitting || cart.length === 0}
-              >
-                {submitting ? "Returning…" : `Refund ${formatPKR(refundTotal)}`}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <PaymentSummaryCard
+          title="Summary"
+          total={refundTotal}
+          lines={[
+            ...(cashAmt > 0 ? [{ label: "Cash", amount: cashAmt }] : []),
+            ...(creditAmt > 0 ? [{ label: "Credit", amount: creditAmt }] : []),
+            ...(bankAmt > 0 ? [{ label: "Bank", amount: bankAmt }] : []),
+          ]}
+        >
+          <Button className="w-full" type="submit" disabled={submitting || cart.length === 0}>
+            {submitting ? "Returning…" : `Refund ${formatPKR(refundTotal)}`}
+          </Button>
+        </PaymentSummaryCard>
       </div>
 
       {scannerOpen && (
@@ -682,6 +800,14 @@ export default function SaleReturnsPage() {
             }
           })();
         }}
+      />
+
+      <BankDepositSheet
+        open={bankSheetOpen}
+        onClose={() => setBankSheetOpen(false)}
+        bankRows={bankRows}
+        onBankRowsChange={setBankRows}
+        bankAccounts={bankAccounts}
       />
     </form>
   );

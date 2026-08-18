@@ -84,10 +84,7 @@ export const PERMISSIONS = {
   settingsView: "settings.view",
   settingsWrite: "settings.write",
   printView: "print.view",
-  printCreate: "print.create",
-  printUpdate: "print.update",
-  printDelete: "print.delete",
-  printSetDefault: "print.setDefault",
+  printWrite: "print.write",
   userManage: "user.manage",
   auditView: "audit.view",
 
@@ -114,6 +111,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   PERMISSIONS.userManage,
   PERMISSIONS.auditView,
   PERMISSIONS.backup,
+  PERMISSIONS.printWrite,
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {

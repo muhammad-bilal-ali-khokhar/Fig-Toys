@@ -101,6 +101,15 @@ export default function InventoryPage() {
   const units = data?.units ?? [];
   const products = data?.products ?? [];
   const activeCategories = (categories ?? []).filter((c) => c.active);
+  const parentCategories = activeCategories.filter((c) => !c.parentId);
+  const categoryOptions = parentCategories.flatMap((c) => {
+    const children = activeCategories.filter((ch) => ch.parentId === c.id);
+    if (children.length === 0) return [{ value: c.id, label: c.name }];
+    return [
+      { value: c.id, label: c.name },
+      ...children.map((ch) => ({ value: ch.id, label: `  ${ch.name}` })),
+    ];
+  });
   const vendorOptions = [
     ...new Set([
       ...units.map((u) => u.purchase?.vendor).filter((v): v is string => !!v),
@@ -137,7 +146,13 @@ export default function InventoryPage() {
     return units.filter((u) => {
       if (categoryId) {
         const cat = (categories ?? []).find((c) => c.id === categoryId);
-        if (cat && u.product.category !== cat.name) return false;
+        if (cat) {
+          if (cat.parentId) {
+            if (u.product.category !== cat.name) return false;
+          } else {
+            if (u.product.parentCategory !== cat.name && u.product.category !== cat.name) return false;
+          }
+        }
       }
       if (status && u.status !== status) return false;
       if (carrier && u.carrier !== carrier) return false;
@@ -156,7 +171,13 @@ export default function InventoryPage() {
     return products.filter((p) => {
       if (categoryId) {
         const cat = (categories ?? []).find((c) => c.id === categoryId);
-        if (cat && p.category !== cat.name) return false;
+        if (cat) {
+          if (cat.parentId) {
+            if (p.category !== cat.name) return false;
+          } else {
+            if (p.parentCategory !== cat.name && p.category !== cat.name) return false;
+          }
+        }
       }
       if (status && status !== "IN_STOCK") return false;
       if (carrier || condition) return false;
@@ -245,6 +266,7 @@ export default function InventoryPage() {
             colorId: null,
             color: p.color,
             category: p.category,
+            parentCategory: p.parentCategory,
             sellPrice: p.sellPrice,
             retailPrice: p.retailPrice,
           },
@@ -694,7 +716,7 @@ export default function InventoryPage() {
                             <td className="px-5 py-3">
                               <div className="min-w-0">
                                 <p className="truncate text-[10px] font-semibold uppercase text-ink-500">
-                                  {u.product.category ?? "—"}
+                                  {u.product.parentCategory ? `${u.product.parentCategory} > ${u.product.category ?? "—"}` : (u.product.category ?? "—")}
                                 </p>
                                 {[u.grade ? `Grade ${u.grade}` : "", u.batteryHealth != null ? `Battery ${u.batteryHealth}%` : ""].filter(Boolean).length > 0 && (
                                   <p className="truncate text-xs text-ink-500">
@@ -782,7 +804,7 @@ export default function InventoryPage() {
                           <td className="px-5 py-3">
                             <div className="min-w-0">
                               <p className="truncate text-[10px] font-semibold uppercase text-ink-500">
-                                {g.accessory.category ?? "—"}
+                                {g.accessory.parentCategory ? `${g.accessory.parentCategory} > ${g.accessory.category ?? "—"}` : (g.accessory.category ?? "—")}
                               </p>
                               <p className="text-xs text-ink-500">Qty {g.accessory.qty}</p>
                             </div>
@@ -889,7 +911,7 @@ export default function InventoryPage() {
               placeholder="All categories"
               options={[
                 { value: "", label: "All categories" },
-                ...activeCategories.map((c) => ({ value: c.id, label: c.name })),
+                ...categoryOptions,
               ]}
             />
           </div>

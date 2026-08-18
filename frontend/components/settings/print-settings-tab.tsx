@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
 import { useToast } from "@/components/ui/toast";
 import { thermalPrintSupported, printThermalText } from "@/lib/thermal-print";
+import type { PrintDocType, PrintFormatId, PrintSetting } from "@/lib/constants";
 
-const DOC_TYPES: { key: string; label: string }[] = [
+const DOC_TYPES: { key: PrintDocType; label: string }[] = [
   { key: "SALE", label: "Sale receipt" },
   { key: "PURCHASE", label: "Purchase" },
   { key: "SALE_RETURN", label: "Sale return" },
@@ -17,13 +18,13 @@ const DOC_TYPES: { key: string; label: string }[] = [
 ];
 
 const FORMAT_OPTIONS = [
-  { value: "thermal", label: "Thermal (80mm receipt)" },
+  { value: "80", label: "Thermal (80mm receipt)" },
   { value: "a4", label: "A4 invoice" },
 ];
 
 export function PrintSettingsTab() {
   const { toast } = useToast();
-  const [defaults, setDefaults] = useState<Record<string, string>>({});
+  const [settings, setSettings] = useState<PrintSetting[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [thermalBusy, setThermalBusy] = useState(false);
@@ -32,8 +33,8 @@ export function PrintSettingsTab() {
     let cancelled = false;
     (async () => {
       try {
-        const d = await apiRequest<Record<string, string>>("/settings/print-defaults");
-        if (!cancelled) setDefaults(d ?? {});
+        const list = await apiRequest<PrintSetting[]>("/print-setting");
+        if (!cancelled) setSettings(list ?? []);
       } catch {
         /* ignore */
       } finally {
@@ -45,13 +46,30 @@ export function PrintSettingsTab() {
     };
   }, []);
 
+  function formatFor(docType: PrintDocType): PrintFormatId {
+    const s = settings.find((x) => x.docType === docType);
+    return s && (s.format === "80" || s.format === "a4") ? s.format : "80";
+  }
+
+  function setFormat(docType: PrintDocType, format: PrintFormatId) {
+    setSettings((prev) => {
+      const existing = prev.find((x) => x.docType === docType);
+      if (existing) return prev.map((x) => (x.docType === docType ? { ...x, format } : x));
+      return [...prev, { docType, format, options: {}, qrType: "whatsapp" }];
+    });
+  }
+
   async function save() {
     setBusy(true);
     try {
-      await apiRequest("/settings/print-defaults", { method: "PUT", body: defaults });
-      toast("Print defaults saved", "success");
+      await Promise.all(
+        settings.map((s) =>
+          apiRequest<PrintSetting>("/print-setting", { method: "PUT", body: s }),
+        ),
+      );
+      toast("Print settings saved", "success");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Could not save defaults", "error");
+      toast(err instanceof Error ? err.message : "Could not save settings", "error");
     } finally {
       setBusy(false);
     }
@@ -64,7 +82,7 @@ export function PrintSettingsTab() {
         "Fig Mobile",
         "ESC/POS test",
         "This is a test receipt.",
-        "Print defaults saved.",
+        "Print settings saved.",
       ]);
       toast("Sent to thermal printer", "success");
     } catch (err) {
@@ -87,9 +105,9 @@ export function PrintSettingsTab() {
               <span className="text-sm font-medium text-ink-900">{t.label}</span>
               <div className="w-72">
                 <Dropdown
-                  value={defaults[t.key] ?? "thermal"}
+                  value={formatFor(t.key)}
                   options={FORMAT_OPTIONS}
-                  onChange={(v) => setDefaults((p) => ({ ...p, [t.key]: v }))}
+                  onChange={(v) => setFormat(t.key, v as PrintFormatId)}
                 />
               </div>
             </div>

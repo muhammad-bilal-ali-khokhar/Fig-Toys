@@ -18,6 +18,7 @@ import {
   ReturnsIcon,
   TrendingUpIcon,
   UserIcon,
+  UsersIcon,
   WalletIcon,
 } from "@/components/icons";
 
@@ -36,6 +37,7 @@ const REPORT_ICONS: Record<string, React.ReactNode> = {
   "/reports/purchase-returns": <ReturnsIcon className="h-4 w-4" />,
   "/reports/stock-movements": <InventoryIcon className="h-4 w-4" />,
   "/reports/ledger": <HistoryIcon className="h-4 w-4" />,
+  "/reports/contacts": <UsersIcon className="h-4 w-4" />,
   "/reports/receivables": <UserIcon className="h-4 w-4" />,
   "/reports/payables": <UserIcon className="h-4 w-4" />,
   "/reports/aging": <HistoryIcon className="h-4 w-4" />,

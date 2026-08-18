@@ -4,12 +4,10 @@
 //   schema.sql       — CREATE TABLE statements for a fresh database
 //   setup.cjs        — applies schema.sql on first launch (auto-creates the DB)
 //   native/          — better-sqlite3 compiled for the current Electron ABI
-//   data/print-layouts.json — premade receipt templates (copied to user-data)
 //
 // The database itself is NOT bundled: it is created on first server start in
 // the OS user-data directory. Run `npm run rebuild` first (electron-rebuild)
-// so the native module matches Electron's ABI.
-import { build } from "esbuild";
+// so the native module matches Electron's ABI.import { build } from "esbuild";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -69,13 +67,6 @@ const hasBinary =
   fs.existsSync(path.join(sqliteDir, "prebuilds"));
 if (!hasBinary) {
   throw new Error("better-sqlite3 has no compiled native binary — run `npm run rebuild` (electron-rebuild) first");
-}
-
-// Premade print layouts that the backend seeds on first start.
-const layouts = path.join(backend, "data", "print-layouts.json");
-if (fs.existsSync(layouts)) {
-  fs.mkdirSync(path.join(out, "data"), { recursive: true });
-  fs.copyFileSync(layouts, path.join(out, "data", "print-layouts.json"));
 }
 
 console.log("Production backend built at " + out);

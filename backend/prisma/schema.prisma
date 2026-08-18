@@ -131,7 +131,6 @@ model User {
   transactions     Transaction[]
   reservations     Reservation[]
   dashboardWidgets DashboardWidget[]
-  printLayouts     PrintLayout[]
   vouchers         Voucher[] @relation("VoucherCreated")
   voucherReversals Voucher[] @relation("VoucherReversed")
   cashSessionsOpened CashSession[] @relation("CashSessionOpened")
@@ -427,6 +426,7 @@ model BankAccount {
   balance    Decimal         @default(0)
   createdAt  DateTime        @default(now())
   payments   Payment[]
+  purchaseOrders PurchaseOrder[]
   vouchers   Voucher[]
   moneyMovements MoneyMovement[]
 
@@ -512,23 +512,16 @@ model DashboardWidget {
   @@map("dashboard_widgets")
 }
 
-model PrintLayout {
+model PrintSetting {
   id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  type      String   @default("document")
+  docType   String   @unique
   format    String   @default("80")
   options   Json?
-  qrType    String   @default("none")
-  isDefault Boolean  @default(false)
-  isSystem  Boolean  @default(false)
+  qrType    String   @default("whatsapp")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId, isDefault])
-  @@index([isSystem])
-  @@map("print_layouts")
+  @@map("print_settings")
 }
 
 model Settings {
@@ -579,18 +572,22 @@ model CashSession {
 }
 
 model PurchaseOrder {
-  id          String               @id @default(cuid())
-  number      String               @unique
-  contactId   String
-  contact     Contact              @relation(fields: [contactId], references: [id])
-  status      String               @default("PENDING") // PENDING | PARTIAL | RECEIVED | CANCELLED
-  total       Decimal              @default(0)
-  note        String?
-  createdById String
-  createdBy   User                 @relation("PurchaseOrderCreated", fields: [createdById], references: [id])
-  receivedAt  DateTime?
-  createdAt   DateTime             @default(now())
-  items       PurchaseOrderItem[]
+  id                   String               @id @default(cuid())
+  number               String               @unique
+  contactId            String
+  contact              Contact              @relation(fields: [contactId], references: [id])
+  status               String               @default("PENDING") // PENDING | PARTIAL | RECEIVED | CANCELLED
+  total                Decimal              @default(0)
+  advance              Decimal              @default(0)
+  advanceMethod        String?
+  advanceBankAccountId String?
+  advanceBankAccount   BankAccount?         @relation(fields: [advanceBankAccountId], references: [id])
+  note                 String?
+  createdById          String
+  createdBy            User                 @relation("PurchaseOrderCreated", fields: [createdById], references: [id])
+  receivedAt           DateTime?
+  createdAt            DateTime             @default(now())
+  items                PurchaseOrderItem[]
 
   @@index([status])
   @@map("purchase_orders")

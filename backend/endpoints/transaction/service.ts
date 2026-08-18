@@ -489,9 +489,10 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
           throw new ApiError(400, "unit.not_sold", "Unit is not sold or not found");
         }
         const saleItem = saleItemByUnit.get(item.unitId);
-        const refund = saleItem
+        const defaultRefund = saleItem
           ? Number(saleItem.unitPrice) - Number(saleItem.discount)
           : Number(product.sellPrice);
+        const refund = item.refund != null ? item.refund : defaultRefund;
         await tx.unit.update({
           where: { id: unit.id },
           data: { status: "IN_STOCK", condition: "USED", source: "SALE_RETURN", returnedFromSource: unit.source },
@@ -1228,9 +1229,10 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
           throw new ApiError(400, "unit.not_sold", "Unit is not sold or not found");
         }
         const saleItem = saleItemByUnit.get(item.unitId);
-        const refund = saleItem
+        const defaultRefund = saleItem
           ? Number(saleItem.unitPrice) - Number(saleItem.discount)
           : Number(unit.costPrice);
+        const refund = item.refund != null ? item.refund : defaultRefund;
         await tx.unit.update({
           where: { id: item.unitId },
           data: { status: "IN_STOCK", condition: "USED", source: "SALE_RETURN", returnedFromSource: unit.source },

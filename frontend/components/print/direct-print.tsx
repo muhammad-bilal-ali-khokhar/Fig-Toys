@@ -6,40 +6,28 @@ import QRCode from "qrcode";
 import { apiRequest } from "@/lib/apiClient";
 import type { CompanyProfile, Expense, TransactionDetail, Voucher } from "@/lib/api-types";
 import { whatsappLink } from "@/lib/whatsapp";
-import { PRINT, PRINT_DEFAULT_OPTIONS, PRINT_FORMATS, QR_TARGETS, type PrintBooleanOptions, type PrintFormatId, type QrTarget } from "@/lib/constants";
+import { PRINT_DEFAULT_OPTIONS, PRINT_FORMATS, type PrintBooleanOptions, type PrintDocType, type PrintFormatId, type QrTarget, type PrintSetting } from "@/lib/constants";
 import { ExpenseVoucherDocument, ReceiptDocument, VoucherDocument, type BankAccount } from "@/components/print/documents";
 import { useToast } from "@/components/ui/toast";
 
 export type DirectDocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE";
 
-function loadOptions(): PrintBooleanOptions {
-  try {
-    const raw = localStorage.getItem(PRINT.storageKey);
-    if (raw) return { ...PRINT_DEFAULT_OPTIONS, ...JSON.parse(raw) };
-  } catch {
-    /* ignore */
-  }
-  return { ...PRINT_DEFAULT_OPTIONS };
-}
+const DOC_TYPE_TO_PRINT_DOC_TYPE: Record<DirectDocType, PrintDocType> = {
+  SALE: "SALE",
+  PURCHASE: "PURCHASE",
+  SALE_RETURN: "SALE_RETURN",
+  PURCHASE_RETURN: "PURCHASE_RETURN",
+  VOUCHER: "VOUCHER",
+  EXPENSE: "EXPENSE",
+};
 
-function loadFormat(): PrintFormatId {
-  try {
-    const f = localStorage.getItem(PRINT.formatKey) as PrintFormatId | null;
-    if (f && PRINT_FORMATS.some((x) => x.id === f)) return f;
-  } catch {
-    /* ignore */
-  }
-  return "80";
-}
-
-function loadQrType(): QrTarget {
-  try {
-    const t = localStorage.getItem(PRINT.qrTypeKey) as QrTarget | null;
-    if (t && QR_TARGETS.some((x) => x.id === t)) return t;
-  } catch {
-    /* ignore */
-  }
-  return "whatsapp";
+function applySetting(setting: PrintSetting | undefined, options: PrintBooleanOptions, format: PrintFormatId, qrType: QrTarget): [PrintBooleanOptions, PrintFormatId, QrTarget] {
+  if (!setting) return [options, format, qrType];
+  return [
+    { ...options, ...(setting.options ?? {}) },
+    PRINT_FORMATS.some((f) => f.id === setting.format) ? setting.format : format,
+    setting.qrType ?? qrType,
+  ];
 }
 
 export function DirectPrint({
@@ -71,20 +59,23 @@ export function DirectPrint({
     setReady(false);
     printedRef.current = false;
     try {
-      const [defaults, p, banks] = await Promise.all([
-        apiRequest<Record<string, string>>("/settings/print-defaults"),
+      const [settingsRes, p, banks] = await Promise.all([
+        apiRequest<PrintSetting[]>("/print-setting"),
         apiRequest<CompanyProfile>("/settings/company"),
         apiRequest<BankAccount[]>("/bank-account"),
       ]);
       setProfile(p);
       setBankAccounts((banks ?? []).filter((a) => a.active));
-      let f = loadFormat();
-      const d = defaults?.[type];
-      if (d === "a4") f = "a4";
-      else if (d === "thermal" && f === "a4") f = "80";
-      setFormat(f);
-      setOptions(loadOptions());
-      setQrType(loadQrType());
+      const printSetting = (settingsRes ?? []).find((s) => s.docType === DOC_TYPE_TO_PRINT_DOC_TYPE[type]);
+      const [nextOptions, nextFormat, nextQrType] = applySetting(
+        printSetting,
+        { ...PRINT_DEFAULT_OPTIONS },
+        "80",
+        "whatsapp",
+      );
+      setFormat(nextFormat);
+      setOptions(nextOptions);
+      setQrType(nextQrType);
 
       if (type === "VOUCHER") {
         setVoucher(await apiRequest<Voucher>(`/voucher/${id}`));
@@ -112,7 +103,7 @@ export function DirectPrint({
   const doc =
     type === "VOUCHER" ? (
       voucher ? (
-        <VoucherDocument voucher={voucher} options={options} format={format} profile={profile} />
+        <VoucherDocument voucher={voucher} options={options} format={format} qrUrl={qrUrl} qrType={qrType} profile={profile} />
       ) : null
     ) : type === "EXPENSE" ? (
       expense ? (

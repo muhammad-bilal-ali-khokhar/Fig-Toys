@@ -24,6 +24,7 @@ import { VoucherForm } from "@/components/vouchers/voucher-form";
 import { ReverseVoucherDialog } from "@/components/vouchers/reverse-voucher-dialog";
 import { RestoreVoucherDialog } from "@/components/vouchers/restore-voucher-dialog";
 import { InvoiceViewer } from "@/components/transactions/invoice-viewer";
+import { VoucherReceipt } from "@/components/transactions/transaction-receipt";
 import { FilterIcon, PlusIcon, PrinterIcon, RefreshIcon, ReportsIcon, VoucherIcon, XIcon } from "@/components/icons";
 import Link from "next/link";
 
@@ -57,6 +58,7 @@ export default function VouchersPage() {
   const [reversing, setReversing] = useState<Voucher | null>(null);
   const [restoring, setRestoring] = useState<Voucher | null>(null);
   const [viewing, setViewing] = useState<Voucher | null>(null);
+  const [savedVoucher, setSavedVoucher] = useState<Voucher | null>(null);
 
   const canCreateVouchers = hasPermission(user, PERMISSIONS.voucherCreate);
   const canManageVouchers = hasPermission(user, PERMISSIONS.voucherUpdate);
@@ -158,12 +160,23 @@ export default function VouchersPage() {
             setPanelOpen(false);
             setEditing(null);
           }}
+          onCreated={(v) => setSavedVoucher(v)}
           onSaved={() => {
             setPanelOpen(false);
             setEditing(null);
             void refetch();
           }}
         />
+      ) : savedVoucher ? (
+        <div className="flex h-full items-start justify-center overflow-y-auto overscroll-none p-4">
+          <VoucherReceipt
+            voucher={savedVoucher}
+            onNew={() => {
+              setSavedVoucher(null);
+              setPanelOpen(true);
+            }}
+          />
+        </div>
       ) : (
         <>
           <div className="mb-3 grid shrink-0 grid-cols-3 gap-2">

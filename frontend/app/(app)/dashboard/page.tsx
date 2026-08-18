@@ -663,6 +663,17 @@ export default function DashboardPage() {
                   <div className="rounded-3xl bg-ink-100 p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Accessories</p>
                     <p className="mt-1 text-2xl font-bold text-ink-900">{data.soldByCategory.ACCESSORY}</p>
+                    {data.soldByCategory.ACCESSORY > 0 && Object.keys(data.soldBySubCategory).length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {Object.entries(data.soldBySubCategory)
+                          .sort(([, a], [, b]) => b - a)
+                          .map(([name, qty]) => (
+                            <span key={name} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-ink-600">
+                              {name} · {qty}
+                            </span>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mx-5 flex h-3 overflow-hidden rounded-full bg-ink-100">

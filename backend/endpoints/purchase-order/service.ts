@@ -73,6 +73,9 @@ export async function createPurchaseOrder(input: CreatePurchaseOrderInput, userI
       number: await nextOrderNumber(),
       contactId: contact.id,
       total,
+      advance: input.advance ?? 0,
+      advanceMethod: input.advanceMethod ?? null,
+      advanceBankAccountId: input.advanceBankAccountId ?? null,
       note: input.note || null,
       createdById: userId,
       items: {

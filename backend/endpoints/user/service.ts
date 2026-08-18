@@ -139,7 +139,6 @@ export async function deleteUser(id: string, actorId: string, actorRole: Role) {
   }
 
   await prisma.$transaction([
-    prisma.printLayout.deleteMany({ where: { userId: id } }),
     prisma.dashboardWidget.deleteMany({ where: { userId: id } }),
     prisma.user.delete({ where: { id } }),
   ]);

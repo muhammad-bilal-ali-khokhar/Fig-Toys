@@ -117,10 +117,13 @@ function CategoryTreeList({
   onChanged: () => void;
 }) {
   const { toast } = useToast();
+  const [subTab, setSubTab] = useState<"categories" | "subcategories">("categories");
   const [name, setName] = useState("");
-  const [type, setType] = useState<CategoryType>("ACCESSORY");
-  const [parentId, setParentId] = useState("");
+  const [type, setType] = useState<CategoryType>("PHONE");
+  const [subParentId, setSubParentId] = useState("");
+  const [subName, setSubName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savingSub, setSavingSub] = useState(false);
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -153,16 +156,42 @@ function CategoryTreeList({
     try {
       await apiRequest("/category", {
         method: "POST",
-        body: { name: name.trim(), type, parentId: parentId || null },
+        body: { name: name.trim(), type },
       });
       setName("");
-      setParentId("");
       onChanged();
       toast("Category added", "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to add category", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function addSubcategory() {
+    if (!subName.trim()) {
+      toast("Name is required", "error");
+      return;
+    }
+    if (!subParentId) {
+      toast("Pick a parent category", "error");
+      return;
+    }
+    const parent = categories.find((c) => c.id === subParentId);
+    if (!parent) return;
+    setSavingSub(true);
+    try {
+      await apiRequest("/category", {
+        method: "POST",
+        body: { name: subName.trim(), type: parent.type, parentId: subParentId },
+      });
+      setSubName("");
+      onChanged();
+      toast("Subcategory added", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to add subcategory", "error");
+    } finally {
+      setSavingSub(false);
     }
   }
 
@@ -207,12 +236,6 @@ function CategoryTreeList({
     }
   }
 
-  function startAddSubcategory(parentCat: Category) {
-    setParentId(parentCat.id);
-    setType(parentCat.type);
-    setExpandedParents((prev) => new Set(prev).add(parentCat.id));
-  }
-
   const totalProductCount = (cat: Category) => {
     const children = childrenMap.get(cat.id) ?? [];
     const childProductCount = children.reduce((sum, ch) => sum + (ch._count?.products ?? 0), 0);
@@ -221,165 +244,246 @@ function CategoryTreeList({
 
   return (
     <>
-      <div className="mt-5 flex items-end gap-2">
-        <div className="flex-1">
-          <label className="mb-1 block text-xs font-semibold text-ink-500">
-            New category {parentId ? `(under ${categories.find((c) => c.id === parentId)?.name ?? "..."})` : ""}
-          </label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Refurbished"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void add();
-            }}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-ink-500">Type</label>
-          <Dropdown
-            value={type}
-            options={[
-              { value: "PHONE", label: "Phone" },
-              { value: "ACCESSORY", label: "Accessory" },
-            ]}
-            onChange={(value) => setType(value as CategoryType)}
-            className="w-32"
-          />
-        </div>
-        {parentId && (
-          <button
-            type="button"
-            onClick={() => setParentId("")}
-            className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900"
-          >
-            Clear parent
-          </button>
-        )}
-        <Button onClick={add} loading={saving}>
-          Add
-        </Button>
-      </div>
+      <SegmentedControl
+        className="mt-5 w-full"
+        value={subTab}
+        options={[
+          { value: "categories", label: "Categories" },
+          { value: "subcategories", label: "Subcategories" },
+        ]}
+        onChange={(v) => setSubTab(v as "categories" | "subcategories")}
+      />
 
-      <ScrollView className="mt-5">
-        <div className="space-y-2">
-          {parentCategories.map((parent) => {
-            const children = childrenMap.get(parent.id) ?? [];
-            const isExpanded = expandedParents.has(parent.id);
-            return (
-              <div key={parent.id}>
-                <div
-                  className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
-                    parent.active ? "bg-ink-50" : "bg-ink-50 opacity-50"
-                  }`}
-                >
-                  {children.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(parent.id)}
-                      className="shrink-0 text-xs text-ink-500 hover:text-ink-900 w-4"
-                    >
-                      {isExpanded ? "▼" : "▶"}
-                    </button>
-                  ) : (
-                    <span className="w-4" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="neutral">{parent.type}</Badge>
-                      <span className="text-sm font-medium text-ink-900">{parent.name}</span>
-                      {!parent.active && <span className="text-xs text-ink-500">(inactive)</span>}
-                    </div>
-                    <p className="mt-0.5 text-xs text-ink-500">
-                      {children.length > 0
-                        ? `${children.length} subcategor${children.length === 1 ? "y" : "ies"}, ${totalProductCount(parent)} product(s)`
-                        : `${parent._count?.products ?? 0} product(s)`}
-                    </p>
-                  </div>
-                  {parent.type === "ACCESSORY" && (
-                    <button
-                      type="button"
-                      onClick={() => startAddSubcategory(parent)}
-                      className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                    >
-                      + Subcategory
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = window.prompt("Rename category", parent.name);
-                      if (next) void rename(parent, next);
-                    }}
-                    className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(parent)}
-                    className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
-                  >
-                    Delete
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void toggleActive(parent)}
-                    className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                  >
-                    {parent.active ? "Deactivate" : "Activate"}
-                  </button>
-                </div>
+      {subTab === "categories" ? (
+        <>
+          <div className="mt-5 flex items-end gap-2">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-semibold text-ink-500">New category</label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Refurbished"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void add();
+                }}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Type</label>
+              <Dropdown
+                value={type}
+                options={[
+                  { value: "PHONE", label: "Phone" },
+                  { value: "ACCESSORY", label: "Accessory" },
+                ]}
+                onChange={(value) => setType(value as CategoryType)}
+                className="w-32"
+              />
+            </div>
+            <Button onClick={add} loading={saving}>
+              Add
+            </Button>
+          </div>
 
-                {isExpanded && children.length > 0 && (
-                  <div className="ml-7 space-y-1.5 mt-1.5">
-                    {children.map((child) => (
-                      <div
-                        key={child.id}
-                        className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
-                          child.active ? "bg-white border border-ink-100" : "bg-white border border-ink-100 opacity-50"
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-ink-900">{child.name}</span>
-                            {!child.active && <span className="text-xs text-ink-500">(inactive)</span>}
-                          </div>
-                          <p className="mt-0.5 text-xs text-ink-500">{child._count?.products ?? 0} product(s)</p>
+          <ScrollView className="mt-5">
+            <div className="space-y-2">
+              {parentCategories.map((parent) => {
+                const children = childrenMap.get(parent.id) ?? [];
+                const isExpanded = expandedParents.has(parent.id);
+                return (
+                  <div key={parent.id}>
+                    <div
+                      className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
+                        parent.active ? "bg-ink-50" : "bg-ink-50 opacity-50"
+                      }`}
+                    >
+                      {children.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(parent.id)}
+                          className="shrink-0 text-xs text-ink-500 hover:text-ink-900 w-4"
+                        >
+                          {isExpanded ? "▼" : "▶"}
+                        </button>
+                      ) : (
+                        <span className="w-4" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="neutral">{parent.type}</Badge>
+                          <span className="text-sm font-medium text-ink-900">{parent.name}</span>
+                          {!parent.active && <span className="text-xs text-ink-500">(inactive)</span>}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = window.prompt("Rename subcategory", child.name);
-                            if (next) void rename(child, next);
-                          }}
-                          className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                        >
-                          Rename
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(child)}
-                          className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
-                        >
-                          Delete
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void toggleActive(child)}
-                          className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                        >
-                          {child.active ? "Deactivate" : "Activate"}
-                        </button>
+                        <p className="mt-0.5 text-xs text-ink-500">
+                          {children.length > 0
+                            ? `${children.length} subcategor${children.length === 1 ? "y" : "ies"}, ${totalProductCount(parent)} product(s)`
+                            : `${parent._count?.products ?? 0} product(s)`}
+                        </p>
                       </div>
-                    ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = window.prompt("Rename category", parent.name);
+                          if (next) void rename(parent, next);
+                        }}
+                        className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                      >
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(parent)}
+                        className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void toggleActive(parent)}
+                        className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                      >
+                        {parent.active ? "Deactivate" : "Activate"}
+                      </button>
+                    </div>
+
+                    {isExpanded && children.length > 0 && (
+                      <div className="ml-7 space-y-1.5 mt-1.5">
+                        {children.map((child) => (
+                          <div
+                            key={child.id}
+                            className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
+                              child.active ? "bg-white border border-ink-100" : "bg-white border border-ink-100 opacity-50"
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-ink-900">{child.name}</span>
+                                {!child.active && <span className="text-xs text-ink-500">(inactive)</span>}
+                              </div>
+                              <p className="mt-0.5 text-xs text-ink-500">{child._count?.products ?? 0} product(s)</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = window.prompt("Rename subcategory", child.name);
+                                if (next) void rename(child, next);
+                              }}
+                              className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                            >
+                              Rename
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(child)}
+                              className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void toggleActive(child)}
+                              className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                            >
+                              {child.active ? "Deactivate" : "Activate"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </ScrollView>
+                );
+              })}
+            </div>
+          </ScrollView>
+        </>
+      ) : (
+        <>
+          <div className="mt-5 flex items-end gap-2">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Parent category</label>
+              <Dropdown
+                value={subParentId}
+                options={parentCategories.map((c) => ({ value: c.id, label: c.name }))}
+                onChange={(value) => setSubParentId(value)}
+                placeholder="Select parent…"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Subcategory name</label>
+              <Input
+                value={subName}
+                onChange={(e) => setSubName(e.target.value)}
+                placeholder="e.g. Cases & Covers"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void addSubcategory();
+                }}
+              />
+            </div>
+            <Button onClick={addSubcategory} loading={savingSub}>
+              Add
+            </Button>
+          </div>
+
+          <ScrollView className="mt-5">
+            <div className="space-y-3">
+              {parentCategories.map((parent) => {
+                const children = childrenMap.get(parent.id) ?? [];
+                if (children.length === 0) return null;
+                return (
+                  <div key={parent.id}>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">{parent.name}</p>
+                    <div className="space-y-1.5">
+                      {children.map((child) => (
+                        <div
+                          key={child.id}
+                          className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
+                            child.active ? "bg-ink-50" : "bg-ink-50 opacity-50"
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-ink-900">{child.name}</span>
+                              {!child.active && <span className="text-xs text-ink-500">(inactive)</span>}
+                            </div>
+                            <p className="mt-0.5 text-xs text-ink-500">{child._count?.products ?? 0} product(s)</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = window.prompt("Rename subcategory", child.name);
+                              if (next) void rename(child, next);
+                            }}
+                            className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                          >
+                            Rename
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(child)}
+                            className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void toggleActive(child)}
+                            className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
+                          >
+                            {child.active ? "Deactivate" : "Activate"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {parentCategories.every((p) => (childrenMap.get(p.id) ?? []).length === 0) && (
+                <p className="py-4 text-center text-sm text-ink-400">No subcategories yet. Pick a parent category above and add one.</p>
+              )}
+            </div>
+          </ScrollView>
+        </>
+      )}
 
       <Dialog
         open={deleteTarget !== null}

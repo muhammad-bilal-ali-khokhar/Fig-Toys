@@ -168,7 +168,7 @@ export async function getSaleReturnEligibility(imei: string) {
         select: {
           unitPrice: true,
           discount: true,
-          transaction: { select: { id: true, number: true, contactId: true, contact: { select: { id: true, name: true } } } },
+          transaction: { select: { id: true, number: true, contactId: true, contact: { select: { id: true, name: true, phone: true } } } },
         },
         orderBy: { id: "asc" },
         take: 1,

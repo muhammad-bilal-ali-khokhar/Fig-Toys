@@ -69,6 +69,19 @@ export default function SalesReportPage() {
             />
           </div>
 
+          {data.bySubCategory.length > 0 && (
+            <TopList
+              title="By subcategory (accessories)"
+              rows={data.bySubCategory.map((sc) => ({
+                id: `${sc.parentName}-${sc.name}`,
+                label: `${sc.parentName} > ${sc.name}`,
+                sub: `${pluralize(sc.count, "line")}`,
+                value: sc.revenue,
+              }))}
+              format={formatPKR}
+            />
+          )}
+
           <div className="grid gap-3 lg:grid-cols-2">
             <ReportTable
               columns={[

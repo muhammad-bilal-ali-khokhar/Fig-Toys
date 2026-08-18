@@ -4,9 +4,9 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
-import { brandOf, type CompanyProfile, type Contact, type ReservationDetail } from "@/lib/api-types";
+import { brandOf, type Contact, type ReservationDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS, APP, MAX_MONEY_AMOUNT } from "@/lib/constants";
+import { CARRIER_LABELS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,10 +15,12 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { Kbd } from "@/components/ui/kbd";
 import { PriceInput } from "@/components/ui/price-input";
 import { useToast } from "@/components/ui/toast";
+import { PaymentSummaryCard } from "@/components/payment-bottom";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { ReservationModifyPicker } from "@/components/transactions/reservation-modify-picker";
+import { ReservationReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
-import { ChevronLeftIcon, PlusIcon, PrinterIcon, ReservationIcon, SmartphoneIcon, XIcon } from "@/components/icons";
+import { ChevronLeftIcon, PlusIcon, ReservationIcon, SmartphoneIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
 
 type SearchResult = {
@@ -50,13 +52,13 @@ function ReservationsToolbar() {
   return (
     <div className="flex shrink-0 items-center justify-end gap-2">
       <Link href="/reservations/all">
-        <Button variant="grey">
+        <Button variant="ghost">
           <ReservationIcon className="h-4 w-4" />
           All Reservations
         </Button>
       </Link>
       <Link href="/reservations/cancel">
-        <Button variant="grey">
+        <Button variant="ghost">
           <XIcon className="h-4 w-4" />
           Cancel Reservation
         </Button>
@@ -69,7 +71,6 @@ export default function ReservationsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const { data: contacts, refetch: refetchContacts } = useApi<Contact[]>("/contact");
-  const { data: profile } = useApi<CompanyProfile>("/settings/company");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -106,7 +107,15 @@ export default function ReservationsPage() {
   }
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  useEffect(() => {
+    if (highlightedIndex < 0 || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-flat="${highlightedIndex}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex]);
 
   const total = useMemo(
     () => roundMoney(cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)),
@@ -133,6 +142,35 @@ export default function ReservationsPage() {
     }
     return { groups: [...map.values()], plain };
   }, [cart]);
+
+  type FlatItem = {
+    kind: "unit";
+    result: SearchResult;
+    unit: SearchResult["units"][number];
+    added: boolean;
+  } | {
+    kind: "product";
+    result: SearchResult;
+    added: boolean;
+  };
+
+  const flatItems = useMemo<FlatItem[]>(() => {
+    const items: FlatItem[] = [];
+    for (const result of results) {
+      if (result.units.length === 0) {
+        items.push({ kind: "product", result, added: cart.some((l) => l.key === `prod-${result.id}`) });
+      } else {
+        for (const unit of result.units) {
+          items.push({ kind: "unit", result, unit, added: cart.some((l) => l.key === `unit-${unit.id}`) });
+        }
+      }
+    }
+    return items;
+  }, [results, cart]);
+
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [results]);
 
   const showPanel = searching || results.length > 0;
 
@@ -238,6 +276,30 @@ export default function ReservationsPage() {
       toast(`${product.brand} ${product.model} added`, "success");
     } else {
       toast("Multiple units. Tap the IMEI", "error");
+    }
+  }
+
+  function activateFlatItem(item: FlatItem) {
+    if (item.kind === "product") {
+      if (item.added) {
+        removeLine(`prod-${item.result.id}`);
+        toast(`${item.result.brand} ${item.result.model} removed from reservation`, "success");
+      } else {
+        addLine(item.result);
+        setQ("");
+        setResults([]);
+        toast(`${item.result.brand} ${item.result.model} added`, "success");
+      }
+    } else {
+      if (item.added) {
+        removeLine(`unit-${item.unit.id}`);
+        toast(`${item.result.brand} ${item.result.model} · ${item.unit.imei.slice(-6)} removed from reservation`, "success");
+      } else {
+        addLine(item.result, item.unit);
+        setQ("");
+        setResults([]);
+        toast(`${item.result.brand} ${item.result.model} · ${item.unit.imei} added`, "success");
+      }
     }
   }
 
@@ -421,73 +483,12 @@ export default function ReservationsPage() {
     return (
       <div className="flex h-full flex-col">
         <ReservationsToolbar />
-        <div className="mx-auto mt-4 max-w-sm">
-        <div className="rounded-2xl bg-white p-6 font-mono text-sm">
-          {profile?.logoUrl && (
-            <img src={profile.logoUrl} alt="" className="mx-auto mb-2 block max-h-14 object-contain" />
-          )}
-          <p className="mx-auto max-w-full truncate px-2 text-center text-lg font-bold" title={profile?.name ?? APP.nameFull}>
-            {profile?.name ?? APP.nameFull}
-          </p>
-          <p className="text-center text-xs">{reservation.number}</p>
-          <Badge
-            variant={reservation.type === "CONSIGNMENT" ? "info" : "warning"}
-            className="mt-4 w-full justify-center rounded-lg px-2 py-1"
-          >
-            {reservation.type === "CONSIGNMENT"
-              ? `ON CONSIGNMENT · OUT WITH ${reservation.contact.name.toUpperCase()}`
-              : "RESERVED · advance collected"}
-          </Badge>
-          <div className="my-4" />
-          <p className="text-xs">{reservation.contact.name}</p>
-          <div className="my-4" />
-          <div className="space-y-1">
-            {reservation.items.map((item) => (
-              <div key={item.id} className="flex justify-between">
-                <span>
-                  {brandOf(item.product)} {item.product.model}
-                  {item.unit ? <span className="block text-[10px] text-ink-400">{item.unit.imei}</span> : null}
-                </span>
-                <span>{formatPKR(item.total)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="my-4" />
-          <div className="flex justify-between font-bold">
-            <span>{reservation.type === "CONSIGNMENT" ? "AGREED TOTAL" : "TOTAL"}</span>
-            <span>{formatPKR(reservation.total)}</span>
-          </div>
-          {reservation.type === "RESERVATION" && (
-            <>
-              <div className="flex justify-between text-xs">
-                <span>Advance</span>
-                <span>{formatPKR(parseFloat(reservation.advance))}</span>
-              </div>
-              <div className="flex justify-between text-xs font-semibold">
-                <span>Balance due</span>
-                <span>{formatPKR(parseFloat(reservation.total) - parseFloat(reservation.advance))}</span>
-              </div>
-            </>
-          )}
-          <p className="mt-4 text-center text-xs text-ink-400">
-            {reservation.type === "CONSIGNMENT"
-              ? "Collect payment when it sells, or return it to stock if it comes back."
-              : "Collect the balance on pickup to complete the sale."}
-          </p>
-        </div>
-        <div className="mt-4 flex justify-center gap-2">
-          <Button variant="secondary" onClick={() => window.print()}>
-            <PrinterIcon className="h-4 w-4" />
-            Print
-          </Button>
-          <Button variant="secondary" onClick={() => loadForModify(reservation)}>
-            Modify
-          </Button>
-          <Button onClick={reset}>
-            <PlusIcon className="h-4 w-4" />
-            New reservation
-          </Button>
-        </div>
+        <div className="flex flex-1 items-start justify-center overflow-y-auto overscroll-none p-4">
+          <ReservationReceipt
+            reservation={reservation}
+            onModify={loadForModify}
+            onNew={reset}
+          />
         </div>
       </div>
     );
@@ -512,12 +513,12 @@ export default function ReservationsPage() {
     ];
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="w-full max-w-2xl">
+        <div className="w-full max-w-4xl">
           <div className="mb-8 flex items-center justify-between">
             <p className="text-sm font-semibold uppercase tracking-wide text-ink-500">
               What are you creating?
             </p>
-            <Button variant="grey" onClick={() => setModifyPickerOpen(true)}>
+            <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
               Modify
             </Button>
           </div>
@@ -566,20 +567,42 @@ export default function ReservationsPage() {
         void reserve();
       }}
     >
-      <div className="mb-4 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setFlow(null)}
-          className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-ink-500 hover:text-ink-900"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-          {flow === "CONSIGNMENT" ? "Send on Consignment" : "Hold at Shop"}
-        </button>
-        <ReservationsToolbar />
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700">
+            <ChevronLeftIcon className="h-5 w-5" />
+          </button>
+          <h1 className="text-lg font-bold text-ink-900">
+            {modifyId ? "Modify Reservation" : "Reservation"}
+            <span className="ml-2 text-sm font-medium text-ink-400">
+              {flow === "CONSIGNMENT" ? "· On Consignment" : "· Hold at Shop"}
+            </span>
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
+            Modify
+          </Button>
+          <Link href="/reservations/all">
+            <Button variant="ghost">
+              <ReservationIcon className="h-4 w-4" />
+              All Reservations
+            </Button>
+          </Link>
+          <Link href="/reservations/cancel">
+            <Button variant="ghost">
+              <XIcon className="h-4 w-4" />
+              Cancel
+            </Button>
+          </Link>
+          <Button variant="destructive" onClick={reset}>
+            Clear
+          </Button>
+        </div>
       </div>
 
-      <div className="mt-3 grid shrink-0 gap-3 md:grid-cols-[2fr_1fr] md:items-end">
-        <div>
+      <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
           {contactOptions.length > 0 && (
             <Dropdown
@@ -592,9 +615,9 @@ export default function ReservationsPage() {
           )}
         </div>
 
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Reservation #</p>
-          <Input value={reserveNo} readOnly className="bg-ink-100" />
+          <Input value={reserveNo} readOnly variant="white" />
         </div>
       </div>
 
@@ -629,22 +652,31 @@ export default function ReservationsPage() {
               value={q}
               onChange={setQ}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "ArrowDown") {
                   e.preventDefault();
-                  void handleSearchEnter();
+                  if (flatItems.length > 0) setHighlightedIndex((i) => (i + 1) % flatItems.length);
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  if (flatItems.length > 0) setHighlightedIndex((i) => (i <= 0 ? flatItems.length - 1 : i - 1));
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (flatItems.length > 0 && highlightedIndex >= 0 && highlightedIndex < flatItems.length) {
+                    activateFlatItem(flatItems[highlightedIndex]);
+                  } else {
+                    void handleSearchEnter();
+                  }
                 }
               }}
               placeholder="Scan IMEI or search product…"
               variant="white"
-              className="bg-ink-100 py-4 text-base rounded-[16px]"
+              className="bg-ink-100 h-14 text-base rounded-[16px]"
               iconClassName="h-5 w-5"
             />
 
-            {panelPos &&
-              (searching || (!searching && q.trim().length >= 2 && results.length === 0)) && (
+            {panelPos && results.length === 0 && q.trim().length >= 2 && (
                 <div
                   style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                  className="z-[100] rounded-2xl bg-white p-4"
+                  className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"
                 >
                   <p className="text-sm text-ink-400">
                     {searching ? "Searching…" : "No products found."}
@@ -654,84 +686,89 @@ export default function ReservationsPage() {
 
             {panelPos && results.length > 0 && (
               <div
+                ref={listRef}
                 style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5"
+                className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
               >
-                {results.map((result) => {
-                  const inStock = result.units;
-                  return (
-                    <div key={result.id} className="rounded-xl hover:bg-ink-50">
-                      <div className="flex items-center justify-between gap-3 px-3 pt-3">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-ink-900">
-                            {result.brand} {result.model} {result.storage ?? ""} {result.ram ?? ""} {result.screenSize ?? ""} {result.color ?? ""}
-                          </p>
-                          <p className="text-xs text-ink-500">
-                            {formatPKR(result.sellPrice)} · {result.category.name}
-                          </p>
-                        </div>
-                        {inStock.length === 0 ? (
-                          cart.some((l) => l.key === `prod-${result.id}`) ? (
+                {(() => {
+                  let flatIdx = -1;
+                  return results.map((result) => {
+                    const inStock = result.units;
+                    const isProductRow = inStock.length === 0;
+                    if (isProductRow) flatIdx++;
+                    const productFlatIdx = isProductRow ? flatIdx : -1;
+                    const isProductHighlighted = productFlatIdx === highlightedIndex;
+                    return (
+                      <div key={result.id} className="rounded-xl">
+                        <div
+                          className={`flex items-center justify-between gap-3 px-3 pt-3 ${isProductHighlighted ? "bg-brand-50 rounded-xl" : ""}`}
+                          onMouseEnter={() => { if (isProductRow) setHighlightedIndex(productFlatIdx); }}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-ink-900">
+                              {[result.brand, result.model, result.storage, result.ram, result.screenSize, result.color]
+                                .filter(Boolean)
+                                .join(" ")}
+                            </p>
+                            <p className="text-xs text-ink-500">
+                              {formatPKR(result.sellPrice)} · {result.category.name}
+                            </p>
+                          </div>
+                          {inStock.length === 0 ? (
                             <button
+                              data-flat={productFlatIdx}
                               type="button"
-                              onClick={() => {
-                                removeLine(`prod-${result.id}`);
-                                toast(`${result.brand} ${result.model} removed from reservation`, "success");
-                              }}
-                              className="shrink-0 rounded-xl bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-100"
+                              onClick={() => activateFlatItem({ kind: "product", result, added: cart.some((l) => l.key === `prod-${result.id}`) })}
+                              className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold ${
+                                cart.some((l) => l.key === `prod-${result.id}`)
+                                  ? "bg-brand-50 text-brand-600 hover:bg-brand-100"
+                                  : isProductHighlighted
+                                    ? "bg-brand-100 text-brand-600"
+                                    : "bg-ink-100 text-ink-600 hover:bg-brand-50"
+                              }`}
                             >
-                              ✓ Added
+                              {cart.some((l) => l.key === `prod-${result.id}`) ? "✓ Added" : "Add"}
                             </button>
-                          ) : (
-                            <Button variant="secondary" className="shrink-0 px-3 py-2 text-xs" onClick={() => addLine(result)}>
-                              <PlusIcon className="mr-1.5 h-3.5 w-3.5" />
-                              Add
-                            </Button>
-                          )
-                        ) : (
-                          <span className="shrink-0 text-xs text-ink-400">{inStock.length} unit(s)</span>
+                          ) : null}
+                        </div>
+                        {inStock.length > 0 && (
+                          <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
+                            {inStock.map((unit) => {
+                              flatIdx++;
+                              const added = cart.some((l) => l.key === `unit-${unit.id}`);
+                              const isActive = flatIdx === highlightedIndex;
+                              return (
+                                <button
+                                  key={unit.id}
+                                  data-flat={flatIdx}
+                                  type="button"
+                                  onClick={() => activateFlatItem({ kind: "unit", result, unit, added })}
+                                  onMouseEnter={() => setHighlightedIndex(flatIdx)}
+                                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 ${
+                                    isActive ? "bg-brand-100" : added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
+                                  }`}
+                                >
+                                  <span className={`truncate font-mono text-xs ${added ? "text-brand-600" : "text-ink-700"}`}>
+                                    {unit.imei}
+                                  </span>
+                                  <span className="flex shrink-0 items-center gap-2">
+                                    <Badge variant="neutral">{unit.condition}</Badge>
+                                    <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
+                                    {added ? (
+                                      <span className="text-xs font-semibold text-brand-600">Added</span>
+                                    ) : (
+                                      <PlusIcon className="h-3.5 w-3.5 text-ink-400" />
+                                    )}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
-                      {inStock.length > 0 && (
-                        <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
-                          {inStock.map((unit) => {
-                            const added = cart.some((l) => l.key === `unit-${unit.id}`);
-                            return (
-                              <button
-                                key={unit.id}
-                                type="button"
-                                onClick={() => {
-                                  if (added) {
-                                    removeLine(`unit-${unit.id}`);
-                                    toast(`${result.brand} ${result.model} · ${unit.imei.slice(-6)} removed from reservation`, "success");
-                                  } else {
-                                    addLine(result, unit);
-                                  }
-                                }}
-                                className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 ${
-                                  added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
-                                }`}
-                              >
-                                <span className={`truncate font-mono text-xs ${added ? "text-brand-600" : "text-ink-700"}`}>
-                                  {unit.imei}
-                                </span>
-                                <span className="flex shrink-0 items-center gap-2">
-                                  <Badge variant="neutral">{unit.condition}</Badge>
-                                  <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
-                                  {added ? (
-                                    <span className="text-xs font-semibold text-brand-600">Added</span>
-                                  ) : (
-                                    <PlusIcon className="h-3.5 w-3.5 text-ink-400" />
-                                  )}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
@@ -864,15 +901,24 @@ export default function ReservationsPage() {
         </table>
       </div>
 
-      <div className="-mx-6 -mb-6 mt-6 shrink-0 border-t border-ink-100 bg-white px-6 py-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0 flex-1">
+      <div className="mt-6 grid shrink-0 gap-4 lg:grid-cols-3">
+        <div className="rounded-3xl bg-white lg:col-span-2">
+          <div className="flex items-center justify-between px-5 py-4">
+            <h3 className="text-sm font-semibold text-ink-900">
+              {flow === "CONSIGNMENT" ? "Consignment" : "Advance payment"}
+            </h3>
+            <p className="text-xs text-ink-400">
+              {flow === "CONSIGNMENT" ? "Agreed total" : "Total"}{" "}
+              <span className="font-semibold text-ink-900">{formatPKR(total)}</span>
+            </p>
+          </div>
+          <div className="px-5 pb-5">
             {flow === "CONSIGNMENT" ? (
               <p className="max-w-xs rounded-2xl bg-ink-50 px-4 py-3 text-xs font-medium text-ink-500">
                 Phone leaves the shop. Collect payment when it sells.
               </p>
             ) : (
-              <div className="max-w-64">
+              <div className="mt-3 max-w-64">
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
                   Advance payment
                 </p>
@@ -892,48 +938,29 @@ export default function ReservationsPage() {
               </div>
             )}
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-2">
-            <div className="text-right">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-                {flow === "CONSIGNMENT" ? "Agreed total" : "Total"}
-              </p>
-              <p className="text-3xl font-bold leading-tight text-brand-600">{formatPKR(total)}</p>
-              {flow === "RESERVATION" && advance !== "" && !Number.isNaN(parseFloat(advance)) && (
-                <div className="mt-1 space-y-0.5 text-xs text-ink-500">
-                  <p className="flex items-center justify-end gap-2">
-                    <span>Advance</span>
-                    <span className="w-20 text-right font-medium text-ink-700">
-                      {formatPKR(parseFloat(advance) || 0)}
-                    </span>
-                  </p>
-                  <p className="flex items-center justify-end gap-2">
-                    <span>Balance due</span>
-                    <span className="w-20 text-right font-medium text-ink-700">
-                      {formatPKR(Math.max(0, balanceDue))}
-                    </span>
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="grey" className="px-4 py-2" onClick={reset}>
-                Clear
-              </Button>
-              <Button
-                className="min-w-72 px-8 py-4 text-base"
-                type="submit"
-                disabled={submitting || cart.length === 0}
-              >
-                {submitting
-                  ? "Saving…"
-                  : flow === "CONSIGNMENT"
-                    ? `Consign ${formatPKR(total)}`
-                    : `Reserve ${formatPKR(total)}`}
-                <Kbd>Ctrl+S</Kbd>
-              </Button>
-            </div>
-          </div>
         </div>
+
+        <PaymentSummaryCard
+          title="Summary"
+          total={total}
+          lines={
+            flow === "RESERVATION" && advance !== "" && !Number.isNaN(parseFloat(advance))
+              ? [
+                  { label: "Advance", amount: parseFloat(advance) || 0 },
+                  { label: "Balance due", amount: balanceDue },
+                ]
+              : []
+          }
+        >
+          <Button className="w-full" type="submit" disabled={submitting || cart.length === 0}>
+            {submitting
+              ? "Saving…"
+              : flow === "CONSIGNMENT"
+                ? `Consign ${formatPKR(total)}`
+                : `Reserve ${formatPKR(total)}`}
+            <Kbd>Ctrl+S</Kbd>
+          </Button>
+        </PaymentSummaryCard>
       </div>
     </form>
 

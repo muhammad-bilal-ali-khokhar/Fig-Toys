@@ -91,6 +91,17 @@ export function ModifyPicker({
           placeholder={loading ? "Loading…" : "Select a document…"}
           searchable
           searchPrefix={TYPE_PREFIX[type] ?? ""}
+          trigger={(open) => (
+            <div className={`flex h-9 items-center justify-between rounded-2xl bg-ink-100 px-3.5 text-sm ${open ? "ring-2 ring-brand-500/60" : ""}`}>
+              <span className="truncate text-ink-900">
+                {selectedId
+                  ? options.find((o) => o.value === selectedId)?.label ?? "Select a document…"
+                  : loading
+                    ? "Loading…"
+                    : "Select a document…"}
+              </span>
+            </div>
+          )}
         />
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="grey" onClick={onClose}>

@@ -44,6 +44,9 @@ export type PurchaseOrder = {
   number: string;
   status: "PENDING" | "PARTIAL" | "RECEIVED" | "CANCELLED";
   total: string;
+  advance: string;
+  advanceMethod: string | null;
+  advanceBankAccountId: string | null;
   note: string | null;
   receivedAt: string | null;
   createdAt: string;
@@ -530,7 +533,7 @@ export type ReturnEligibility = {
   saleId?: string;
   saleNumber?: string;
   refund?: number;
-  contact?: { id: string; name: string };
+  contact?: { id: string; name: string; phone: string | null };
 };
 
 export type DashboardOverview = {
@@ -744,6 +747,27 @@ export type AgingSide = {
 export type AgingReport = {
   receivables: AgingSide;
   payables: AgingSide;
+};
+
+export type ContactReportRow = {
+  contactId: string;
+  name: string;
+  phone: string | null;
+  contactType: string;
+  saleCount: number;
+  saleRevenue: number;
+  purchaseCount: number;
+  purchaseAmount: number;
+  totalTransactions: number;
+  outstanding: number;
+  lastDate: string;
+};
+
+export type ContactReport = {
+  totalSales: number;
+  totalPurchases: number;
+  contactCount: number;
+  rows: ContactReportRow[];
 };
 
 export type LedgerRow = {

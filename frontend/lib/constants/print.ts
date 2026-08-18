@@ -2,6 +2,24 @@ export type PrintFormatId = "58" | "80" | "a4";
 
 export type QrTarget = "none" | "whatsapp";
 
+export type PrintDocType =
+  | "SALE"
+  | "PURCHASE"
+  | "SALE_RETURN"
+  | "PURCHASE_RETURN"
+  | "VOUCHER"
+  | "EXPENSE"
+  | "EXPENSE_SHEET"
+  | "INVENTORY"
+  | "CONTACTS";
+
+export type PrintSetting = {
+  docType: PrintDocType;
+  format: PrintFormatId;
+  options: Record<string, boolean>;
+  qrType: QrTarget;
+};
+
 export type PrintLayoutType = "document" | "inventory" | "expense" | "contacts";
 
 export const PRINT_LAYOUT_TYPES: { value: PrintLayoutType; label: string }[] = [

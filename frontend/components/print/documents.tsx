@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import JsBarcode from "jsbarcode";
 import type { CompanyProfile, Expense, TransactionDetail, Voucher } from "@/lib/api-types";
-import { formatPKR } from "@/lib/money";
+import { amountInWords, formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import {
   APP,
@@ -573,17 +573,33 @@ export function VoucherDocument({
   options,
   format,
   profile,
+  qrUrl,
+  qrType = "whatsapp",
 }: {
   voucher: Voucher;
   options: PrintBooleanOptions;
   format: PrintFormatId;
   profile: CompanyProfile | null;
+  qrUrl?: string | null;
+  qrType?: QrTarget;
 }) {
   const isA4 = format === "a4";
   const pad = isA4 ? "px-12 py-10" : "px-3 py-3";
   const base = isA4 ? "text-sm" : "text-[11px]";
   const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-ink-200";
   const receiving = voucher.type === "RECEIVING";
+  const amount = parseFloat(voucher.amount);
+
+  const details: { label: string; value: string }[] = [];
+  if (options.number) details.push({ label: "Voucher No.", value: voucher.number });
+  if (options.date) details.push({ label: "Date", value: formatDateTime(voucher.date) });
+  if (options.contact) details.push({ label: "Contact", value: voucher.contact?.name ?? "—" });
+  if (options.phone && voucher.contact?.phone) details.push({ label: "Phone", value: voucher.contact.phone });
+  if (options.cashier) details.push({ label: "Processed by", value: voucher.user.name });
+  details.push({ label: "Method", value: VOUCHER_METHOD_LABELS[voucher.method] });
+  if (options.bankAccounts && voucher.method === "BANK_TRANSFER" && voucher.bankAccount) {
+    details.push({ label: "Bank", value: `${voucher.bankAccount.bankName} · ${voucher.bankAccount.accountNo}` });
+  }
 
   return (
     <div className={`bg-white ${pad} ${base} text-ink-900`}>
@@ -608,53 +624,64 @@ export function VoucherDocument({
           )}
         </div>
         <div className="shrink-0 text-right">
-          <p className="whitespace-nowrap text-sm font-bold uppercase tracking-widest text-ink-900">
-            {VOUCHER_TYPE_LABELS[voucher.type]} Voucher
+          <p
+            className={`inline-block whitespace-nowrap rounded-lg border-2 px-3 py-1 font-bold uppercase tracking-widest text-ink-900 ${
+              receiving
+                ? "border-success bg-success/5 text-success"
+                : "border-error bg-error/5 text-error"
+            }`}
+          >
+            {VOUCHER_TYPE_LABELS[voucher.type]}
           </p>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-ink-400">Voucher</p>
         </div>
       </div>
 
       <div className={`my-4 ${divider}`} />
 
-      <div className="space-y-1">
-        <PrintRow label="Voucher No." value={voucher.number} />
-        <PrintRow label="Date" value={formatDateTime(voucher.date)} />
-        <PrintRow label="Type" value={VOUCHER_TYPE_LABELS[voucher.type]} />
-        {voucher.contact && <PrintRow label="Contact" value={voucher.contact.name} />}
-        {voucher.contact?.phone && <PrintRow label="Phone" value={voucher.contact.phone} />}
-        <PrintRow label="Method" value={VOUCHER_METHOD_LABELS[voucher.method]} />
-        {voucher.method === "BANK_TRANSFER" && voucher.bankAccount && (
-          <PrintRow label="Bank" value={`${voucher.bankAccount.bankName} · ${voucher.bankAccount.accountNo}`} />
-        )}
-        <PrintRow label="Processed by" value={voucher.user.name} />
-      </div>
+      {details.length > 0 && (
+        <div className={isA4 ? "grid grid-cols-2 gap-x-10 gap-y-1" : "space-y-1"}>
+          {details.map((row) => (
+            <PrintRow key={row.label} label={row.label} value={row.value} bold={row.label === "Voucher No."} />
+          ))}
+        </div>
+      )}
 
       <div className={`my-4 ${divider}`} />
 
-      <div className="flex flex-col items-center">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-400">
+      <div
+        className={`avoid-break flex flex-col items-center rounded-2xl border-2 border-ink-900 px-6 py-5 ${
+          receiving ? "bg-success/5" : "bg-error/5"
+        }`}
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-500">
           {receiving ? "Amount received" : "Amount paid"}
         </p>
-        <p className={`mt-1 font-black text-ink-900 ${isA4 ? "text-4xl" : "text-2xl"}`}>
+        <p className={`mt-1 font-black tracking-tight text-ink-900 ${isA4 ? "text-5xl" : "text-3xl"}`}>
           {receiving ? "+" : "-"}
-          {formatPKR(parseFloat(voucher.amount))}
+          {formatPKR(amount)}
+        </p>
+        <p className={`mt-2 text-center font-medium text-ink-500 ${isA4 ? "text-xs" : "text-[10px]"}`}>
+          {amountInWords(amount)}
         </p>
       </div>
 
       <div className={`my-4 ${divider}`} />
 
-      <div className="avoid-break">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">Narration</p>
-        <p
-          className={`mt-1 ${
-            voucher.narration
-              ? "rounded-xl bg-ink-50 px-3 py-2 text-ink-600"
-              : "border border-dashed border-ink-200 px-3 py-2 text-ink-400"
-          }`}
-        >
-          {voucher.narration || "No narration"}
-        </p>
-      </div>
+      {options.note && (
+        <div className="avoid-break">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">Narration</p>
+          <p
+            className={`mt-1 ${
+              voucher.narration
+                ? "rounded-xl bg-ink-50 px-3 py-2 text-ink-600"
+                : "border border-dashed border-ink-200 px-3 py-2 text-ink-400"
+            }`}
+          >
+            {voucher.narration || "No narration"}
+          </p>
+        </div>
+      )}
 
       {voucher.status === "REVERSED" && (
         <div className="avoid-break mt-4 rounded-xl bg-ink-50 px-3 py-2">
@@ -666,6 +693,33 @@ export function VoucherDocument({
           {voucher.reversalNote && <p className="mt-0.5 text-xs text-ink-600">{voucher.reversalNote}</p>}
         </div>
       )}
+
+      {qrUrl || options.barcode ? (
+        <div
+          className={`${isA4 ? "mt-8" : "mt-5"} ${
+            qrUrl && options.barcode ? "grid grid-cols-2 items-center" : "flex justify-center"
+          }`}
+        >
+          {qrUrl && (
+            <img src={qrUrl} alt={`${qrType} QR`} width={isA4 ? 110 : 84} height={isA4 ? 110 : 84} className="mx-auto" />
+          )}
+          {options.barcode && (
+            <div className="flex flex-col items-center">
+              {isA4 && (
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-400">Barcode</p>
+              )}
+              <ReceiptBarcode value={voucher.number} format={format} />
+              <p
+                className={`mt-2 font-mono tracking-widest ${
+                  isA4 ? "text-xs font-semibold text-ink-700" : "text-[9px] text-ink-500"
+                }`}
+              >
+                {voucher.number}
+              </p>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {options.signature && (
         <div className="avoid-break mt-8">

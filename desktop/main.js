@@ -861,6 +861,26 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
+  // Share a generated PDF through the OS share sheet (lets the user pick
+  // WhatsApp, mail, etc. to attach the document). The renderer sends the PDF as
+  // a base64 data URL; we write it to a temp file and invoke webContents.share.
+  ipcMain.handle("share:pdf", async (event, dataUrl, name) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) throw new Error("No window to share from");
+    const match = /^data:([^;]+);base64,(.+)$/.exec(String(dataUrl || ""));
+    if (!match) throw new Error("Invalid PDF data");
+    const buffer = Buffer.from(match[2], "base64");
+    const filePath = path.join(app.getPath("temp"), `fig-${Date.now()}-${String(name || "document").replace(/[^a-z0-9-_]/gi, "")}.pdf`);
+    fs.writeFileSync(filePath, buffer);
+    try {
+      await win.webContents.share({ files: [filePath], title: name || "Document" });
+      return true;
+    } catch (err) {
+      if (err && err.message === "Share call cancelled") return false;
+      throw err;
+    }
+  });
+
   ipcMain.handle("runtime:set", (_event, cfg) => {
     const next = {
       mode: cfg && cfg.mode === "hosted" ? "hosted" : "local",

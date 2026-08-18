@@ -32,6 +32,7 @@ export const REPORT_NAV_GROUPS: { title: string; items: ReportNavItem[] }[] = [
     items: [
       { href: "/reports/money", label: "Money & Bank" },
       { href: "/reports/ledger", label: "Ledger" },
+      { href: "/reports/contacts", label: "Contact report" },
       { href: "/reports/receivables", label: "Receivables" },
       { href: "/reports/payables", label: "Payables" },
       { href: "/reports/aging", label: "Credit aging" },

@@ -56,6 +56,7 @@ export function ProductForm({
   colors,
   viewCosts,
   saving,
+  type,
   onSave,
   onCancel,
 }: {
@@ -65,6 +66,7 @@ export function ProductForm({
   colors: Color[];
   viewCosts: boolean;
   saving: boolean;
+  type?: "NEW" | "USED" | "ACCESSORY";
   onSave: (values: ProductFormValues) => void;
   onCancel: () => void;
 }) {
@@ -94,7 +96,16 @@ export function ProductForm({
   }
 
   const parentCategories = categories.filter((c) => !c.parentId);
-  const selectedParent = parentCategories.find((c) => c.id === form.categoryId);
+  const isPhone = type !== "ACCESSORY";
+  const filteredCategories =
+    type === "ACCESSORY"
+      ? parentCategories.filter((c) => c.type === "ACCESSORY")
+      : type === "USED"
+        ? parentCategories.filter((c) => c.type === "PHONE" && c.name.toLowerCase().includes("used"))
+        : type === "NEW"
+          ? parentCategories.filter((c) => c.type === "PHONE" && c.name.toLowerCase().includes("new"))
+          : parentCategories;
+  const selectedParent = filteredCategories.find((c) => c.id === form.categoryId);
   const subcategories = selectedParent?.children?.filter((c) => c.active !== false) ?? [];
   const hasSubcategories = subcategories.length > 0;
   const effectiveCategoryId = hasSubcategories && form.subcategoryId ? form.subcategoryId : form.categoryId;
@@ -116,6 +127,7 @@ export function ProductForm({
               options={brands.map((b) => ({ value: b.id, label: b.name }))}
               onChange={(value) => update({ brandId: value })}
               placeholder="Select…"
+
             />
           </div>
           <Input
@@ -125,58 +137,66 @@ export function ProductForm({
             className="self-end"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Storage</label>
-            <Dropdown
-              value={form.storage}
-              options={STORAGE_OPTIONS.map((s) => ({ value: s, label: s }))}
-              onChange={(value) => update({ storage: value })}
-              searchable
-              allowCustom
-              placeholder="Select…"
-            />
+        {isPhone && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Storage</label>
+              <Dropdown
+                value={form.storage}
+                options={STORAGE_OPTIONS.map((s) => ({ value: s, label: s }))}
+                onChange={(value) => update({ storage: value })}
+                searchable
+                allowCustom
+                placeholder="Select…"
+
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">RAM</label>
+              <Dropdown
+                value={form.ram}
+                options={RAM_OPTIONS.map((r) => ({ value: r, label: r }))}
+                onChange={(value) => update({ ram: value })}
+                searchable
+                allowCustom
+                placeholder="Select…"
+
+              />
+            </div>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">RAM</label>
-            <Dropdown
-              value={form.ram}
-              options={RAM_OPTIONS.map((r) => ({ value: r, label: r }))}
-              onChange={(value) => update({ ram: value })}
-              searchable
-              allowCustom
-              placeholder="Select…"
-            />
+        )}
+        {isPhone && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Screen size</label>
+              <Dropdown
+                value={form.screenSize}
+                options={SCREEN_SIZE_OPTIONS.map((s) => ({ value: s, label: s }))}
+                onChange={(value) => update({ screenSize: value })}
+                searchable
+                allowCustom
+                placeholder="Select…"
+
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Color</label>
+              <Dropdown
+                value={form.colorId}
+                options={colors.map((c) => ({ value: c.id, label: c.name }))}
+                onChange={(value) => update({ colorId: value })}
+                searchable
+                placeholder="Select…"
+
+              />
+            </div>
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Screen size</label>
-            <Dropdown
-              value={form.screenSize}
-              options={SCREEN_SIZE_OPTIONS.map((s) => ({ value: s, label: s }))}
-              onChange={(value) => update({ screenSize: value })}
-              searchable
-              allowCustom
-              placeholder="Select…"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Color</label>
-            <Dropdown
-              value={form.colorId}
-              options={colors.map((c) => ({ value: c.id, label: c.name }))}
-              onChange={(value) => update({ colorId: value })}
-              searchable
-              placeholder="Select…"
-            />
-          </div>
-        </div>
+        )}
         <div>
           <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
           <Dropdown
             value={form.categoryId}
-            options={parentCategories.map((c) => ({ value: c.id, label: c.name }))}
+            options={filteredCategories.map((c) => ({ value: c.id, label: c.name }))}
             onChange={(value) => update({ categoryId: value })}
             placeholder="Select…"
           />
@@ -189,6 +209,7 @@ export function ProductForm({
               options={[{ value: "", label: "None" }, ...subcategories.map((c) => ({ value: c.id, label: c.name }))]}
               onChange={(value) => update({ subcategoryId: value })}
               placeholder="Select…"
+
             />
           </div>
         )}

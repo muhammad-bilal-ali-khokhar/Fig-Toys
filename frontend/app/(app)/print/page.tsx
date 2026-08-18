@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
@@ -25,7 +25,6 @@ import {
   INVENTORY_DEFAULT_OPTIONS,
   INVENTORY_OPTION_LABELS,
   INVENTORY_TEXT,
-  PRINT,
   PRINT_DEFAULT_OPTIONS,
   PRINT_FORMATS,
   PRINT_OPTION_LABELS,
@@ -35,8 +34,10 @@ import {
   type ExpenseSheetOptions,
   type InventoryPrintOptions,
   type PrintBooleanOptions,
+  type PrintDocType,
   type PrintFormatId,
   type PrintLayoutType,
+  type PrintSetting,
   type QrTarget,
 } from "@/lib/constants";
 import {
@@ -49,12 +50,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { CONTACT_TYPE_LABELS } from "@/components/ui/type-pill";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
-import { DownloadIcon, InventoryIcon, PrinterIcon, SettingsIcon, XIcon } from "@/components/icons";
+import { DownloadIcon, InventoryIcon, PrinterIcon, SendIcon, SettingsIcon, XIcon } from "@/components/icons";
 
 type DocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE";
 
@@ -95,180 +97,72 @@ type PrintLayout = {
   isSystem: boolean;
 };
 
-function loadOptions(): PrintBooleanOptions {
-  try {
-    const raw = localStorage.getItem(PRINT.storageKey);
-    if (raw) return { ...PRINT_DEFAULT_OPTIONS, ...JSON.parse(raw) };
-  } catch {
-    /* ignore */
-  }
+function docToLayoutType(d: PrintDocType): PrintLayoutType {
+  if (d === "INVENTORY") return "inventory";
+  if (d === "EXPENSE_SHEET") return "expense";
+  if (d === "CONTACTS") return "contacts";
+  return "document";
+}
+
+function optionLabelsFor(layoutType: PrintLayoutType): { key: string; label: string; hint: string }[] {
+  if (layoutType === "inventory") return INVENTORY_OPTION_LABELS as unknown as { key: string; label: string; hint: string }[];
+  if (layoutType === "expense") return EXPENSE_SHEET_OPTION_LABELS as unknown as { key: string; label: string; hint: string }[];
+  if (layoutType === "contacts") return CONTACTS_OPTION_LABELS as unknown as { key: string; label: string; hint: string }[];
+  return PRINT_OPTION_LABELS as unknown as { key: string; label: string; hint: string }[];
+}
+
+function defaultOptionsFor(layoutType: PrintLayoutType): Record<string, boolean> {
+  if (layoutType === "inventory") return { ...INVENTORY_DEFAULT_OPTIONS };
+  if (layoutType === "expense") return { ...EXPENSE_SHEET_DEFAULT_OPTIONS };
+  if (layoutType === "contacts") return { ...CONTACTS_DEFAULT_OPTIONS };
   return { ...PRINT_DEFAULT_OPTIONS };
-}
-
-function loadFormat(): PrintFormatId {
-  try {
-    const f = localStorage.getItem(PRINT.formatKey) as PrintFormatId | null;
-    if (f && PRINT_FORMATS.some((x) => x.id === f)) return f;
-  } catch {
-    /* ignore */
-  }
-  return "80";
-}
-
-function loadQrType(): QrTarget {
-  try {
-    const t = localStorage.getItem(PRINT.qrTypeKey) as QrTarget | null;
-    if (t && QR_TARGETS.some((x) => x.id === t)) return t;
-  } catch {
-    /* ignore */
-  }
-  return "whatsapp";
-}
-
-function loadInvOptions(): InventoryPrintOptions {
-  try {
-    const raw = localStorage.getItem(PRINT.invOptionsKey);
-    if (raw) return { ...INVENTORY_DEFAULT_OPTIONS, ...JSON.parse(raw) };
-  } catch {
-    /* ignore */
-  }
-  return { ...INVENTORY_DEFAULT_OPTIONS };
-}
-
-function loadExpenseSheetOptions(): ExpenseSheetOptions {
-  try {
-    const raw = localStorage.getItem(PRINT.expenseSheetOptionsKey);
-    if (raw) return { ...EXPENSE_SHEET_DEFAULT_OPTIONS, ...JSON.parse(raw) };
-  } catch {
-    /* ignore */
-  }
-  return { ...EXPENSE_SHEET_DEFAULT_OPTIONS };
-}
-
-function loadContactsOptions(): ContactsPrintOptions {
-  try {
-    const raw = localStorage.getItem(PRINT.contactsOptionsKey);
-    if (raw) return { ...CONTACTS_DEFAULT_OPTIONS, ...JSON.parse(raw) };
-  } catch {
-    /* ignore */
-  }
-  return { ...CONTACTS_DEFAULT_OPTIONS };
 }
 
 function PrintOptionsPanel({
   layoutType,
   options,
   onOptionsChange,
-  invOptions,
-  onInvOptionsChange,
-  expenseSheetOptions,
-  onExpenseSheetOptionsChange,
-  contactsOptions,
-  onContactsOptionsChange,
+  qrType,
+  onQrTypeChange,
 }: {
   layoutType: PrintLayoutType;
-  options: PrintBooleanOptions;
-  onOptionsChange: (o: PrintBooleanOptions) => void;
-  invOptions: InventoryPrintOptions;
-  onInvOptionsChange: (o: InventoryPrintOptions) => void;
-  expenseSheetOptions: ExpenseSheetOptions;
-  onExpenseSheetOptionsChange: (o: ExpenseSheetOptions) => void;
-  contactsOptions: ContactsPrintOptions;
-  onContactsOptionsChange: (o: ContactsPrintOptions) => void;
+  options: Record<string, boolean>;
+  onOptionsChange: (o: Record<string, boolean>) => void;
+  qrType?: QrTarget;
+  onQrTypeChange?: (t: QrTarget) => void;
 }) {
-  if (layoutType === "document") {
-    return (
-      <div className="p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <SettingsIcon className="h-4 w-4 text-ink-400" />
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Show / Hide</h3>
-        </div>
-        <div className="space-y-1">
-          {PRINT_OPTION_LABELS.map((opt) => (
-            <div key={opt.key} className="rounded-xl px-3 py-2 transition hover:bg-ink-50">
-              <Checkbox
-                checked={options[opt.key]}
-                onChange={(v) => onOptionsChange({ ...options, [opt.key]: v })}
-                label={opt.label}
-                description={opt.hint}
-              />
-            </div>
-          ))}
-        </div>
+  const labels = optionLabelsFor(layoutType);
+  const showQr = layoutType === "document" && qrType !== undefined && onQrTypeChange !== undefined;
+  return (
+    <div className="p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <SettingsIcon className="h-4 w-4 text-ink-400" />
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Show / Hide</h3>
       </div>
-    );
-  }
-
-  if (layoutType === "inventory") {
-    return (
-      <div className="p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <SettingsIcon className="h-4 w-4 text-ink-400" />
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Show / Hide</h3>
+      {showQr && (
+        <div className="mb-4 space-y-1">
+          <p className="text-xs font-medium text-ink-600">QR code on receipt</p>
+          <Dropdown
+            value={qrType}
+            options={QR_TARGETS.map((t) => ({ value: t.id, label: t.label }))}
+            onChange={(v) => onQrTypeChange(v as QrTarget)}
+          />
         </div>
-        <div className="space-y-1">
-          {INVENTORY_OPTION_LABELS.map((opt) => (
-            <div key={opt.key} className="rounded-xl px-3 py-2 transition hover:bg-ink-50">
-              <Checkbox
-                checked={invOptions[opt.key]}
-                onChange={(v) => onInvOptionsChange({ ...invOptions, [opt.key]: v })}
-                label={opt.label}
-                description={opt.hint}
-              />
-            </div>
-          ))}
-        </div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        {labels.map((opt) => (
+          <div key={opt.key} className="rounded-xl px-3 py-2 transition hover:bg-ink-50">
+            <Checkbox
+              checked={options[opt.key] === true}
+              onChange={(v) => onOptionsChange({ ...options, [opt.key]: v })}
+              label={opt.label}
+              description={opt.hint}
+            />
+          </div>
+        ))}
       </div>
-    );
-  }
-
-  if (layoutType === "expense") {
-    return (
-      <div className="p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <SettingsIcon className="h-4 w-4 text-ink-400" />
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Show / Hide</h3>
-        </div>
-        <div className="space-y-1">
-          {EXPENSE_SHEET_OPTION_LABELS.map((opt) => (
-            <div key={opt.key} className="rounded-xl px-3 py-2 transition hover:bg-ink-50">
-              <Checkbox
-                checked={expenseSheetOptions[opt.key]}
-                onChange={(v) => onExpenseSheetOptionsChange({ ...expenseSheetOptions, [opt.key]: v })}
-                label={opt.label}
-                description={opt.hint}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (layoutType === "contacts") {
-    return (
-      <div className="p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <SettingsIcon className="h-4 w-4 text-ink-400" />
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400">Show / Hide</h3>
-        </div>
-        <div className="space-y-1">
-          {CONTACTS_OPTION_LABELS.map((opt) => (
-            <div key={opt.key} className="rounded-xl px-3 py-2 transition hover:bg-ink-50">
-              <Checkbox
-                checked={contactsOptions[opt.key]}
-                onChange={(v) => onContactsOptionsChange({ ...contactsOptions, [opt.key]: v })}
-                label={opt.label}
-                description={opt.hint}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }
 
 function PrintStudioContent() {
@@ -278,58 +172,47 @@ function PrintStudioContent() {
 
   const deepLinkId = params.get("id");
   const deepLinkType = params.get("type");
-  const isTxnDeepLink = DOC_TYPES.some((t) => t.value === deepLinkType);
   const [format, setFormat] = useState<PrintFormatId>("80");
-  const [options, setOptions] = useState<PrintBooleanOptions>({ ...PRINT_DEFAULT_OPTIONS });
-  const [invOptions, setInvOptions] = useState<InventoryPrintOptions>({ ...INVENTORY_DEFAULT_OPTIONS });
+  const [options, setOptions] = useState<Record<string, boolean>>({ ...PRINT_DEFAULT_OPTIONS });
   const [qrType, setQrType] = useState<QrTarget>("whatsapp");
-  const [layoutType, setLayoutType] = useState<PrintLayoutType>(
-    deepLinkType === "inventory"
-      ? "inventory"
-      : deepLinkType === "expense"
-        ? "expense"
-        : deepLinkType === "contacts"
-          ? "contacts"
-          : "document",
-  );
+  const [printDocType, setPrintDocType] = useState<PrintDocType>(() => {
+    if (deepLinkType === "inventory") return "INVENTORY";
+    if (deepLinkType === "expense") return "EXPENSE_SHEET";
+    if (deepLinkType === "contacts") return "CONTACTS";
+    if (deepLinkType === "SALE" || deepLinkType === "PURCHASE" || deepLinkType === "SALE_RETURN" || deepLinkType === "PURCHASE_RETURN" || deepLinkType === "VOUCHER" || deepLinkType === "EXPENSE") {
+      return deepLinkType as PrintDocType;
+    }
+    return "SALE";
+  });
+  const layoutType = docToLayoutType(printDocType);
+  const docType = printDocType === "SALE" || printDocType === "PURCHASE" || printDocType === "SALE_RETURN" || printDocType === "PURCHASE_RETURN" || printDocType === "VOUCHER" || printDocType === "EXPENSE" ? (printDocType as DocType) : "SALE";
   const [typePickerOpen, setTypePickerOpen] = useState(!deepLinkType);
   const [showHideOpen, setShowHideOpen] = useState(false);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [layouts, setLayouts] = useState<PrintLayout[]>([]);
-  const [activeLayoutId, setActiveLayoutId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Record<PrintDocType, PrintSetting> | null>(null);
   const [documents, setDocuments] = useState<Transaction[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
-  const [expenseSheetOptions, setExpenseSheetOptions] = useState<ExpenseSheetOptions>({
-    ...EXPENSE_SHEET_DEFAULT_OPTIONS,
-  });
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
-  const [contactsOptions, setContactsOptions] = useState<ContactsPrintOptions>({
-    ...CONTACTS_DEFAULT_OPTIONS,
-  });
-  const [docType, setDocType] = useState<DocType>(isTxnDeepLink ? (deepLinkType as DocType) : "SALE");
   const [selectedId, setSelectedId] = useState<string | null>(deepLinkId);
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const applyingLayoutRef = useRef(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const activeFormat: PrintFormatId =
-    (layoutType === "inventory" || layoutType === "expense" || layoutType === "contacts") && format === "58"
-      ? "80"
-      : format;
+    layoutType !== "document" && format === "58" ? "80" : format;
   const fmt = PRINT_FORMATS.find((f) => f.id === activeFormat) ?? PRINT_FORMATS[1];
   const selectedDoc = documents.find((d) => d.id === selectedId) ?? null;
   const selectedVoucher = vouchers.find((v) => v.id === selectedId) ?? null;
   const selectedExpense = expenses.find((e) => e.id === selectedId) ?? null;
-  const activeLayout = layouts.find((l) => l.id === activeLayoutId) ?? null;
-  const showCost = canViewCosts(user) && invOptions.cost;
+  const showCost = canViewCosts(user) && options.cost === true;
   const inStockCount = units.filter((u) => u.status === "IN_STOCK").length;
   const contactsReceivable = contacts.reduce((sum, c) => sum + (parseFloat(c.receivable) || 0), 0);
   const contactsPayable = contacts.reduce((sum, c) => sum + (parseFloat(c.payable) || 0), 0);
@@ -356,7 +239,6 @@ function PrintStudioContent() {
           : docType === "EXPENSE"
             ? selectedExpense?.number ?? "expense"
             : selectedDoc?.number ?? "document";
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const docOptions =
     docType === "EXPENSE"
@@ -382,39 +264,24 @@ function PrintStudioContent() {
             trailing: <span className="text-xs text-ink-400">{new Date(d.createdAt).toLocaleDateString()}</span>,
           }));
 
-  const layoutOptions = layouts.map((l) => ({
-    value: l.id,
-    label: l.name,
-    trailing: l.isDefault ? (
-      <span className="rounded bg-brand-600 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">Default</span>
-    ) : undefined,
-  }));
+  function applySetting(s: PrintSetting) {
+    setFormat(s.format);
+    setQrType(s.qrType);
+    setOptions({ ...defaultOptionsFor(docToLayoutType(s.docType)), ...s.options });
+  }
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const list = await apiRequest<PrintLayout[]>("/print-layout");
-        if (cancelled) return;
-        setLayouts(list ?? []);
-        const def = !deepLinkType ? (list ?? []).find((l) => l.isSystem && l.isDefault) : undefined;
-        if (def) {
-          applyLayout(def);
-        } else {
-          setFormat(loadFormat());
-          setOptions(loadOptions());
-          setInvOptions(loadInvOptions());
-          setExpenseSheetOptions(loadExpenseSheetOptions());
-          setContactsOptions(loadContactsOptions());
-          setQrType(loadQrType());
-        }
+        const list = await apiRequest<PrintSetting[]>("/print-setting");
+        if (cancelled || !list) return;
+        const map = Object.fromEntries(list.map((s) => [s.docType, s])) as Record<PrintDocType, PrintSetting>;
+        setSettings(map);
+        const cur = map[printDocType];
+        if (cur) applySetting(cur);
       } catch {
-        setFormat(loadFormat());
-        setOptions(loadOptions());
-        setInvOptions(loadInvOptions());
-        setExpenseSheetOptions(loadExpenseSheetOptions());
-        setContactsOptions(loadContactsOptions());
-        setQrType(loadQrType());
+        setOptions({ ...defaultOptionsFor(layoutType) });
       }
     })();
     return () => {
@@ -424,95 +291,31 @@ function PrintStudioContent() {
   }, []);
 
   useEffect(() => {
-    if (applyingLayoutRef.current) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const defaults = await apiRequest<Record<string, string>>("/settings/print-defaults");
-        if (cancelled) return;
-        const d = defaults?.[docType];
-        if (d === "a4") setFormat("a4");
-        else if (d === "thermal") setFormat("80");
-      } catch {
-        /* keep current */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [docType]);
+    const cur = settings?.[printDocType];
+    if (cur) applySetting(cur);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printDocType]);
 
-  function applyLayout(layout: PrintLayout) {
-    applyingLayoutRef.current = true;
-    setActiveLayoutId(layout.id);
-    setFormat(layout.format);
-    if (layoutType === "inventory") {
-      setInvOptions({ ...INVENTORY_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as InventoryPrintOptions);
-    } else if (layoutType === "expense") {
-      setExpenseSheetOptions({ ...EXPENSE_SHEET_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as ExpenseSheetOptions);
-    } else if (layoutType === "contacts") {
-      setContactsOptions({ ...CONTACTS_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as ContactsPrintOptions);
-    } else {
-      setOptions({ ...PRINT_DEFAULT_OPTIONS, ...(layout.options ?? {}) } as PrintBooleanOptions);
+  async function saveSetting(overrides?: { format?: PrintFormatId; options?: Record<string, boolean>; qrType?: QrTarget }) {
+    if (!settings) return;
+    const body = {
+      docType: printDocType,
+      format: overrides?.format ?? format,
+      options: overrides?.options ?? options,
+      qrType: overrides?.qrType ?? qrType,
+    };
+    try {
+      await apiRequest<PrintSetting>("/print-setting", { method: "PUT", body });
+      setSettings((prev) => (prev ? { ...prev, [printDocType]: body } : prev));
+    } catch {
+      toast("Failed to save print settings", "error");
     }
-    setQrType("whatsapp");
   }
 
-  useEffect(() => {
-    if (applyingLayoutRef.current) {
-      applyingLayoutRef.current = false;
-      return;
-    }
-    setActiveLayoutId(null);
-  }, [format, options, invOptions, expenseSheetOptions, contactsOptions, qrType, layoutType]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(PRINT.storageKey, JSON.stringify(options));
-    } catch {
-      /* ignore */
-    }
-  }, [options]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(PRINT.invOptionsKey, JSON.stringify(invOptions));
-    } catch {
-      /* ignore */
-    }
-  }, [invOptions]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(PRINT.expenseSheetOptionsKey, JSON.stringify(expenseSheetOptions));
-    } catch {
-      /* ignore */
-    }
-  }, [expenseSheetOptions]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(PRINT.contactsOptionsKey, JSON.stringify(contactsOptions));
-    } catch {
-      /* ignore */
-    }
-  }, [contactsOptions]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(PRINT.formatKey, format);
-    } catch {
-      /* ignore */
-    }
-  }, [format]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(PRINT.qrTypeKey, qrType);
-    } catch {
-      /* ignore */
-    }
-  }, [qrType]);
+  function updateOptions(next: Record<string, boolean>) {
+    setOptions(next);
+    void saveSetting({ options: next });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -699,29 +502,81 @@ function PrintStudioContent() {
     [fmt],
   );
 
-  async function downloadPdf() {
+  async function buildPdfBlob(): Promise<Blob | null> {
     const area = document.getElementById("print-area");
-    if (!area) return;
+    if (!area) return null;
+    const pageEls = Array.from(area.querySelectorAll<HTMLElement>(".a4-page"));
+    const elements = pageEls.length > 0 ? pageEls : [area];
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = 210;
+    const pageH = 297;
+    for (let i = 0; i < elements.length; i++) {
+      const canvas = await html2canvas(elements[i], { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+      const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+      const w = canvas.width * ratio;
+      const h = canvas.height * ratio;
+      if (i > 0) pdf.addPage("a4", "portrait");
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h);
+    }
+    return pdf.output("blob");
+  }
+
+  async function downloadPdf() {
     setDownloadingPdf(true);
     try {
-      const pageEls = Array.from(area.querySelectorAll<HTMLElement>(".a4-page"));
-      const elements = pageEls.length > 0 ? pageEls : [area];
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageW = 210;
-      const pageH = 297;
-      for (let i = 0; i < elements.length; i++) {
-        const canvas = await html2canvas(elements[i], { scale: 2, backgroundColor: "#ffffff", useCORS: true });
-        const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
-        const w = canvas.width * ratio;
-        const h = canvas.height * ratio;
-        if (i > 0) pdf.addPage("a4", "portrait");
-        pdf.addImage(canvas.toDataURL("image/png"), "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h);
-      }
-      pdf.save(`${pdfFileName}.pdf`);
+      const blob = await buildPdfBlob();
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${pdfFileName}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to generate PDF", "error");
     } finally {
       setDownloadingPdf(false);
+    }
+  }
+
+  const [sendingPdf, setSendingPdf] = useState(false);
+
+  async function sendPdf() {
+    setSendingPdf(true);
+    try {
+      const blob = await buildPdfBlob();
+      if (!blob) return;
+      const name = `${pdfFileName}.pdf`;
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string | null>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      const fig = (typeof window !== "undefined" ? window as unknown as { fig?: { share?: { pdf: (d: string, n: string) => Promise<boolean> } } } : undefined)?.fig;
+      if (fig?.share?.pdf && dataUrl) {
+        const shared = await fig.share.pdf(dataUrl, name);
+        if (!shared) return;
+        return;
+      }
+      const file = new File([blob], name, { type: "application/pdf" });
+      const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+      if (typeof navigator.share === "function" && nav.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: pdfFileName });
+      } else {
+        const url = URL.createObjectURL(file);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file.name;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast("Sharing isn't supported here — PDF downloaded instead", "success");
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      toast(err instanceof Error ? err.message : "Failed to share PDF", "error");
+    } finally {
+      setSendingPdf(false);
     }
   }
 
@@ -826,39 +681,15 @@ function PrintStudioContent() {
             </span>
           </div>
         )}
-        <div className="flex items-center rounded-2xl bg-white shadow-sm">
-          {PRINT_FORMATS.filter((f) => (layoutType === "inventory" || layoutType === "expense" || layoutType === "contacts") ? f.id !== "58" : true).map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => setFormat(f.id)}
-              className={`px-3 py-2 text-xs font-semibold transition ${
-                activeFormat === f.id
-                  ? "bg-brand-600 text-white"
-                  : "text-ink-500 hover:text-ink-900"
-              } ${f.id === "58" ? "rounded-l-2xl" : ""} ${f.id === "a4" ? "rounded-r-2xl" : ""}`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div className="w-52">
-          <Dropdown
-            value={activeLayoutId}
-            options={layoutOptions}
-            onChange={(v) => {
-              const layout = layouts.find((l) => l.id === v);
-              if (layout) applyLayout(layout);
-            }}
-            trigger={
-              <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">
-                <span className="truncate text-ink-900">
-                  {activeLayout ? activeLayout.name : "Layout"}
-                </span>
-              </div>
-            }
-          />
-        </div>
+        <SegmentedControl
+          options={PRINT_FORMATS.filter((f) => layoutType !== "document" ? f.id !== "58" : true).map((f) => ({ value: f.id, label: f.label }))}
+          value={activeFormat}
+          onChange={(v: string) => {
+            const nf = v as PrintFormatId;
+            setFormat(nf);
+            void saveSetting({ format: nf });
+          }}
+        />
         <Button
           variant="secondary"
           className="px-4 py-2 text-xs"
@@ -895,6 +726,17 @@ function PrintStudioContent() {
           PDF
         </Button>
         <Button
+          variant="secondary"
+          className="px-4 py-2 text-xs"
+          onClick={sendPdf}
+          loading={sendingPdf}
+          loadingText="Preparing…"
+          disabled={!canPrint}
+        >
+          <SendIcon className="h-4 w-4" />
+          Send
+        </Button>
+        <Button
           className="px-4 py-2 text-xs"
           onClick={() => window.print()}
           disabled={!canPrint}
@@ -917,7 +759,7 @@ function PrintStudioContent() {
               >
                 <InventoryDocument
                   units={units}
-                  options={invOptions}
+                  options={options as unknown as InventoryPrintOptions}
                   format={fmt.id}
                   profile={profile}
                   showCost={showCost}
@@ -940,7 +782,7 @@ function PrintStudioContent() {
               >
                 <ExpenseSheetDocument
                   expenses={expenses}
-                  options={expenseSheetOptions}
+                  options={options as unknown as ExpenseSheetOptions}
                   format={fmt.id}
                   profile={profile}
                 />
@@ -962,7 +804,7 @@ function PrintStudioContent() {
               >
                 <ContactsDocument
                   contacts={contacts}
-                  options={contactsOptions}
+                  options={options as unknown as ContactsPrintOptions}
                   format={fmt.id}
                   profile={profile}
                 />
@@ -984,8 +826,10 @@ function PrintStudioContent() {
               >
                 <VoucherDocument
                   voucher={selectedVoucher}
-                  options={options}
+                  options={options as unknown as PrintBooleanOptions}
                   format={format}
+                  qrUrl={qrUrl}
+                  qrType={qrType}
                   profile={profile}
                 />
               </div>
@@ -1008,7 +852,7 @@ function PrintStudioContent() {
               >
                 <ExpenseVoucherDocument
                   expense={selectedExpense}
-                  options={options}
+                  options={options as unknown as PrintBooleanOptions}
                   format={format}
                   profile={profile}
                 />
@@ -1031,7 +875,7 @@ function PrintStudioContent() {
               >
                 <ReceiptDocument
                   detail={detail}
-                  options={options}
+                  options={options as unknown as PrintBooleanOptions}
                   format={format}
                   qrUrl={qrUrl}
                   qrType={qrType}
@@ -1054,8 +898,7 @@ function PrintStudioContent() {
         open={typePickerOpen}
         title="What do you want to print?"
         onClose={() => {
-          setDocType("SALE");
-          setLayoutType("document");
+          setPrintDocType("SALE");
           setTypePickerOpen(false);
         }}
       >
@@ -1065,8 +908,7 @@ function PrintStudioContent() {
               key={t.value}
               type="button"
               onClick={() => {
-                setDocType(t.value);
-                setLayoutType("document");
+                setPrintDocType(t.value);
                 setTypePickerOpen(false);
               }}
               className="flex w-full items-center gap-3 rounded-2xl border border-ink-100 px-4 py-3 text-left transition hover:bg-ink-50"
@@ -1081,7 +923,7 @@ function PrintStudioContent() {
           <button
             type="button"
             onClick={() => {
-              setLayoutType("inventory");
+              setPrintDocType("INVENTORY");
               setTypePickerOpen(false);
             }}
             className="flex w-full items-center gap-3 rounded-2xl border border-ink-100 px-4 py-3 text-left transition hover:bg-ink-50"
@@ -1095,7 +937,7 @@ function PrintStudioContent() {
           <button
             type="button"
             onClick={() => {
-              setLayoutType("expense");
+              setPrintDocType("EXPENSE_SHEET");
               setTypePickerOpen(false);
             }}
             className="flex w-full items-center gap-3 rounded-2xl border border-ink-100 px-4 py-3 text-left transition hover:bg-ink-50"
@@ -1109,7 +951,7 @@ function PrintStudioContent() {
           <button
             type="button"
             onClick={() => {
-              setLayoutType("contacts");
+              setPrintDocType("CONTACTS");
               setTypePickerOpen(false);
             }}
             className="flex w-full items-center gap-3 rounded-2xl border border-ink-100 px-4 py-3 text-left transition hover:bg-ink-50"
@@ -1127,18 +969,17 @@ function PrintStudioContent() {
         open={showHideOpen}
         title="Show / Hide"
         onClose={() => setShowHideOpen(false)}
-        width="max-w-sm"
+        width="max-w-2xl"
       >
         <PrintOptionsPanel
           layoutType={layoutType}
           options={options}
-          onOptionsChange={setOptions}
-          invOptions={invOptions}
-          onInvOptionsChange={setInvOptions}
-          expenseSheetOptions={expenseSheetOptions}
-          onExpenseSheetOptionsChange={setExpenseSheetOptions}
-          contactsOptions={contactsOptions}
-          onContactsOptionsChange={setContactsOptions}
+          onOptionsChange={updateOptions}
+          qrType={qrType}
+          onQrTypeChange={(t) => {
+            setQrType(t);
+            void saveSetting({ qrType: t });
+          }}
         />
       </Sheet>
 
@@ -1152,7 +993,7 @@ function PrintStudioContent() {
                   <div className="print-doc">
                     <InventoryDocument
                       units={units}
-                      options={invOptions}
+                      options={options as unknown as InventoryPrintOptions}
                       format={fmt.id}
                       profile={profile}
                       showCost={showCost}
@@ -1164,7 +1005,7 @@ function PrintStudioContent() {
                   <div className="print-doc">
                     <ExpenseSheetDocument
                       expenses={expenses}
-                      options={expenseSheetOptions}
+                      options={options as unknown as ExpenseSheetOptions}
                       format={fmt.id}
                       profile={profile}
                     />
@@ -1175,7 +1016,7 @@ function PrintStudioContent() {
                   <div className="print-doc">
                     <ContactsDocument
                       contacts={contacts}
-                      options={contactsOptions}
+                      options={options as unknown as ContactsPrintOptions}
                       format={fmt.id}
                       profile={profile}
                     />
@@ -1186,7 +1027,7 @@ function PrintStudioContent() {
                   <div className="print-doc">
                     <VoucherDocument
                       voucher={selectedVoucher}
-                      options={options}
+                      options={options as unknown as PrintBooleanOptions}
                       format={format}
                       profile={profile}
                     />
@@ -1197,7 +1038,7 @@ function PrintStudioContent() {
                   <div className="print-doc">
                     <ReceiptDocument
                       detail={detail}
-                      options={options}
+                      options={options as unknown as PrintBooleanOptions}
                       format={format}
                       qrUrl={qrUrl}
                       qrType={qrType}

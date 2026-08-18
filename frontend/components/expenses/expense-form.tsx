@@ -42,12 +42,14 @@ export function ExpenseForm({
   notes = [],
   onClose,
   onSaved,
+  onCreated,
 }: {
   editing: Expense | null;
   contacts?: Contact[];
   notes?: string[];
   onClose: () => void;
   onSaved: () => void;
+  onCreated?: (expense: Expense) => void;
 }) {
   const { toast } = useToast();
   const [category, setCategory] = useState(editing?.category ?? EXPENSE_CATEGORIES[0].value);
@@ -108,9 +110,10 @@ export function ExpenseForm({
         await apiRequest(`/expense/${editing.id}`, { method: "PUT", body });
         toast("Expense updated", "success");
       } else {
-        await apiRequest<Expense>("/expense", { method: "POST", body });
+        const created = await apiRequest<Expense>("/expense", { method: "POST", body });
         expenseClientRef.current = null;
         toast("Expense recorded", "success");
+        onCreated?.(created);
       }
       onSaved();
     } catch (err) {

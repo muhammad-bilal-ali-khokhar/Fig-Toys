@@ -1,7 +1,6 @@
 import { env } from "./core/config/env";
 import { prisma } from "./core/lib/prisma";
 import { createApp } from "./app";
-import { seedPrintLayouts } from "./endpoints/print-layout/seed";
 import { seedCities } from "./endpoints/city/seed";
 import { seedBrands } from "./endpoints/brand/seed";
 import { seedCategories } from "./endpoints/category/seed";
@@ -14,7 +13,6 @@ async function bootstrap() {
   const adminCount = await prisma.user.count({ where: { role: "ADMIN", active: true } });
   if (adminCount === 0) {
     try {
-      await seedPrintLayouts();
       await seedCities();
       await seedCategories();
       await seedBrands();

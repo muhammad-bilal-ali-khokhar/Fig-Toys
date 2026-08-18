@@ -866,6 +866,91 @@ export async function ledgerReport(contactId: string, r: Range) {
   };
 }
 
+// ============ CONTACT REPORT ============
+
+export async function contactReport(r: Range) {
+  const txns = await prisma.transaction.findMany({
+    where: { ...rangeWhere(r) },
+    select: {
+      type: true,
+      total: true,
+      createdAt: true,
+      contact: { select: { id: true, name: true, phone: true, type: true } },
+      payments: { select: { amount: true } },
+    },
+  });
+
+  type Row = {
+    contactId: string;
+    name: string;
+    phone: string | null;
+    contactType: string;
+    saleCount: number;
+    saleRevenue: number;
+    purchaseCount: number;
+    purchaseAmount: number;
+    totalTransactions: number;
+    outstanding: number;
+    lastDate: string;
+  };
+
+  const map = new Map<string, Row>();
+
+  for (const t of txns) {
+    const row = map.get(t.contact.id) ?? {
+      contactId: t.contact.id,
+      name: t.contact.name,
+      phone: t.contact.phone,
+      contactType: t.contact.type,
+      saleCount: 0,
+      saleRevenue: 0,
+      purchaseCount: 0,
+      purchaseAmount: 0,
+      totalTransactions: 0,
+      outstanding: 0,
+      lastDate: t.createdAt.toISOString(),
+    };
+
+    row.totalTransactions += 1;
+
+    if (t.type === "SALE") {
+      row.saleCount += 1;
+      row.saleRevenue += n(t.total);
+      const paid = t.payments.reduce((s, p) => s + n(p.amount), 0);
+      row.outstanding += Math.max(0, n(t.total) - paid);
+    } else if (t.type === "PURCHASE") {
+      row.purchaseCount += 1;
+      row.purchaseAmount += n(t.total);
+      const paid = t.payments.reduce((s, p) => s + n(p.amount), 0);
+      row.outstanding -= Math.max(0, n(t.total) - paid);
+    }
+
+    const dateStr = t.createdAt.toISOString();
+    if (dateStr > row.lastDate) row.lastDate = dateStr;
+
+    map.set(t.contact.id, row);
+  }
+
+  const rows = [...map.values()]
+    .map((r) => ({
+      ...r,
+      saleRevenue: round(r.saleRevenue),
+      purchaseAmount: round(r.purchaseAmount),
+      outstanding: round(r.outstanding),
+    }))
+    .sort((a, b) => b.saleRevenue - a.saleRevenue);
+
+  const totalSales = rows.reduce((s, r) => s + r.saleRevenue, 0);
+  const totalPurchases = rows.reduce((s, r) => s + r.purchaseAmount, 0);
+
+  return {
+    totalSales: round(totalSales),
+    totalPurchases: round(totalPurchases),
+    contactCount: rows.length,
+    rows,
+  };
+}
+
 // ============ CREDIT AGING ============
 
 const AGING_BUCKETS = [

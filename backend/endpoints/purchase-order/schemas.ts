@@ -10,6 +10,9 @@ export const createPurchaseOrderSchema = z.object({
   contactId: z.string().min(1, "contactId is required"),
   items: z.array(purchaseOrderItemSchema).min(1, "Add at least one item"),
   note: z.string().trim().optional().nullable().or(z.literal("")),
+  advance: z.coerce.number().min(0).optional().default(0),
+  advanceMethod: z.enum(["CASH", "CREDIT", "BANK_TRANSFER"]).optional().nullable(),
+  advanceBankAccountId: z.string().optional().nullable(),
 });
 
 export const receivePurchaseOrderSchema = z.object({

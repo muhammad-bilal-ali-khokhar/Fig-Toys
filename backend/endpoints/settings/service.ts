@@ -85,39 +85,3 @@ export async function updateSoundPrefs(userId: string, input: SoundPrefsInput) {
   });
   return input;
 }
-
-const PRINT_DEFAULTS_KEY = "print_defaults";
-const DEFAULT_PRINT_DEFAULTS: Record<string, string> = {
-  SALE: "thermal",
-  PURCHASE: "a4",
-  SALE_RETURN: "thermal",
-  PURCHASE_RETURN: "a4",
-  VOUCHER: "a4",
-  EXPENSE: "a4",
-};
-
-export async function getPrintDefaults() {
-  const row = await prisma.settings.findUnique({ where: { key: PRINT_DEFAULTS_KEY } });
-  if (!row) return { ...DEFAULT_PRINT_DEFAULTS };
-  try {
-    return { ...DEFAULT_PRINT_DEFAULTS, ...(JSON.parse(row.value) as Record<string, string>) };
-  } catch {
-    return { ...DEFAULT_PRINT_DEFAULTS };
-  }
-}
-
-export async function updatePrintDefaults(input: Record<string, string>, userId: string) {
-  const merged = { ...DEFAULT_PRINT_DEFAULTS, ...input };
-  await prisma.settings.upsert({
-    where: { key: PRINT_DEFAULTS_KEY },
-    create: { key: PRINT_DEFAULTS_KEY, value: JSON.stringify(merged) },
-    update: { value: JSON.stringify(merged) },
-  });
-  await writeAudit({
-    userId,
-    action: "PRINT_DEFAULTS.UPDATE",
-    entity: "Settings",
-    entityId: PRINT_DEFAULTS_KEY,
-  });
-  return merged;
-}

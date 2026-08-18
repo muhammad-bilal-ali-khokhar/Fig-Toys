@@ -55,6 +55,7 @@ export const saleReturnItemSchema = z.object({
   unitId: z.string().optional(),
   productId: z.string().min(1, "productId is required"),
   quantity: z.coerce.number().int().min(1).default(1),
+  refund: z.coerce.number().min(0).optional(),
 });
 
 export const saleReturnSchema = z.object({
