@@ -140,6 +140,7 @@ async function main() {
     await putObject(latestYmlKey, readFileSync(path.join(SOURCE, latestYml)), "application/octet-stream");
   }
   await putObject("latest.json", Buffer.from(JSON.stringify(latest, null, 2)), "application/json");
+  await putObject("latest.js", Buffer.from(`window.FIG_LATEST=${JSON.stringify(latest)};`), "application/javascript");
 
   // Maintain a versions.json listing the last 5 releases so visitors can
   // download recent versions (older installers stay in the bucket untouched).
@@ -165,6 +166,11 @@ async function main() {
     "versions.json",
     Buffer.from(JSON.stringify({ versions: history }, null, 2)),
     "application/json",
+  );
+  await putObject(
+    "versions.js",
+    Buffer.from(`window.FIG_VERSIONS=${JSON.stringify({ versions: history })};`),
+    "application/javascript",
   );
 
   console.log("Done. Download page:");

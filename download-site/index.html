@@ -1048,69 +1048,69 @@
     </main>
 
     <script>
+        // Load release data from the bucket via script tags (bypasses CORS).
+        // The publish script writes these as JS globals alongside the .json manifests.
+        window.FIG_LATEST = null;
+        window.FIG_VERSIONS = null;
+    </script>
+    <script src="https://download.myko.pk/latest.js" async></script>
+    <script src="https://download.myko.pk/versions.js" async></script>
+
+    <script>
         document.addEventListener('DOMContentLoaded', () => {
             const BASE = "https://download.myko.pk";
-            (async () => {
-                try {
-                    const res = await fetch(BASE + "/latest.json", { cache: "no-store" });
-                    if (!res.ok) throw new Error("no manifest");
-                    const d = await res.json();
-                    document.getElementById("product-version").textContent = "v" + d.version;
-                    document.getElementById("download-btn").href = d.url.setup;
-                    if (d.size) document.getElementById("size").textContent = d.size + " · 64-bit";
-                    if (d.publishedAt) {
-                        document.getElementById("date").textContent =
-                            "Released " + new Date(d.publishedAt).toLocaleDateString(undefined, {
-                                year: "numeric", month: "long", day: "numeric",
-                            });
-                    }
-                } catch (e) {
-                    document.getElementById("product-version").textContent = "v—";
-                    document.getElementById("download-btn").href = BASE + "/Fig.Mobile.POS-setup.exe";
-                }
-            })();
 
-            // Render the last 5 releases (from versions.json) with working download links.
-            (async () => {
-                try {
-                    const res = await fetch(BASE + "/versions.json", { cache: "no-store" });
-                    if (!res.ok) throw new Error("no versions manifest");
-                    const data = await res.json();
-                    const versions = data.versions || [];
-                    const host = document.getElementById("version-history");
-                    const rows = versions.map((v) => {
-                        const el = document.createElement("div");
-                        el.className = "bg-ink-100 border border-ink-200 rounded-2xl p-6 flex items-center justify-between gap-4";
-                        const info = document.createElement("div");
-                        const title = document.createElement("div");
-                        title.className = "flex items-center gap-3";
-                        const name = document.createElement("span");
-                        name.className = "font-semibold text-ink-950";
-                        name.textContent = "v" + v.version;
-                        const date = document.createElement("span");
-                        date.className = "text-sm text-ink-500";
-                        date.textContent = v.publishedAt
-                            ? new Date(v.publishedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
-                            : "";
-                        title.append(name, date);
-                        const size = document.createElement("div");
-                        size.className = "text-sm text-ink-500 mt-1";
-                        size.textContent = v.size ? v.size + " · 64-bit" : "";
-                        info.append(title, size);
-                        const link = document.createElement("a");
-                        link.className = "shrink-0 bg-brand-600 text-ink-50 px-5 py-2.5 rounded-full text-sm font-medium hover:bg-brand-700 transition-colors border border-brand-700";
-                        link.href = v.url.setup;
-                        link.textContent = "Download";
-                        link.setAttribute("download", "");
-                        link.rel = "noopener";
-                        el.append(info, link);
-                        return el;
-                    });
-                    host.replaceChildren(...rows);
-                } catch (e) {
-                    // leave the section empty if versions.json is unavailable
+            // Populate the download button + version metadata.
+            const d = window.FIG_LATEST;
+            if (d && d.version) {
+                document.getElementById("product-version").textContent = "v" + d.version;
+                document.getElementById("download-btn").href = d.url.setup;
+                if (d.size) document.getElementById("size").textContent = d.size + " · 64-bit";
+                if (d.publishedAt) {
+                    document.getElementById("date").textContent =
+                        "Released " + new Date(d.publishedAt).toLocaleDateString(undefined, {
+                            year: "numeric", month: "long", day: "numeric",
+                        });
                 }
-            })();
+            } else {
+                document.getElementById("product-version").textContent = "v—";
+                document.getElementById("download-btn").href = BASE + "/Fig.Mobile.POS-setup.exe";
+            }
+
+            // Render the last 5 releases from window.FIG_VERSIONS.
+            const versions = (window.FIG_VERSIONS && window.FIG_VERSIONS.versions) || [];
+            const host = document.getElementById("version-history");
+            if (versions.length) {
+                const rows = versions.map((v) => {
+                    const el = document.createElement("div");
+                    el.className = "bg-ink-100 border border-ink-200 rounded-2xl p-6 flex items-center justify-between gap-4";
+                    const info = document.createElement("div");
+                    const title = document.createElement("div");
+                    title.className = "flex items-center gap-3";
+                    const name = document.createElement("span");
+                    name.className = "font-semibold text-ink-950";
+                    name.textContent = "v" + v.version;
+                    const date = document.createElement("span");
+                    date.className = "text-sm text-ink-500";
+                    date.textContent = v.publishedAt
+                        ? new Date(v.publishedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+                        : "";
+                    title.append(name, date);
+                    const size = document.createElement("div");
+                    size.className = "text-sm text-ink-500 mt-1";
+                    size.textContent = v.size ? v.size + " · 64-bit" : "";
+                    info.append(title, size);
+                    const link = document.createElement("a");
+                    link.className = "shrink-0 bg-brand-600 text-ink-50 px-5 py-2.5 rounded-full text-sm font-medium hover:bg-brand-700 transition-colors border border-brand-700";
+                    link.href = v.url.setup;
+                    link.textContent = "Download";
+                    link.setAttribute("download", "");
+                    link.rel = "noopener";
+                    el.append(info, link);
+                    return el;
+                });
+                host.replaceChildren(...rows);
+            }
 
             // Intersection Observer for fade/scale in animations
             const observerOptions = {
