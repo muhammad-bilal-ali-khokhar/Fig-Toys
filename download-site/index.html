@@ -33,7 +33,7 @@
           analytics — built for the way Pakistani mobile shops actually work.
           Works offline, syncs when it can.
         </p>
-        <ul class="features">
+        <ul class="features" id="features">
           <li>New vs used inventory, clearly separated</li>
           <li>IMEI tracking on every device</li>
           <li>Credit (udhaar) accounts for customers</li>
@@ -42,7 +42,7 @@
         </ul>
       </div>
 
-      <div class="download-card" id="card">
+      <div class="download-card" id="card"><span id="download"></span>
         <div class="card-head">
           <span class="os-icon">&#9679;&#9679;&#9679;</span>
           <div>
@@ -61,6 +61,7 @@
 
     <section class="steps" id="activate">
       <h2>Activation</h2>
+      <p class="steps-sub">Three steps and you're up and running.</p>
       <div class="steps-grid">
         <div class="step">
           <span class="step-num">1</span>
@@ -82,7 +83,32 @@
   </main>
 
   <footer>
-    <p>Fig Mobile POS &middot; Made for Pakistani mobile shops</p>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="brand">
+          <span class="logo">F</span>
+          <span class="brand-name">Fig Mobile POS</span>
+        </div>
+        <p>Point of sale built for Pakistani mobile phone shops. New &amp; used phones, IMEI tracking, credit, and analytics — works fully offline.</p>
+      </div>
+      <div class="footer-col">
+        <h3>Product</h3>
+        <a href="#download">Download</a>
+        <a href="#activate">Activation</a>
+        <a href="#features">Features</a>
+      </div>
+      <div class="footer-col">
+        <h3>Support</h3>
+        <a href="#activate">Get a license</a>
+        <a href="mailto:support@figpos.pk">Contact support</a>
+      </div>
+      <div class="footer-col">
+        <h3>Legal</h3>
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+      </div>
+    </div>
+    <p class="footer-bottom">&copy; <span id="year"></span> Fig Mobile POS &middot; Made for Pakistani mobile shops &middot; Currency in PKR (Rs)</p>
   </footer>
 
   <script>
@@ -109,6 +135,8 @@
         document.getElementById("download").href = BASE + "/Fig.Mobile.POS-setup.exe";
       }
     })();
+
+    document.getElementById("year").textContent = new Date().getFullYear();
 
     const root = document.documentElement;
     const stored = localStorage.getItem("theme");
