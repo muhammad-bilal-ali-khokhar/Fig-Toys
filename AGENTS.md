@@ -26,6 +26,7 @@ Fig Mobile POS — point of sale for Pakistani mobile phone shops (new + used ph
 - **Pakistani context** — currency is PKR (`Rs`), receipts/company profile use PKR.
 - **No role color dots** — the owner hates status/legend dots next to names/roles (e.g. next to "Admin" / "Manager" in the users list). Do not add colored dots to labels, names, or list rows.
 - **Auth** — preregistered users only (no signup/OAuth). Simple login page + JWT.
+- **Release descriptions** — every feature/change MUST add a clear, user-facing description (what was actually done, not just the commit message) to the top (`## Unreleased`) section of `docs/RELEASE_NOTES.md`. Do the same for any notable fix, refactor, or tooling change. The GitHub Release body is built from this file, so keep entries human-readable and specific.
 - Don't commit unless explicitly asked.
 
 ## Conventions

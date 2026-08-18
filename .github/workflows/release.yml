@@ -48,6 +48,15 @@ jobs:
       - name: Generate changelog
         run: ./scripts/changelog.sh "${{ steps.version.outputs.version }}"
 
+      # Build the Release body from the curated, human-written notes (docs/
+      # RELEASE_NOTES.md) — the newest section up to the next version heading —
+      # instead of the raw auto-generated commit dump.
+      - name: Build curated release notes
+        run: |
+          awk 'BEGIN{p=0} /^## /{if(p)exit; p=1} p' docs/RELEASE_NOTES.md > .release-notes.md
+          echo "--- release notes preview ---"
+          cat .release-notes.md
+
       - name: Commit + tag
         run: |
           git add backend/package.json frontend/package.json desktop/package.json CHANGELOG.md .release-notes.md
