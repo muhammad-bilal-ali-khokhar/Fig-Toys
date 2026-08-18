@@ -67,6 +67,34 @@ async function putObject(key, body, contentType) {
   console.log(`  uploaded ${key}`);
 }
 
+async function getObject(key) {
+  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = amzDate.slice(0, 8);
+  const payloadHash = sha256("");
+  const uri = `/${BUCKET}/${key.split("/").map(encodeURIComponent).join("/")}`;
+
+  const canonicalHeaders = `host:${HOST}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+  const canonicalRequest = ["GET", uri, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+
+  const scope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`;
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, sha256(canonicalRequest)].join("\n");
+  const kSigning = hmac(hmac(hmac(hmac(`AWS4${SECRET}`, dateStamp), REGION), SERVICE), "aws4_request");
+  const signature = hmacHex(kSigning, stringToSign);
+
+  const res = await fetch(`${ENDPOINT}${uri}`, {
+    method: "GET",
+    headers: {
+      "x-amz-content-sha256": payloadHash,
+      "x-amz-date": amzDate,
+      Authorization: `AWS4-HMAC-SHA256 Credential=${KEY}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`R2 GET ${key} failed: ${res.status} ${await res.text()}`);
+  return await res.text();
+}
+
 function bytes(n) {
   const mb = n / (1024 * 1024);
   return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
@@ -106,6 +134,32 @@ async function main() {
     await putObject(latestYml, readFileSync(path.join(SOURCE, latestYml)), "application/octet-stream");
   }
   await putObject("latest.json", Buffer.from(JSON.stringify(latest, null, 2)), "application/json");
+
+  // Maintain a versions.json listing the last 5 releases so visitors can
+  // download recent versions (older installers stay in the bucket untouched).
+  const KEEP = 5;
+  let history = [];
+  const existing = await getObject("versions.json");
+  if (existing) {
+    try {
+      const parsed = JSON.parse(existing);
+      history = Array.isArray(parsed.versions) ? parsed.versions : [];
+    } catch {
+      history = [];
+    }
+  }
+  const entry = {
+    version,
+    size: latest.size,
+    publishedAt: latest.publishedAt || null,
+    url: { setup: latest.url.setup, blockmap: latest.url.blockmap },
+  };
+  history = [entry, ...history.filter((v) => v.version !== version)].slice(0, KEEP);
+  await putObject(
+    "versions.json",
+    Buffer.from(JSON.stringify({ versions: history }, null, 2)),
+    "application/json",
+  );
 
   console.log("Done. Download page:");
   console.log(`  ${PUBLIC}`);

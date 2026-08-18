@@ -1008,48 +1008,7 @@
                             <h3 class="text-2xl font-semibold text-ink-950">Version history</h3>
                             <a href="#download" class="text-sm font-medium text-brand-600 hover:text-brand-700">See all releases</a>
                         </div>
-                        <div class="space-y-4" id="version-history">
-                            <div class="bg-ink-100 border border-ink-200 rounded-2xl p-6">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="font-semibold text-ink-950">v0.1.49</span>
-                                    <span class="text-sm text-ink-500">Aug 18, 2026</span>
-                                </div>
-                                <ul class="text-sm text-ink-600 space-y-1.5">
-                                    <li>Online license activation — 10-digit codes redeemed for signed license keys</li>
-                                    <li>Global search</li>
-                                    <li>Print overhaul, reservations &amp; settings updates</li>
-                                </ul>
-                            </div>
-                            <div class="bg-ink-100 border border-ink-200 rounded-2xl p-6">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="font-semibold text-ink-950">v0.1.48</span>
-                                    <span class="text-sm text-ink-500">Aug 18, 2026</span>
-                                </div>
-                                <ul class="text-sm text-ink-600 space-y-1.5">
-                                    <li>License activation with device locking and activation screen</li>
-                                </ul>
-                            </div>
-                            <div class="bg-ink-100 border border-ink-200 rounded-2xl p-6">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="font-semibold text-ink-950">v0.1.47</span>
-                                    <span class="text-sm text-ink-500">Aug 18, 2026</span>
-                                </div>
-                                <ul class="text-sm text-ink-600 space-y-1.5">
-                                    <li>Installer update prompt and repo rename to Fig POS</li>
-                                    <li>Category hierarchy and POS discount refactor</li>
-                                </ul>
-                            </div>
-                            <div class="bg-ink-100 border border-ink-200 rounded-2xl p-6">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="font-semibold text-ink-950">v0.1.46</span>
-                                    <span class="text-sm text-ink-500">Aug 17, 2026</span>
-                                </div>
-                                <ul class="text-sm text-ink-600 space-y-1.5">
-                                    <li>Dashboard overhaul with low-stock alerts and date-range stats</li>
-                                    <li>Sub-category reports, print &amp; sale-returns updates</li>
-                                </ul>
-                            </div>
-                        </div>
+                        <div class="space-y-4" id="version-history"></div>
                     </div>
 
                     <!-- Activation -->
@@ -1108,6 +1067,48 @@
                 } catch (e) {
                     document.getElementById("product-version").textContent = "v—";
                     document.getElementById("download-btn").href = BASE + "/Fig.Mobile.POS-setup.exe";
+                }
+            })();
+
+            // Render the last 5 releases (from versions.json) with working download links.
+            (async () => {
+                try {
+                    const res = await fetch(BASE + "/versions.json", { cache: "no-store" });
+                    if (!res.ok) throw new Error("no versions manifest");
+                    const data = await res.json();
+                    const versions = data.versions || [];
+                    const host = document.getElementById("version-history");
+                    const rows = versions.map((v) => {
+                        const el = document.createElement("div");
+                        el.className = "bg-ink-100 border border-ink-200 rounded-2xl p-6 flex items-center justify-between gap-4";
+                        const info = document.createElement("div");
+                        const title = document.createElement("div");
+                        title.className = "flex items-center gap-3";
+                        const name = document.createElement("span");
+                        name.className = "font-semibold text-ink-950";
+                        name.textContent = "v" + v.version;
+                        const date = document.createElement("span");
+                        date.className = "text-sm text-ink-500";
+                        date.textContent = v.publishedAt
+                            ? new Date(v.publishedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+                            : "";
+                        title.append(name, date);
+                        const size = document.createElement("div");
+                        size.className = "text-sm text-ink-500 mt-1";
+                        size.textContent = v.size ? v.size + " · 64-bit" : "";
+                        info.append(title, size);
+                        const link = document.createElement("a");
+                        link.className = "shrink-0 bg-brand-600 text-ink-50 px-5 py-2.5 rounded-full text-sm font-medium hover:bg-brand-700 transition-colors border border-brand-700";
+                        link.href = v.url.setup;
+                        link.textContent = "Download";
+                        link.setAttribute("download", "");
+                        link.rel = "noopener";
+                        el.append(info, link);
+                        return el;
+                    });
+                    host.replaceChildren(...rows);
+                } catch (e) {
+                    // leave the section empty if versions.json is unavailable
                 }
             })();
 
