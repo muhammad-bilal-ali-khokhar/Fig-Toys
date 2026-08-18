@@ -31,6 +31,7 @@ import purchaseOrderRouter from "./endpoints/purchase-order/routes";
 import moneyRouter from "./endpoints/money/routes";
 import feedbackRouter from "./endpoints/feedback/routes";
 import licenseRouter from "./endpoints/license/routes";
+import searchRouter from "./endpoints/search/routes";
 import { requireLicense } from "./core/middleware/license";
 
 export function createApp() {
@@ -86,6 +87,7 @@ export function createApp() {
   app.use("/api/purchase-order", purchaseOrderRouter);
   app.use("/api/money", moneyRouter);
   app.use("/api/feedback", feedbackRouter);
+  app.use("/api/search", searchRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

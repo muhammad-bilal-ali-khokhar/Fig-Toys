@@ -44,14 +44,14 @@ export default function ActivatePage() {
   async function activate() {
     const trimmed = key.trim();
     if (!trimmed) {
-      toast("Enter a license key", "error");
+      toast("Enter your activation code", "error");
       return;
     }
     setActivating(true);
     try {
-      const updated = await apiRequest<typeof license>("/license/activate", {
+      const updated = await apiRequest<typeof license>("/license/redeem", {
         method: "POST",
-        body: { key: trimmed },
+        body: { code: trimmed },
       });
       toast("License activated", "success");
       refetch();

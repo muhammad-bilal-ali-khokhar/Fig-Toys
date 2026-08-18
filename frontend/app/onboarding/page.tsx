@@ -133,12 +133,12 @@ export default function OnboardingPage() {
     const trimmed = licenseKey.trim();
     setLicenseError(null);
     if (!trimmed) {
-      setLicenseError("Enter a license key");
+      setLicenseError("Enter your activation code");
       return;
     }
     setActivatingLicense(true);
     try {
-      await apiRequest("/license/activate", { method: "POST", body: { key: trimmed } });
+      await apiRequest("/license/redeem", { method: "POST", body: { code: trimmed } });
       setLicenseKey("");
       toast(LICENSE.activated, "success");
       await refetch();

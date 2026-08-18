@@ -1,0 +1,21 @@
+{
+  "name": "fig-licensing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Convex licensing backend for Fig Mobile POS — activation codes, device bindings, and signed license keys.",
+  "dependencies": {
+    "@noble/ed25519": "^2.1.0",
+    "convex": "^1.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.6.0"
+  },
+  "scripts": {
+    "dev": "npx convex dev",
+    "deploy": "npx convex deploy",
+    "codegen": "npx convex codegen",
+    "typecheck": "npx convex typecheck"
+  }
+}

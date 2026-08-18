@@ -34,3 +34,8 @@ prisma/dev.db*
 
 # license signing keys (private)
 backend/keys/
+tools/keys/
+
+# convex (generated + local deployment config)
+convex/.convex/
+convex/convex/_generated/

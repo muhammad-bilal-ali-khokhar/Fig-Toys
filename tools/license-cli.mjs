@@ -5,39 +5,28 @@
 // device limit) so they cannot be forged or altered without the private key.
 // The app ships only the public key; the private key lives with the vendor.
 //
-// Usage (interactive):
-//   node tools/license-cli.mjs gen-key
-//   node tools/license-cli.mjs make
-//   node tools/license-cli.mjs verify <KEY> [--key <public.pem>]
-import {
-  generateKeyPairSync,
-  createPrivateKey,
-  createPublicKey,
-  sign,
-  verify,
-} from "node:crypto";
+// Every license key is created through the Convex backend (activation code ->
+// redeem -> signed license key). There is no offline "make" — keys cannot be
+// minted outside Convex.
+//
+// Usage:
+//   node tools/license-cli.mjs gen-key                     generate the signing key pair
+//   node tools/license-cli.mjs issue                       mint a code (and optionally redeem)
+//   node tools/license-cli.mjs mint                        mint an activation code only
+//   node tools/license-cli.mjs details <CODE>              look up a code
+//   node tools/license-cli.mjs redeem <CODE> [deviceId]    redeem a code -> license key
+//   node tools/license-cli.mjs verify <KEY> [--key <pub>]  verify a key (offline)
+// Set LICENSE_ADMIN_TOKEN (and optionally CONVEX_SITE_URL) for mint/issue/details.
+import { generateKeyPairSync, createPublicKey, verify } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline";
 
-const ISSUER = "MYKO";
 const PREFIX = "FIG-";
 
-function b64e(buf) {
-  return Buffer.from(buf).toString("base64url");
-}
 function b64d(s) {
   return Buffer.from(s, "base64url");
-}
-
-function canonical(payload) {
-  return Buffer.from(JSON.stringify(payload), "utf8");
-}
-
-function signPayload(privateKeyPem, payload) {
-  const key = createPrivateKey(privateKeyPem);
-  return sign(null, canonical(payload), key);
 }
 
 function verifyKey(publicKeyPem, key) {
@@ -100,27 +89,6 @@ async function genKey(ask) {
   console.log(pub);
 }
 
-async function make(ask) {
-  const name = (await ask("Customer name")).trim();
-  if (!name) throw new Error("Customer name is required");
-  const devices = Number((await ask("Device limit", "1")) || "1");
-  const expRaw = await ask("Expiry (YYYY-MM-DD, blank = never)", "");
-  const keyPath = await ask("Private key path", "backend/keys/license-private.pem");
-  const privatePem = readFileSync(keyPath, "utf8");
-  const payload = {
-    sub: name,
-    iss: ISSUER,
-    exp: parseExp(expRaw),
-    maxDevices: Number.isFinite(devices) && devices > 0 ? devices : 1,
-    iat: Math.floor(Date.now() / 1000),
-  };
-  const sig = signPayload(privatePem, payload);
-  const key = `${PREFIX}${b64e(canonical(payload))}.${b64e(sig)}`;
-  console.log("\nLicense key:");
-  console.log(key);
-  console.log("\n" + prettyPayload(payload));
-}
-
 function verifyKeyCmd(args) {
   const key = args[1];
   if (!key) throw new Error("verify needs a key");
@@ -131,17 +99,144 @@ function verifyKeyCmd(args) {
   console.log(prettyPayload(payload));
 }
 
+const CONVEX_SITE_URL =
+  (process.env.CONVEX_SITE_URL || "").replace(/\/+$/, "") || "https://fiery-panda-147.convex.site";
+
+const ADMIN_TOKEN = "8b1b2259ed15f548ffa2dea265a8330272a6092138802e4a";
+
+function adminToken() {
+  return (process.env.LICENSE_ADMIN_TOKEN || ADMIN_TOKEN).trim();
+}
+
+async function apiPost(endpoint, body, { token } = {}) {
+  const res = await fetch(`${CONVEX_SITE_URL}${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error((data && data.message) || `Request failed with status ${res.status}`);
+  }
+  return data;
+}
+
+async function mint(ask) {
+  const name = (await ask("Customer name")).trim();
+  if (!name) throw new Error("Customer name is required");
+  const devices = Number((await ask("Device limit", "1")) || "1");
+  const expRaw = await ask("Expiry (YYYY-MM-DD, blank = never)", "");
+  const expSec = parseExp(expRaw);
+  const data = await apiPost(
+    "/mint",
+    {
+      customerName: name,
+      edition: "PRO",
+      maxDevices: Number.isFinite(devices) && devices > 0 ? devices : 1,
+      expiresAt: expSec ? expSec * 1000 : undefined,
+    },
+    { token: adminToken() },
+  );
+  console.log("\nActivation code:");
+  console.log(data.code);
+}
+
+async function issue(ask) {
+  const name = (await ask("Customer name")).trim();
+  if (!name) throw new Error("Customer name is required");
+  const devices = Number((await ask("Device limit", "1")) || "1");
+  const expRaw = await ask("Expiry (YYYY-MM-DD, blank = never)", "");
+  const expSec = parseExp(expRaw);
+
+  const minted = await apiPost(
+    "/mint",
+    {
+      customerName: name,
+      edition: "PRO",
+      maxDevices: Number.isFinite(devices) && devices > 0 ? devices : 1,
+      expiresAt: expSec ? expSec * 1000 : undefined,
+    },
+    { token: adminToken() },
+  );
+  const code = minted.code;
+
+  console.log("\nActivation code:");
+  console.log(code);
+
+  const redeemNow = (await ask("\nRedeem now to get the license key?", "y")).toLowerCase();
+  if (redeemNow !== "y" && redeemNow !== "yes") {
+    console.log(`\nShare code ${code} with the customer to activate in the app.`);
+    return;
+  }
+
+  const deviceId = (await ask("Device id", `device-${Date.now()}`)).trim();
+  const redeemed = await apiPost("/redeem", { code, deviceId });
+  console.log("\nLicense key:");
+  console.log(redeemed.licenseToken);
+  console.log(`\n  customer:     ${redeemed.customerName}`);
+  console.log(`  edition:      ${redeemed.edition}`);
+  console.log(`  max devices:  ${redeemed.maxDevices}`);
+  console.log(`  expires:      ${redeemed.expiresAt || "never"}`);
+  console.log(`  device:       ${redeemed.deviceId}`);
+}
+
+async function details(args) {
+  const code = args[1];
+  if (!code) throw new Error("details needs a 10-digit code");
+  const data = await apiPost("/details", { code }, { token: adminToken() });
+  console.log("\nActivation code details:");
+  console.log(`  code:         ${data.code}`);
+  console.log(`  status:       ${data.status}`);
+  console.log(`  customer:     ${data.customerName}`);
+  console.log(`  edition:      ${data.edition}`);
+  console.log(`  max devices:  ${data.maxDevices}`);
+  console.log(`  active:       ${data.activeDevices}`);
+  console.log(
+    `  expires:      ${data.expiresAt ? new Date(data.expiresAt).toISOString() : "never"}`,
+  );
+  console.log(`  redeemed:     ${data.redeemedAt ? new Date(data.redeemedAt).toISOString() : "no"}`);
+  if (data.activations && data.activations.length) {
+    console.log("\n  Activations:");
+    for (const a of data.activations) {
+      console.log(`    - device ${a.deviceId} @ ${new Date(a.activatedAt).toISOString()}`);
+    }
+  }
+}
+
+async function redeem(args) {
+  const code = args[1];
+  if (!code) throw new Error("redeem needs a 10-digit code");
+  const deviceId = args[2] || `cli-${Date.now()}`;
+  const data = await apiPost("/redeem", { code, deviceId });
+  console.log("\nLicense key:");
+  console.log(data.licenseToken);
+  console.log(`\n  customer:     ${data.customerName}`);
+  console.log(`  edition:      ${data.edition}`);
+  console.log(`  max devices:  ${data.maxDevices}`);
+  console.log(`  expires:      ${data.expiresAt || "never"}`);
+  console.log(`  device:       ${data.deviceId}`);
+}
+
 async function run() {
   const cmd = process.argv[2];
   if (cmd === "gen-key") {
     await genKey(makePrompter());
-  } else if (cmd === "make") {
-    await make(makePrompter());
   } else if (cmd === "verify") {
     verifyKeyCmd(process.argv.slice(2));
+  } else if (cmd === "mint") {
+    await mint(makePrompter());
+  } else if (cmd === "issue") {
+    await issue(makePrompter());
+  } else if (cmd === "details") {
+    await details(process.argv.slice(2));
+  } else if (cmd === "redeem") {
+    await redeem(process.argv.slice(2));
   } else {
     console.log(
-      "Usage:\n  node tools/license-cli.mjs gen-key\n  node tools/license-cli.mjs make\n  node tools/license-cli.mjs verify <KEY> [--key <public.pem>]",
+      "Usage:\n  node tools/license-cli.mjs gen-key\n  node tools/license-cli.mjs issue\n  node tools/license-cli.mjs mint\n  node tools/license-cli.mjs details <CODE>\n  node tools/license-cli.mjs redeem <CODE> [deviceId]\n  node tools/license-cli.mjs verify <KEY> [--key <public.pem>]",
     );
     process.exit(1);
   }

@@ -32,6 +32,11 @@ const envSchema = z.object({
   // License activation public key (PEM, Ed25519). Without it the app is locked
   // to activation until a valid signed key is entered.
   LICENSE_PUBLIC_KEY: z.string().optional(),
+
+  // Online license redemption (Supabase Edge Function URL). When set, the app
+  // exchanges a 10-digit code for a signed license token at activation.
+  LICENSE_REDEEM_URL: z.string().optional(),
+  LICENSE_REDEEM_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
 }).refine((v) => v.NODE_ENV !== "production" || Boolean(v.CORS_ORIGIN), {
   message: "CORS_ORIGIN is required when NODE_ENV=production",
   path: ["CORS_ORIGIN"],

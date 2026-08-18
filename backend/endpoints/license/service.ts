@@ -1,8 +1,9 @@
 import { prisma } from "../../core/lib/prisma";
 import { getDeviceId } from "../../core/lib/device";
-import { verifyLicenseKey } from "../../core/lib/license";
+import { verifyLicenseKey, type LicensePayload } from "../../core/lib/license";
 import { ApiError } from "../../core/middleware/error";
-import type { ActivateInput, LicenseStatus } from "./schemas";
+import { env } from "../../core/config/env";
+import type { ActivateInput, LicenseStatus, RedeemInput } from "./schemas";
 
 const LICENSE_ID = "store";
 
@@ -36,8 +37,61 @@ export async function activateLicense(input: ActivateInput) {
     throw new ApiError(400, `license.${result.reason}`, licenseErrorText(result.reason));
   }
 
-  const payload = result.payload;
   const deviceId = await getDeviceId();
+  return persistLicense(input.key.trim(), result.payload, deviceId);
+}
+
+export async function redeemLicense(input: RedeemInput) {
+  const url = env.LICENSE_REDEEM_URL?.trim();
+  if (!url) {
+    throw new ApiError(503, "license.redeem_not_configured", "Online activation is not configured.");
+  }
+
+  const deviceId = await getDeviceId();
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: input.code, deviceId }),
+      signal: AbortSignal.timeout(env.LICENSE_REDEEM_TIMEOUT_MS),
+    });
+  } catch {
+    throw new ApiError(502, "license.redeem_unreachable", "Could not reach the license server. Check your internet connection and try again.");
+  }
+
+  let body: { licenseToken?: string; deviceId?: string; message?: string } | null = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+
+  if (!res.ok) {
+    const message =
+      body && typeof body.message === "string" ? body.message : "This license code was rejected.";
+    throw new ApiError(400, "license.redeem_rejected", message);
+  }
+
+  const token = body?.licenseToken;
+  if (typeof token !== "string" || !token) {
+    throw new ApiError(502, "license.redeem_invalid_response", "The license server returned an invalid response.");
+  }
+
+  const result = verifyLicenseKey(token);
+  if (!result.valid) {
+    throw new ApiError(400, `license.${result.reason}`, licenseErrorText(result.reason));
+  }
+
+  if (body?.deviceId && body.deviceId !== deviceId) {
+    throw new ApiError(409, "license.used_elsewhere", "This code is already activated on another device.");
+  }
+
+  return persistLicense(token, result.payload, deviceId);
+}
+
+async function persistLicense(key: string, payload: LicensePayload, deviceId: string) {
   const existing = await prisma.license.findUnique({ where: { id: LICENSE_ID } });
 
   if (existing && existing.status === "ACTIVE" && existing.deviceId && existing.deviceId !== deviceId) {
@@ -54,7 +108,7 @@ export async function activateLicense(input: ActivateInput) {
   await prisma.license.upsert({
     where: { id: LICENSE_ID },
     update: {
-      key: input.key.trim(),
+      key,
       customerName: payload.sub,
       edition: "PRO",
       issuedAt: payload.iat || null,
@@ -67,7 +121,7 @@ export async function activateLicense(input: ActivateInput) {
     },
     create: {
       id: LICENSE_ID,
-      key: input.key.trim(),
+      key,
       customerName: payload.sub,
       edition: "PRO",
       issuedAt: payload.iat || null,
