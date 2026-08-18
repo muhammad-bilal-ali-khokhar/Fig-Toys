@@ -150,3 +150,17 @@ jobs:
             desktop/release/latest.yml
             desktop/release/*.exe.blockmap
           body_path: .release-notes.md
+
+      # Publish the installer + auto-update files + latest.json to the public
+      # Cloudflare R2 bucket so the download page (Cloudflare Pages) can serve
+      # them and the desktop app can self-update over OTA.
+      - name: Publish to Cloudflare R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+          R2_VERSION: ${{ needs.release.outputs.version }}
+          R2_SOURCE_DIR: desktop/release
+        run: node scripts/publish-to-r2.mjs

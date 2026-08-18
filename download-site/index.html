@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fig Mobile POS — Download</title>
+  <meta name="description" content="Download Fig Mobile POS — point of sale for Pakistani mobile phone shops. New & used phones, IMEI tracking, credit, and analytics." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23853456'/%3E%3Ctext x='16' y='22' font-family='Arial' font-size='18' font-weight='bold' fill='white' text-anchor='middle'%3EF%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">F</span>
+      <span class="brand-name">Fig Mobile POS</span>
+    </div>
+    <a class="toplink" href="#activate">How activation works</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Point of Sale for Pakistani mobile phone shops</p>
+        <h1>Your shop on one screen.</h1>
+        <p class="lead">
+          New &amp; used phones, IMEI tracking, credit sales, expenses, and
+          analytics — built for the way Pakistani mobile shops actually work.
+          Works offline, syncs when it can.
+        </p>
+        <ul class="features">
+          <li>New vs used inventory, clearly separated</li>
+          <li>IMEI tracking on every device</li>
+          <li>Credit (udhaar) accounts for customers</li>
+          <li>Reports, expenses, and bank deposits in PKR (Rs)</li>
+          <li>Works without an internet connection</li>
+        </ul>
+      </div>
+
+      <div class="download-card" id="card">
+        <div class="card-head">
+          <span class="os-icon">&#9679;&#9679;&#9679;</span>
+          <div>
+            <p class="os-label">Windows 10 / 11</p>
+            <p class="size" id="size">64-bit</p>
+          </div>
+        </div>
+        <a class="download-btn" id="download" href="#" target="_blank" rel="noopener">
+          Download for Windows
+        </a>
+        <p class="version" id="version">Checking for updates…</p>
+        <p class="release-date" id="date"></p>
+        <p class="footnote">Runs fully offline. No server or account needed to install.</p>
+      </div>
+    </section>
+
+    <section class="steps" id="activate">
+      <h2>Activation</h2>
+      <div class="steps-grid">
+        <div class="step">
+          <span class="step-num">1</span>
+          <p>Buy a license</p>
+          <small>You receive a 10-digit activation code from your vendor.</small>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <p>Install &amp; open the app</p>
+          <small>On first run, Fig POS asks for your activation code.</small>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <p>Enter the code once</p>
+          <small>It activates online and then keeps working offline until expiry.</small>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Fig Mobile POS &middot; Made for Pakistani mobile shops</p>
+  </footer>
+
+  <script>
+    const BASE = "https://downloads.mykoservers.com";
+    (async () => {
+      try {
+        const res = await fetch(BASE + "/latest.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("no manifest");
+        const d = await res.json();
+        document.getElementById("version").textContent = "Version " + d.version;
+        document.getElementById("download").href = d.url.setup;
+        if (d.size) {
+          document.getElementById("size").textContent = d.size + " &middot; 64-bit";
+        }
+        if (d.publishedAt) {
+          document.getElementById("date").textContent =
+            "Released " + new Date(d.publishedAt).toLocaleDateString(undefined, {
+              year: "numeric", month: "long", day: "numeric",
+            });
+        }
+      } catch (e) {
+        document.getElementById("version").textContent =
+          "Release info unavailable right now — try again in a moment.";
+        document.getElementById("download").href = BASE + "/Fig.Mobile.POS-setup.exe";
+      }
+    })();
+  </script>
+</body>
+</html>
