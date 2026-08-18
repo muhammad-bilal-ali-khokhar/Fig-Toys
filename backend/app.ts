@@ -30,6 +30,8 @@ import backupRouter from "./endpoints/backup/routes";
 import purchaseOrderRouter from "./endpoints/purchase-order/routes";
 import moneyRouter from "./endpoints/money/routes";
 import feedbackRouter from "./endpoints/feedback/routes";
+import licenseRouter from "./endpoints/license/routes";
+import { requireLicense } from "./core/middleware/license";
 
 export function createApp() {
   const app = express();
@@ -50,6 +52,12 @@ export function createApp() {
   app.get("/api/health", (_req, res) => {
     res.json({ data: { status: "ok" } });
   });
+
+  app.use("/api/license", licenseRouter);
+
+  // Everything else requires an active license, except auth and setup which
+  // must be reachable before activation and during onboarding.
+  app.use("/api", requireLicense());
 
   app.use("/api/auth", authRouter);
   app.use("/api/brand", brandRouter);

@@ -27,11 +27,12 @@ declare global {
       };
       report?: {
         get: () => Promise<{ enabled: boolean; backendUrl: string; hasSecret: boolean }>;
-        set: (cfg: { enabled: boolean }) => Promise<{
+        set: (cfg: { enabled: boolean; backendUrl?: string; secret?: string }) => Promise<{
           enabled: boolean;
           backendUrl: string;
           hasSecret: boolean;
         }>;
+        send: () => Promise<{ ok: boolean; url?: string; error?: string; retryAfterMin?: number }>;
       };
       logs?: {
         get: () => Promise<string[]>;

@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { env } from "../../core/config/env";
 import { ApiError } from "../../core/middleware/error";
-import { hasToken, submitCrashReport } from "./service";
+import { submitCrashReport } from "./service";
 import type { CrashReportInput } from "./schemas";
 
 export async function crashReportHandler(req: Request, res: Response) {
@@ -12,9 +12,9 @@ export async function crashReportHandler(req: Request, res: Response) {
   }
 
   const report = await submitCrashReport(req.body as CrashReportInput);
-  res.json({ data: { sent: true, url: report.url } });
+  res.json({ data: { sent: true, id: report.id, url: report.url } });
 }
 
 export async function feedbackStatusHandler(_req: Request, res: Response) {
-  res.json({ data: { enabled: hasToken() } });
+  res.json({ data: { enabled: true } });
 }

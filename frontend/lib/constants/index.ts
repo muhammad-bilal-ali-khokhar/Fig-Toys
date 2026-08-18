@@ -7,6 +7,7 @@ export * from "./currencies";
 export * from "./dashboard";
 export * from "./expense";
 export * from "./help";
+export * from "./license";
 export * from "./nav";
 export * from "./onboarding";
 export * from "./print";

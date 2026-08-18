@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth-context";
 import { useApi } from "@/lib/use-api";
 import { useSetupStatus } from "@/lib/use-setup";
+import { useLicenseStatus } from "@/lib/use-license";
 import type { CompanyProfile } from "@/lib/api-types";
 import { AUTH, APP, PIN_LENGTH } from "@/lib/constants";
 
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const { user, status, login } = useAuth();
   const { data: profile } = useApi<CompanyProfile>("/settings/company");
   const { needsSetup, loading: setupLoading } = useSetupStatus();
+  const { license, loading: licenseLoading } = useLicenseStatus();
   const { toast } = useToast();
   const router = useRouter();
   const [username, setUsername] = useState("");
@@ -38,8 +40,10 @@ export default function LoginPage() {
       router.replace("/dashboard");
     } else if (status === "ready" && setupLoading === false && needsSetup) {
       router.replace("/onboarding");
+    } else if (status === "ready" && licenseLoading === false && license && license.status !== "ACTIVE") {
+      router.replace("/activate");
     }
-  }, [status, user, needsSetup, setupLoading, router]);
+  }, [status, user, needsSetup, setupLoading, license, licenseLoading, router]);
 
   useEffect(() => {
     const raw = localStorage.getItem(AUTH.rememberedUsersKey);

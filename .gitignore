@@ -31,3 +31,6 @@ prisma/dev.db*
 .idea/
 .vscode/
 *.log
+
+# license signing keys (private)
+backend/keys/

@@ -61,9 +61,9 @@ export async function findDuplicates({
 }) {
   const phoneT = phone?.trim();
   const nameT = name?.trim();
-  const ors: ({ phone: string } | { name: { equals: string; mode: "insensitive" } })[] = [];
+  const ors: ({ phone: string } | { name: { contains: string } })[] = [];
   if (phoneT) ors.push({ phone: phoneT });
-  if (nameT) ors.push({ name: { equals: nameT, mode: "insensitive" } });
+  if (nameT) ors.push({ name: { contains: nameT } });
   if (ors.length === 0) return { duplicates: [] };
 
   const matches = await prisma.contact.findMany({
@@ -81,8 +81,14 @@ export async function findDuplicates({
     take: 10,
   });
 
+  const filtered = matches.filter(
+    (c) =>
+      (phoneT && c.phone === phoneT) ||
+      (nameT && c.name.trim().toLowerCase() === nameT.toLowerCase()),
+  );
+
   return {
-    duplicates: matches.map((c) => ({
+    duplicates: filtered.map((c) => ({
       id: c.id,
       type: c.type,
       name: c.name,
@@ -274,11 +280,16 @@ export async function importContacts(rows: ImportContactInput[], userId: string)
         where: {
           OR: [
             ...(row.phone ? [{ phone: row.phone.trim() }] : []),
-            { name: { equals: row.name.trim(), mode: "insensitive" } },
+            { name: { contains: row.name.trim() } },
           ],
         },
       });
-      if (existing) {
+      if (
+        existing &&
+        (row.phone
+          ? existing.phone === row.phone.trim()
+          : existing.name.trim().toLowerCase() === row.name.trim().toLowerCase())
+      ) {
         skipped.push({ name: row.name, reason: "already exists" });
         continue;
       }

@@ -529,6 +529,36 @@ model Settings {
   value String
 }
 
+model License {
+  id          String   @id @default("store")
+  key         String
+  customerName String
+  edition     String   @default("PRO")
+  issuedAt    Int?
+  expiresAt   DateTime?
+  maxDevices  Int      @default(1)
+  deviceId    String?
+  activatedAt DateTime?
+  status      String   @default("UNLICENSED")
+  lastVerifiedAt DateTime?
+
+  @@map("licenses")
+}
+
+model CrashReport {
+  id         String   @id @default(cuid())
+  app        String
+  version    String?
+  platform   String?
+  message    String
+  stack      String?
+  context    String?
+  createdAt  DateTime @default(now())
+  githubIssueUrl String?
+
+  @@map("crash_reports")
+}
+
 model CompanyProfile {
   id         String   @id @default("store")
   name       String

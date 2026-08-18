@@ -1,5 +1,4 @@
 import { env } from "../../core/config/env";
-import { ApiError } from "../../core/middleware/error";
 import { prisma } from "../../core/lib/prisma";
 import { COMPANY_ID } from "../../core/lib/company";
 import type { CrashReportInput } from "./schemas";
@@ -50,50 +49,60 @@ async function context() {
 
 export async function submitCrashReport(input: CrashReportInput) {
   const token = (env.FIG_GH_TOKEN || "").trim();
-  if (!token) {
-    throw new ApiError(
-      501,
-      "feedback.not_configured",
-      "Crash reporting is not configured on this server.",
-    );
-  }
 
-  const ctx = await context();
-
-  const detail = [
-    `**App:** ${input.app}`,
-    input.version ? `**Version:** ${input.version}` : "",
-    input.platform ? `**Platform:** ${input.platform}` : "",
-    "",
-    "## Account / company",
-    ...ctx,
-    "",
-    "---",
-    input.body,
-    "",
-    input.logTail ? `--- log tail ---\n${input.logTail}` : "",
-  ]
-    .filter((s) => s !== "")
-    .join("\n");
-
-  const url = `https://api.github.com/repos/${repo()}/issues`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "User-Agent": "Fig-Mobile-POS",
+  const stored = await prisma.crashReport.create({
+    data: {
+      app: input.app,
+      version: input.version || null,
+      platform: input.platform || null,
+      message: input.body,
+      stack: input.logTail || null,
     },
-    body: JSON.stringify({ title: input.title, body: detail }),
   });
 
-  if (!res.ok) {
-    throw new ApiError(502, "feedback.forward_failed", `GitHub API ${res.status}: ${await res.text()}`);
+  let url = "";
+
+  if (token) {
+    const ctx = await context();
+
+    const detail = [
+      `**App:** ${input.app}`,
+      input.version ? `**Version:** ${input.version}` : "",
+      input.platform ? `**Platform:** ${input.platform}` : "",
+      "",
+      "## Account / company",
+      ...ctx,
+      "",
+      "---",
+      input.body,
+      "",
+      input.logTail ? `--- log tail ---\n${input.logTail}` : "",
+    ]
+      .filter((s) => s !== "")
+      .join("\n");
+
+    const githubRes = await fetch(`https://api.github.com/repos/${repo()}/issues`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "Fig-Mobile-POS",
+      },
+      body: JSON.stringify({ title: input.title, body: detail }),
+    });
+
+    if (githubRes.ok) {
+      const json = (await githubRes.json()) as { html_url?: string };
+      url = json.html_url || "";
+      await prisma.crashReport.update({
+        where: { id: stored.id },
+        data: { githubIssueUrl: url || null },
+      });
+    }
   }
 
-  const json = (await res.json()) as { html_url?: string };
-  return { url: json.html_url || "" };
+  return { stored: true, id: stored.id, url };
 }
 
 export { hasToken, repo };

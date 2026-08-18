@@ -211,25 +211,42 @@ function buildReport(err) {
   return body;
 }
 
+function buildManualReport() {
+  const lastErr = lastErrorDetail ? `\n\n## Last reported error\n\n\`\`\`\n${lastErrorDetail}\n\`\`\`\n` : "";
+  return (
+    `${systemInfo()}\n\n` +
+    `## Description\n\nManual crash report sent from the Settings screen.\n` +
+    lastErr +
+    `\n## Last log lines\n\n\`\`\`\n${logging.tail(150).join("\n")}\n\`\`\`\n`
+  );
+}
+
 // Send a crash report to the backend, which forwards it to GitHub Issues
 // server-side (the GitHub token never ships with the app). Opt-in via Settings.
 // Fire-and-forget and fully silent — the user is never told an Issue was opened.
 function sendReport(title, err) {
   const cfg = loadRuntime();
   if (!cfg.report || !cfg.report.enabled) return;
-  const backendUrl = cfg.report.backendUrl || `http://localhost:${BACKEND_PORT}`;
-  report
-    .submit({
-      cfg: { ...cfg.report, backendUrl },
-      title: `[Crash] ${title}`,
-      body: buildReport(err),
-      meta: {
-        version: app.getVersion(),
-        platform: `${process.platform} ${process.arch}`,
-        logTail: logging.tail(50).join("\n"),
-      },
-    })
-    .catch((e) => logging.write(`[report] failed (silent): ${e.message}`));
+  sendReportNow(`[Crash] ${title}`, err).catch((e) => logging.write(`[report] failed (silent): ${e.message}`));
+}
+
+// Attempts a crash report regardless of the enabled flag and returns the result
+// so callers (e.g. the manual "Send crash report" button) can surface success or
+// failure. Resolves to { ok, url }.
+async function sendReportNow(title, err) {
+  const cfg = loadRuntime();
+  const backendUrl = (cfg.report && cfg.report.backendUrl) || `http://localhost:${BACKEND_PORT}`;
+  const res = await report.submit({
+    cfg: { ...(cfg.report || {}), backendUrl },
+    title,
+    body: err ? buildReport(err) : buildManualReport(),
+    meta: {
+      version: app.getVersion(),
+      platform: `${process.platform} ${process.arch}`,
+      logTail: logging.tail(50).join("\n"),
+    },
+  });
+  return { ok: true, url: res.url };
 }
 
 // Store the latest error so the error window can fetch it and let the user copy it.
@@ -325,12 +342,44 @@ function getSecret() {
   return s;
 }
 
-// GitHub token for crash reporting. Provided via the FIG_GH_TOKEN env var
-// (development/CI) and passed to the backend so reports can be opened as Issues
-// server-side. Never shipped with the app.
+// GitHub token for crash reporting. Provided via the FIG_GH_TOKEN env var// (development/CI) or the gitignored backend/.env file, and passed to the
+// backend so reports can be opened as Issues server-side. Never shipped with
+// the app and never exposed in the UI.
 function getGhToken() {
   if (process.env.FIG_GH_TOKEN && process.env.FIG_GH_TOKEN.trim()) {
     return process.env.FIG_GH_TOKEN.trim();
+  }
+  const envFile = path.join(__dirname, "..", "backend", ".env");
+  try {
+    if (fs.existsSync(envFile)) {
+      const line = fs
+        .readFileSync(envFile, "utf8")
+        .split("\n")
+        .find((l) => l.trim().startsWith("FIG_GH_TOKEN="));
+      if (line) {
+        const value = line.split("=").slice(1).join("=").trim().replace(/^["']|["']$/g, "");
+        if (value) return value;
+      }
+    }
+  } catch {
+    // ignore unreadable .env
+  }
+  return "";
+}
+
+// License verification public key (Ed25519 PEM). Public — safe to ship with the
+// app; it is passed to the backend so signed license keys can be verified.
+function getLicensePublicKey() {
+  if (process.env.LICENSE_PUBLIC_KEY && process.env.LICENSE_PUBLIC_KEY.trim()) {
+    return process.env.LICENSE_PUBLIC_KEY.trim();
+  }
+  const pem = path.join(__dirname, "license-public.pem");
+  try {
+    if (fs.existsSync(pem)) {
+      return fs.readFileSync(pem, "utf8").trim();
+    }
+  } catch {
+    // ignore unreadable key file
   }
   return "";
 }
@@ -429,6 +478,7 @@ function spawnBackend() {
     FIG_GH_TOKEN: getGhToken(),
     FIG_GH_REPO: process.env.FIG_GH_REPO || "arsalanwahab/Fig-POS",
     FIG_FEEDBACK_SECRET: process.env.FIG_FEEDBACK_SECRET || "",
+    LICENSE_PUBLIC_KEY: getLicensePublicKey(),
     FIG_DESKTOP: "1",
   };
 
@@ -794,6 +844,26 @@ if (!app.requestSingleInstanceLock()) {
     };
     saveRuntime({ ...rt, report: clean });
     return { enabled: clean.enabled, backendUrl: clean.backendUrl, hasSecret: Boolean(clean.secret) };
+  });
+
+  // Manual crash report triggered from Settings. Returns { ok, url } so the UI
+  // can tell the user whether the report reached our team. Rate-limited so a
+  // user can't spam reports (at most one per 5 minutes).
+  const REPORT_MIN_INTERVAL_MS = 5 * 60 * 1000;
+  let lastManualReportAt = 0;
+  ipcMain.handle("report:send", async () => {
+    const now = Date.now();
+    if (now - lastManualReportAt < REPORT_MIN_INTERVAL_MS) {
+      const waitMin = Math.ceil((REPORT_MIN_INTERVAL_MS - (now - lastManualReportAt)) / 60000);
+      return { ok: false, retryAfterMin: waitMin, error: "Please wait before sending another report." };
+    }
+    lastManualReportAt = now;
+    try {
+      const res = await sendReportNow("[Manual report] Fig POS", null);
+      return { ok: true, url: res.url };
+    } catch (e) {
+      return { ok: false, error: (e && e.message) || String(e) };
+    }
   });
 
   ipcMain.handle("logs:get", () => logging.tail(500));

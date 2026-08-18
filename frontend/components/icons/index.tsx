@@ -961,6 +961,16 @@ export function PhoneIcon(props: IconProps) {
   ));
 }
 
+export function ClipboardIcon(props: IconProps) {
+  return base(props, (
+    <>
+      <rect x="6" y="4" width="12" height="16" rx="2" />
+      <path d="M9 4V3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5V4" strokeLinejoin="round" />
+      <path d="M9.5 9h5M9.5 12.5h5M9.5 16h3" strokeLinecap="round" />
+    </>
+  ));
+}
+
 export const NAV_ICONS = {
   dashboard: DashboardIcon,
   pos: PosIcon,

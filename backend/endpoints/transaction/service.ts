@@ -24,6 +24,57 @@ type PaymentInput = {
   bankAccountId?: string;
 };
 
+type PurchaseLineUnit = CreatePurchaseInput["items"][number];
+
+// Creates a stock unit for a purchased IMEI, or reuses one when the same IMEI
+// already exists (e.g. a phone that was sold once and is now bought back).
+// With `reactivate`, an existing sold unit is put back IN_STOCK (a real new
+// purchase). Without it, the existing unit is left in its current state and only
+// purchase-relevant fields are refreshed (used when modifying a purchase).
+async function ensurePurchaseUnit(tx: Db, item: PurchaseLineUnit, reactivate: boolean) {
+  const existing = await tx.unit.findUnique({ where: { imei: item.imei as string } });
+  if (existing) {
+    const common = {
+      productId: item.productId,
+      carrier: item.carrier ?? existing.carrier,
+      batteryHealth: item.batteryHealth ?? existing.batteryHealth,
+      costPrice: item.costPrice,
+      grade: item.grade ?? existing.grade,
+      colorId: item.colorId ?? existing.colorId,
+    };
+    const unit = reactivate
+      ? await tx.unit.update({
+          where: { id: existing.id },
+          data: { ...common, condition: "USED", status: "IN_STOCK", source: "BOUGHT_WALKIN" },
+        })
+      : await tx.unit.update({ where: { id: existing.id }, data: common });
+    if (reactivate) {
+      await tx.stockMovement.create({
+        data: { unitId: unit.id, productId: item.productId, type: "IN", note: "Purchased" },
+      });
+    }
+    return unit;
+  }
+  const unit = await tx.unit.create({
+    data: {
+      productId: item.productId,
+      imei: item.imei as string,
+      condition: item.condition,
+      status: "IN_STOCK",
+      source: item.condition === "USED" ? "BOUGHT_WALKIN" : "VENDOR_PURCHASE",
+      carrier: item.carrier ?? "NON_PTA",
+      batteryHealth: item.batteryHealth,
+      costPrice: item.costPrice,
+      grade: item.grade,
+      colorId: item.colorId,
+    },
+  });
+  await tx.stockMovement.create({
+    data: { unitId: unit.id, productId: item.productId, type: "IN", note: "Purchased" },
+  });
+  return unit;
+}
+
 export async function resolveNumber(requested: string | undefined, prefix: string) {
   if (requested) {
     const exists = await prisma.transaction.findUnique({ where: { number: requested } });
@@ -351,7 +402,9 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
     if (item.imei) {
       const existing = await prisma.unit.findUnique({ where: { imei: item.imei } });
-      if (existing) throw new ApiError(400, "unit.imei_exists", `IMEI ${item.imei} already exists`);
+      if (existing && existing.status === "IN_STOCK") {
+        throw new ApiError(400, "unit.imei_exists", `IMEI ${item.imei} already exists in stock`);
+      }
     }
   }
 
@@ -385,23 +438,7 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
 
     for (const item of input.items) {
       if (item.imei) {
-        const unit = await tx.unit.create({
-          data: {
-            productId: item.productId,
-            imei: item.imei,
-            condition: item.condition,
-            status: "IN_STOCK",
-            source: item.condition === "USED" ? "BOUGHT_WALKIN" : "VENDOR_PURCHASE",
-            carrier: item.carrier ?? "NON_PTA",
-            batteryHealth: item.batteryHealth,
-            costPrice: item.costPrice,
-            grade: item.grade,
-            colorId: item.colorId,
-          },
-        });
-        await tx.stockMovement.create({
-          data: { unitId: unit.id, productId: item.productId, type: "IN", note: "Purchased" },
-        });
+        const unit = await ensurePurchaseUnit(tx, item, true);
         await tx.transactionItem.create({
           data: {
             transactionId: created.id,
@@ -1006,13 +1043,15 @@ export async function modifyPurchase(id: string, input: CreatePurchaseInput, use
   const contact = await prisma.contact.findUnique({ where: { id: input.contactId } });
   if (!contact) throw new ApiError(404, "contact.not_found", "Contact not found");
 
+  const ownedUnitIds = new Set(existing.items.map((i) => i.unitId).filter(Boolean));
+
   for (const item of input.items) {
     const product = await prisma.product.findUnique({ where: { id: item.productId } });
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
     if (item.imei) {
       const existingUnit = await prisma.unit.findUnique({ where: { imei: item.imei } });
-      if (existingUnit && existingUnit.id !== id) {
-        throw new ApiError(400, "unit.imei_exists", `IMEI ${item.imei} already exists`);
+      if (existingUnit && existingUnit.status === "IN_STOCK" && !ownedUnitIds.has(existingUnit.id)) {
+        throw new ApiError(400, "unit.imei_exists", `IMEI ${item.imei} already exists in stock`);
       }
     }
   }
@@ -1040,8 +1079,6 @@ export async function modifyPurchase(id: string, input: CreatePurchaseInput, use
           for (const m of movements) {
             await tx.stockMovement.delete({ where: { id: m.id } });
           }
-        } else if (unit) {
-          throw new ApiError(400, "unit.not_modifiable", `Unit ${unit.imei} has been sold/returned and cannot be modified`);
         }
       } else {
         const movements = await tx.stockMovement.findMany({
@@ -1067,23 +1104,7 @@ export async function modifyPurchase(id: string, input: CreatePurchaseInput, use
 
     for (const item of input.items) {
       if (item.imei) {
-        const unit = await tx.unit.create({
-          data: {
-            productId: item.productId,
-            imei: item.imei,
-            condition: item.condition,
-            status: "IN_STOCK",
-            source: item.condition === "USED" ? "BOUGHT_WALKIN" : "VENDOR_PURCHASE",
-            carrier: item.carrier ?? "NON_PTA",
-            batteryHealth: item.batteryHealth,
-            costPrice: item.costPrice,
-            grade: item.grade,
-            colorId: item.colorId,
-          },
-        });
-        await tx.stockMovement.create({
-          data: { unitId: unit.id, productId: item.productId, type: "IN", note: "Purchased" },
-        });
+        await ensurePurchaseUnit(tx, item, false);
       } else {
         const qty = item.quantity ?? 1;
         await tx.stockMovement.create({

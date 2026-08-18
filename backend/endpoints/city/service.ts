@@ -11,9 +11,13 @@ export async function listCities() {
 
 export async function createCity(input: CityInput, userId: string) {
   const existing = await prisma.city.findFirst({
-    where: { name: { equals: input.name, mode: "insensitive" } },
+    where: { name: { contains: input.name.trim() } },
   });
-  if (existing) throw new ApiError(409, "city.duplicate", "City already exists");
+  if (
+    existing &&
+    existing.name.trim().toLowerCase() === input.name.trim().toLowerCase()
+  )
+    throw new ApiError(409, "city.duplicate", "City already exists");
 
   const city = await prisma.city.create({ data: { name: input.name } });
   await writeAudit({
@@ -31,9 +35,13 @@ export async function updateCity(id: string, input: CityInput, userId: string) {
   if (!existing) throw new ApiError(404, "city.not_found", "City not found");
 
   const dup = await prisma.city.findFirst({
-    where: { name: { equals: input.name, mode: "insensitive" }, id: { not: id } },
+    where: { name: { contains: input.name.trim() }, id: { not: id } },
   });
-  if (dup) throw new ApiError(409, "city.duplicate", "City already exists");
+  if (
+    dup &&
+    dup.name.trim().toLowerCase() === input.name.trim().toLowerCase()
+  )
+    throw new ApiError(409, "city.duplicate", "City already exists");
 
   const city = await prisma.city.update({ where: { id }, data: { name: input.name } });
   await writeAudit({

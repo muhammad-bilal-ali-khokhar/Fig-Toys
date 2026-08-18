@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import { useSetupStatus } from "@/lib/use-setup";
+import { useLicenseStatus } from "@/lib/use-license";
 import {
   APP,
   ONBOARDING,
+  LICENSE,
   PIN_LENGTH,
   CURRENCIES,
   currencyOf,
@@ -20,7 +22,8 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { OtpInput } from "@/components/auth/otp-input";
 import { useToast } from "@/components/ui/toast";
-import { CheckIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { ClipboardIcon, CheckIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { useClipboardPaste } from "@/lib/use-clipboard-paste";
 
 type CompanyForm = {
   name: string;
@@ -70,20 +73,27 @@ const EMPTY_BANK: BankForm = {
   iban: "",
 };
 
-const STEPS = ["Store", "Settings", "Banks", "Admin", "Done"] as const;
+const STEPS = ["License", "Store", "Settings", "Banks", "Admin", "Done"] as const;
 
 export default function OnboardingPage() {
   const { user, status, login } = useAuth();
   const { needsSetup, loading } = useSetupStatus();
+  const { license, loading: licenseLoading, refetch } = useLicenseStatus();
   const { toast } = useToast();
   const router = useRouter();
 
   const [step, setStep] = useState(0);
+  const [licenseKey, setLicenseKey] = useState("");
+  const [activatingLicense, setActivatingLicense] = useState(false);
+  const [licenseError, setLicenseError] = useState<string | null>(null);
   const [company, setCompany] = useState<CompanyForm>(EMPTY_COMPANY);
   const [bankAccounts, setBankAccounts] = useState<BankForm[]>([]);
   const [admin, setAdmin] = useState<AdminForm>(EMPTY_ADMIN);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { reading: readingClipboard, paste: pasteClipboard } = useClipboardPaste();
+
+  const licenseActive = license?.status === "ACTIVE";
 
   useEffect(() => {
     if (status === "ready" && user) router.replace("/dashboard");
@@ -95,7 +105,7 @@ export default function OnboardingPage() {
     }
   }, [status, user, needsSetup, loading, router]);
 
-  if (status === "loading" || loading) {
+  if (status === "loading" || loading || licenseLoading) {
     return <OnboardingShell>Loading…</OnboardingShell>;
   }
 
@@ -104,9 +114,10 @@ export default function OnboardingPage() {
   }
 
   function canNext() {
-    if (step === 0) return company.name.trim().length > 0;
-    if (step === 1) return true;
-    if (step === 2) {
+    if (step === 0) return licenseActive;
+    if (step === 1) return company.name.trim().length > 0;
+    if (step === 2) return true;
+    if (step === 3) {
       return bankAccounts.every(
         (b) => b.bankName.trim() && b.name.trim() && b.accountNo.trim(),
       );
@@ -116,6 +127,26 @@ export default function OnboardingPage() {
       admin.username.trim().length > 0 &&
       admin.pin.length === PIN_LENGTH
     );
+  }
+
+  async function activateLicense() {
+    const trimmed = licenseKey.trim();
+    setLicenseError(null);
+    if (!trimmed) {
+      setLicenseError("Enter a license key");
+      return;
+    }
+    setActivatingLicense(true);
+    try {
+      await apiRequest("/license/activate", { method: "POST", body: { key: trimmed } });
+      setLicenseKey("");
+      toast(LICENSE.activated, "success");
+      await refetch();
+    } catch (err) {
+      setLicenseError(err instanceof Error ? err.message : "Could not activate the license");
+    } finally {
+      setActivatingLicense(false);
+    }
   }
 
   function addBank() {
@@ -161,7 +192,7 @@ export default function OnboardingPage() {
           },
         },
       });
-      setStep(4);
+      setStep(5);
       try {
         await login(admin.username, admin.pin);
         router.replace("/dashboard");
@@ -212,12 +243,76 @@ export default function OnboardingPage() {
 
             {step === 0 && (
               <StepCard
-                title={ONBOARDING.companyTitle}
-                subtitle={ONBOARDING.companySubtitle}
+                title={LICENSE.title}
+                subtitle={LICENSE.subtitle}
                 footer={
                   <Button className="mt-7 w-full" disabled={!canNext()} onClick={() => setStep(1)}>
                     {ONBOARDING.next}
                   </Button>
+                }
+              >
+                <div className="space-y-4">
+                  {licenseActive ? (
+                    <div className="rounded-2xl bg-success/10 px-4 py-4 text-center">
+                      <p className="text-sm font-semibold text-success">{LICENSE.active}</p>
+                      <p className="mt-0.5 text-xs text-ink-500">{LICENSE.customerLabel}: {license?.customerName}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <Field label={LICENSE.keyLabel}>
+                        <Input
+                          value={licenseKey}
+                          onChange={(e) => setLicenseKey(e.target.value)}
+                          placeholder={LICENSE.keyPlaceholder}
+                          autoComplete="off"
+                          spellCheck={false}
+                          autoFocus
+                        />
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            variant="grey"
+                            className="flex-1"
+                            disabled={readingClipboard}
+                            onClick={() => void pasteClipboard(setLicenseKey, setLicenseError)}
+                          >
+                            <ClipboardIcon className="h-4 w-4" />
+                            {readingClipboard ? "Reading…" : "Paste"}
+                          </Button>
+                          <Button
+                            className="flex-1"
+                            loading={activatingLicense}
+                            disabled={!licenseKey.trim()}
+                            onClick={() => void activateLicense()}
+                          >
+                            {activatingLicense ? LICENSE.activateSubmitting : LICENSE.activate}
+                          </Button>
+                        </div>
+                      </Field>
+                      {licenseError && (
+                        <p className="text-center text-xs font-medium text-error">{licenseError}</p>
+                      )}
+                      {license?.deviceId && (
+                        <p className="break-all text-[10px] text-ink-400">{LICENSE.deviceLabel}: {license.deviceId}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </StepCard>
+            )}
+
+            {step === 1 && (
+              <StepCard
+                title={ONBOARDING.companyTitle}
+                subtitle={ONBOARDING.companySubtitle}
+                footer={
+                  <div className="mt-7 flex gap-2">
+                    <Button variant="grey" className="flex-1" onClick={() => setStep(0)}>
+                      {ONBOARDING.back}
+                    </Button>
+                    <Button className="flex-1" disabled={!canNext()} onClick={() => setStep(2)}>
+                      {ONBOARDING.next}
+                    </Button>
+                  </div>
                 }
               >
                 <div className="space-y-4">
@@ -266,16 +361,16 @@ export default function OnboardingPage() {
               </StepCard>
             )}
 
-            {step === 1 && (
+            {step === 2 && (
               <StepCard
                 title={ONBOARDING.settingsTitle}
                 subtitle={ONBOARDING.settingsSubtitle}
                 footer={
                   <div className="mt-7 flex gap-2">
-                    <Button variant="grey" className="flex-1" onClick={() => setStep(0)}>
+                    <Button variant="grey" className="flex-1" onClick={() => setStep(1)}>
                       {ONBOARDING.back}
                     </Button>
-                    <Button className="flex-1" disabled={!canNext()} onClick={() => setStep(2)}>
+                    <Button className="flex-1" disabled={!canNext()} onClick={() => setStep(3)}>
                       {ONBOARDING.next}
                     </Button>
                   </div>
@@ -311,16 +406,16 @@ export default function OnboardingPage() {
               </StepCard>
             )}
 
-            {step === 2 && (
+            {step === 3 && (
               <StepCard
                 title={ONBOARDING.banksTitle}
                 subtitle={ONBOARDING.banksSubtitle}
                 footer={
                   <div className="mt-7 flex gap-2">
-                    <Button variant="grey" className="flex-1" onClick={() => setStep(1)}>
+                    <Button variant="grey" className="flex-1" onClick={() => setStep(2)}>
                       {ONBOARDING.back}
                     </Button>
-                    <Button className="flex-1" disabled={!canNext()} onClick={() => setStep(3)}>
+                    <Button className="flex-1" disabled={!canNext()} onClick={() => setStep(4)}>
                       {ONBOARDING.next}
                     </Button>
                   </div>
@@ -398,13 +493,13 @@ export default function OnboardingPage() {
               </StepCard>
             )}
 
-            {step === 3 && (
+            {step === 4 && (
               <StepCard
                 title={ONBOARDING.adminTitle}
                 subtitle={ONBOARDING.adminSubtitle}
                 footer={
                   <div className="mt-7 flex gap-2">
-                    <Button variant="grey" className="flex-1" onClick={() => setStep(2)}>
+                    <Button variant="grey" className="flex-1" onClick={() => setStep(3)}>
                       {ONBOARDING.back}
                     </Button>
                     <Button
@@ -453,7 +548,7 @@ export default function OnboardingPage() {
               </StepCard>
             )}
 
-            {step === 4 && (
+            {step === 5 && (
               <div className="mt-7 text-center">
                 <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/15 text-success">
                   <CheckIcon className="h-7 w-7" />

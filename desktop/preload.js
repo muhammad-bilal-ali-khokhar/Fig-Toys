@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("fig", {
   report: {
     get: () => ipcRenderer.invoke("report:get"),
     set: (cfg) => ipcRenderer.invoke("report:set", cfg),
+    send: () => ipcRenderer.invoke("report:send"),
   },
   logs: {
     get: () => ipcRenderer.invoke("logs:get"),

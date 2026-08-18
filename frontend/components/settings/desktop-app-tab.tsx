@@ -18,6 +18,7 @@ export function DesktopAppTab() {
   const [logs, setLogs] = useState<string[] | null>(null);
   const [report, setReport] = useState<ReportConfig | null>(null);
   const [savingReport, setSavingReport] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
 
   useEffect(() => {
     if (!isElectron) return;
@@ -119,7 +120,9 @@ export function DesktopAppTab() {
               onClick={async () => {
                 setSavingReport(true);
                 try {
-                  await window.fig?.report?.set({ enabled: report.enabled });
+                  await window.fig?.report?.set({
+                    enabled: report.enabled,
+                  });
                   const updated = await window.fig?.report?.get();
                   if (updated) setReport(updated);
                   toast("Crash reporting updated", "success");
@@ -132,8 +135,33 @@ export function DesktopAppTab() {
             >
               Save crash reporting
             </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={sendingReport}
+              onClick={async () => {
+                setSendingReport(true);
+                try {
+                  const result = await window.fig?.report?.send();
+                  if (result?.ok) {
+                    toast("Report sent. Thanks for helping us fix it.", "success");
+                  } else if (result?.retryAfterMin) {
+                    toast(`Please wait ${result.retryAfterMin} min before sending another report.`, "error");
+                  } else {
+                    toast("Could not send the report. We'll look into it.", "error");
+                  }
+                } catch {
+                  toast("Could not send the report", "error");
+                } finally {
+                  setSendingReport(false);
+                }
+              }}
+            >
+              Send crash report
+            </Button>
             <p className="rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
-              The report is sent securely to our team and reviewed automatically. No setup needed on your side.
+              The report is sent automatically to our team with the error details and recent log lines.
+              No setup needed on your side. A report can be sent at most once every few minutes.
             </p>
           </div>
         ) : (
