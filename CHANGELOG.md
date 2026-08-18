@@ -4,7 +4,16 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.45
+## v0.1.47
+
+- Released on: 2026-08-18
+
+- feat: installer update prompt, rename repo to Fig POS, splash images
+- docs: rewrite README with comprehensive Fig POS overview
+- fix: resolve type error in products create flow; add type-aware default category
+- feat: show clean ExpenseReceipt confirmation after creating an expense
+- feat: print settings overhaul, bank deposit, transaction receipt, contacts report
+- feat: category hierarchy, dashboard overhaul, POS discount refactor, sub-category reports
 
 - Released on: 2026-08-17
 
