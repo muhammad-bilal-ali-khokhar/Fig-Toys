@@ -4,7 +4,19 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.49
+## v0.1.50
+
+- Released on: 2026-08-18
+
+- fix: bar chart columns not filling height (items-end to items-stretch)
+- feat: e-product download card + version history (last 4 releases)
+- feat: wire download CTA + real icon on new marketing page
+- feat: use new Fig icon for app, installer, and download page logo
+- feat: flat borderless design with color-block footer on download page
+- revert: remove screenshot gallery and images from download page
+- feat: dark mode + screenshot gallery on download page
+- fix: download page reads release assets from downloads.myko.pk
+- feat: publish release assets to Cloudflare R2 + public download page
 
 - Released on: 2026-08-18
 
