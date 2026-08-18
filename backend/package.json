@@ -1,6 +1,6 @@
 {
   "name": "fig-mobile-backend",
-  "version": "0.1.52",
+  "version": "0.1.53",
   "private": true,
   "description": "Fig Mobile POS — offline-capable backend API (Express + Prisma + SQLite)",
   "scripts": {
