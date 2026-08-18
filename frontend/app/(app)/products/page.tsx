@@ -173,12 +173,14 @@ export default function ProductsPage() {
 
   function openCreate() {
     setEditingId(null);
+    setCreateType(null);
     setFormKey((k) => k + 1);
     setOpen(true);
   }
 
   function openEdit(p: ProductSummary) {
     setEditingId(p.id);
+    setCreateType(null);
     setFormKey((k) => k + 1);
     setOpen(true);
   }
@@ -196,12 +198,25 @@ export default function ProductsPage() {
     }
   }
 
+  function defaultCategoryForType(type: "NEW" | "USED" | "ACCESSORY" | null): string {
+    if (type === "ACCESSORY") {
+      return activeCategories.find((c) => !c.parentId && c.type === "ACCESSORY")?.id ?? activeCategories[0]?.id ?? "";
+    }
+    if (type === "USED") {
+      return activeCategories.find((c) => !c.parentId && c.type === "PHONE" && c.name.toLowerCase().includes("used"))?.id ?? activeCategories[0]?.id ?? "";
+    }
+    if (type === "NEW") {
+      return activeCategories.find((c) => !c.parentId && c.type === "PHONE" && c.name.toLowerCase().includes("new"))?.id ?? activeCategories[0]?.id ?? "";
+    }
+    return activeCategories[0]?.id ?? "";
+  }
+
   function initialForm(): ProductFormValues {
     if (!editingId) {
       return {
         ...EMPTY_PRODUCT_FORM,
         brandId: activeBrands[0]?.id ?? "",
-        categoryId: activeCategories[0]?.id ?? "",
+        categoryId: defaultCategoryForType(createType),
       };
     }
     const p = (data ?? []).find((x) => x.id === editingId);
@@ -578,21 +593,66 @@ export default function ProductsPage() {
 
       <Sheet
         open={open}
-        title={editingId ? "Edit product" : "Add product"}
+        title={editingId ? "Edit product" : createType ? `Add ${createType === "ACCESSORY" ? "Accessory" : createType === "USED" ? "Used Phone" : "Phone"}` : "New product"}
         onClose={() => setOpen(false)}
         width="max-w-2xl"
       >
-        <ProductForm
-          key={formKey}
-          initial={initialForm()}
-          brands={activeBrands}
-          categories={activeCategories}
-          colors={activeColors}
-          viewCosts={viewCosts}
-          saving={saving}
-          onSave={save}
-          onCancel={() => setOpen(false)}
-        />
+        {!editingId && !createType ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-ink-500">What are you adding?</p>
+            {[
+              {
+                t: "NEW" as const,
+                icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
+                title: "Phone",
+                desc: "Brand-new sealed handsets",
+                accent: "bg-brand-600",
+              },
+              {
+                t: "USED" as const,
+                icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
+                title: "Used Phone",
+                desc: "Trade-ins inspected and ready to resell",
+                accent: "bg-ink-800",
+              },
+              {
+                t: "ACCESSORY" as const,
+                icon: <HeadphonesIcon className="h-8 w-8 text-white" />,
+                title: "Accessory",
+                desc: "Cases, chargers and more",
+                accent: "bg-ink-400",
+              },
+            ].map((o) => (
+              <button
+                key={o.t}
+                type="button"
+                onClick={() => { setCreateType(o.t); setFormKey((k) => k + 1); }}
+                className="flex items-center gap-4 rounded-2xl bg-white p-4 text-left ring-1 ring-ink-100 transition hover:bg-ink-50"
+              >
+                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${o.accent}`}>
+                  {o.icon}
+                </span>
+                <span className="flex flex-col">
+                  <span className="text-base font-semibold text-ink-900">{o.title}</span>
+                  <span className="text-xs text-ink-500">{o.desc}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <ProductForm
+            key={formKey}
+            initial={initialForm()}
+            brands={activeBrands}
+            categories={activeCategories}
+            colors={activeColors}
+            viewCosts={viewCosts}
+            saving={saving}
+            type={editingId ? undefined : createType ?? undefined}
+            onSave={save}
+            onCancel={() => setOpen(false)}
+          />
+        )}
       </Sheet>
 
       <Sheet
