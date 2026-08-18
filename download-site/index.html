@@ -1066,11 +1066,18 @@
             // markers so visitors see plain text instead of raw Markdown.
             function renderDescription(container, description) {
                 if (!description) return;
-                const bullets = String(description)
+                const bullets = [];
+                String(description)
                     .replace(/\r/g, "")
                     .split("\n")
                     .map((l) => l.trim())
-                    .filter((l) => l.startsWith("-") || l.length > 0);
+                    .forEach((line) => {
+                        if (line.startsWith("-")) {
+                            bullets.push(line);
+                        } else if (line.length > 0 && bullets.length) {
+                            bullets[bullets.length - 1] += " " + line;
+                        }
+                    });
                 const ul = document.createElement("ul");
                 ul.className = "text-sm text-ink-600 leading-relaxed max-w-xl mx-auto list-disc pl-5 text-left";
                 bullets.forEach((line) => {
