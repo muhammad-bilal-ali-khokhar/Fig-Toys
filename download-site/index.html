@@ -1061,6 +1061,30 @@
         document.addEventListener('DOMContentLoaded', () => {
             const BASE = "https://download.myko.pk";
 
+            // Render a Markdown release description as a clean bulleted list:
+            // splits on bullet lines and strips the "- " prefix and **bold**
+            // markers so visitors see plain text instead of raw Markdown.
+            function renderDescription(container, description) {
+                if (!description) return;
+                const bullets = String(description)
+                    .replace(/\r/g, "")
+                    .split("\n")
+                    .map((l) => l.trim())
+                    .filter((l) => l.startsWith("-") || l.length > 0);
+                const ul = document.createElement("ul");
+                ul.className = "text-sm text-ink-600 leading-relaxed max-w-xl mx-auto list-disc pl-5 text-left";
+                bullets.forEach((line) => {
+                    const li = document.createElement("li");
+                    li.className = "mt-1.5";
+                    li.textContent = line
+                        .replace(/^\s*-\s*/, "")
+                        .replace(/\*\*/g, "")
+                        .replace(/`([^`]*)`/g, "$1");
+                    ul.append(li);
+                });
+                container.replaceChildren(ul);
+            }
+
             // Populate the download button + version metadata.
             const d = window.FIG_LATEST;
             if (d && d.version) {
@@ -1074,7 +1098,7 @@
                         });
                 }
                 if (d.description) {
-                    document.getElementById("latest-desc").textContent = d.description;
+                    renderDescription(document.getElementById("latest-desc"), d.description);
                 }
             } else {
                 document.getElementById("product-version").textContent = "v—";
@@ -1105,9 +1129,9 @@
                     size.textContent = v.size ? v.size + " · 64-bit" : "";
                     info.append(title, size);
                     if (v.description) {
-                        const desc = document.createElement("p");
-                        desc.className = "text-sm text-ink-600 mt-3 leading-relaxed whitespace-pre-line max-w-xl";
-                        desc.textContent = v.description;
+                        const desc = document.createElement("div");
+                        desc.className = "mt-3 max-w-xl";
+                        renderDescription(desc, v.description);
                         info.append(desc);
                     }
                     const link = document.createElement("a");
