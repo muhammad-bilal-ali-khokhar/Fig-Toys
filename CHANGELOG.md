@@ -4,7 +4,16 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.51
+## v0.1.52
+
+- Released on: 2026-08-18
+
+- Note release descriptions in release notes
+- Show human-written release descriptions on download page
+- Curated release notes for GitHub release bodies
+- fix: load release manifests with defer so they exist before DOMContentLoaded
+- fix: load release manifests via script tags to bypass R2 CORS
+- feat: store each release in a versioned vX.Y.Z/ folder in the R2 bucket
 
 - Released on: 2026-08-18
 
