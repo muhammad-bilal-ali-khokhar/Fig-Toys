@@ -33,6 +33,7 @@ import { ExpenseCategoryPill } from "@/components/ui/type-pill";
 import { useToast } from "@/components/ui/toast";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { InvoiceViewer } from "@/components/transactions/invoice-viewer";
+import { ExpenseReceipt } from "@/components/transactions/transaction-receipt";
 import { FilterIcon, PlusIcon, PrinterIcon, RefreshIcon, ReportsIcon, TrashIcon, WalletIcon } from "@/components/icons";
 import Link from "next/link";
 
@@ -61,6 +62,7 @@ export default function ExpensesPage() {
   const [editing, setEditing] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState<Expense | null>(null);
   const [viewing, setViewing] = useState<Expense | null>(null);
+  const [savedExpense, setSavedExpense] = useState<Expense | null>(null);
 
   const canCreateExpenses = hasPermission(user, PERMISSIONS.expenseCreate);
   const canManageExpenses = hasPermission(user, PERMISSIONS.expenseUpdate);
@@ -242,12 +244,23 @@ export default function ExpensesPage() {
             setPanelOpen(false);
             setEditing(null);
           }}
+          onCreated={(e) => setSavedExpense(e)}
           onSaved={() => {
             setPanelOpen(false);
             setEditing(null);
             void refetch();
           }}
         />
+      ) : savedExpense ? (
+        <div className="flex h-full items-start justify-center overflow-y-auto overscroll-none p-4">
+          <ExpenseReceipt
+            expense={savedExpense}
+            onNew={() => {
+              setSavedExpense(null);
+              setPanelOpen(true);
+            }}
+          />
+        </div>
       ) : (
         <>
           <div className="mb-3 grid shrink-0 grid-cols-3 gap-2">
