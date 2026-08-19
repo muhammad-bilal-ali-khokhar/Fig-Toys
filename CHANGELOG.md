@@ -4,7 +4,15 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.53
+## v0.1.54
+
+- Released on: 2026-08-19
+
+- Brute-force login throttling, onboarding/dashboard/login/contacts cleanup, production fixes
+- Only make real bullet lines into list items, fold wrapped lines
+- Render release descriptions as clean bulleted list on download page
+- Cache-bust download manifests so latest version shows immediately
+- fix: seed active license and point tests at test.db so CI passes
 
 - Released on: 2026-08-18
 
