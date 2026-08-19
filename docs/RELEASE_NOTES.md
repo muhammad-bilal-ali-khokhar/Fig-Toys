@@ -7,6 +7,62 @@ Release body.
 
 ## Unreleased
 
+- **Stronger protection against guessing your PIN** — login now blocks repeated
+  failed attempts with escalating timeouts that get longer the more guesses are
+  made (15s, then longer each time, capping at an hour). Blocks are remembered
+  in the database, so they survive a server restart and apply across all
+  devices. When it looks like someone is trying many PINs against an account, a
+  "brute-force suspected" security alert is recorded in the audit log so an
+  admin can review it. A successful login clears the counter.
+- **Bank accounts capped at 5 during setup** — during onboarding you can now add
+  up to 5 bank accounts; the "Add" button disables once you hit the limit. You
+  can still add as many as you like later from Settings.
+- **Bank accounts now added in a popup window** — on the setup Bank accounts
+  step, tapping "Add bank account" opens a small window where you fill in the
+  bank name, account name, title, account number, and IBAN, then save. Each new
+  "Add" opens a fresh window, and saved accounts appear as a tidy list you can
+  edit or remove. This replaces the old inline forms.
+- **Onboarding redesigned** — the setup wizard now uses a cleaner two-panel
+  layout: a brand sidebar on the left (with your logo, app name, headline, and a
+  clear list of the six steps so you always know where you are) and the form on
+  the right. On phones the sidebar collapses to a slim top bar with progress
+  dots. Step numbering, buttons, and the whole setup flow work exactly as before.
+- **Server now sets up the database automatically on startup** — when you run
+  the API (dev or production), it creates the database file if it's missing and
+  applies all pending schema migrations itself. No more manual migration step:
+  just start the server and it's ready to use.
+- **Contacts (customers) code cleanup (no behavior change)** — moved the contacts
+  screen's API calls into a dedicated `lib/services/contacts.ts` layer, extracted
+  its state and CRUD logic into a `use-contacts` hook, and split the big table
+  into its own `contacts-table` component. Listing, searching, filtering, adding,
+  editing, deleting, and CSV import/export all work exactly as before, but the
+  page is now much easier to maintain.
+
+- **Dashboard code cleanup (no behavior change)** — split the single-file
+  dashboard into a structured `components/dashboard/` folder: shared chart and
+  card primitives, activity-formatting helpers, the KPI widgets, and one
+  component per dashboard widget under `widgets/`. The dashboard layout and every
+  widget render exactly as before, but the page is now much easier to maintain.
+
+- **Shared payment & stock helpers (no behavior change)** — payment processing
+  (recording payments, moving credit/cash/bank balances) is now a single shared
+  helper used by sales, purchases, and every return flow, instead of being
+  copied across four nearly identical return functions. Stock movements and unit
+  status changes were consolidated the same way, and the "how much is in stock"
+  calculation now lives in one place. Existing behaviour is unchanged.
+
+- **Onboarding code cleanup (no behavior change)** — split the single-file setup
+  wizard into a structured `components/onboarding/` folder (one component per
+  step: license, store, settings, banks, admin, done) plus a dedicated
+  `lib/services/onboarding.ts` API layer. The setup flow looks and works exactly
+  as before, but is now easier to maintain.
+
+- **Login code cleanup (no behavior change)** — split the single-file sign-in
+  screen into a structured `components/login/` folder (shell, form, and a
+  `use-login` state hook) and moved the auth API calls into a dedicated
+  `lib/services/auth.ts` layer. Signing in, the remembered-users list, and the
+  PIN entry all work exactly as before, but the code is now easier to maintain.
+
 - **Human-written release descriptions** — every release now ships with a
   clear, user-facing description instead of a raw dump of commit messages. The
   download page at fig.myko.pk shows these notes under the latest version and

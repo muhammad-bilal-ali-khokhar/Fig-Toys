@@ -56,4 +56,11 @@ export const ONBOARDING = {
   currency: "Currency",
   timezone: "Timezone",
   skip: "Skip",
+  cancel: "Cancel",
+  save: "Save",
+  saveChanges: "Save changes",
+  bankRequired: "Fill in the bank name, account name, and account number.",
+  bankLimitReached: "You can add up to 5 bank accounts during setup.",
+  bankLimitNote: "Add up to 5 accounts here. You can add more anytime from Settings.",
+  maxBanks: 5,
 } as const;

@@ -798,6 +798,366 @@ svg *:focus {
   --color-violet-500: #8b5cf6;
 }
 
+/* Theme: Midnight — deep navy on dark charcoal */
+[data-theme="midnight"] {
+  --color-brand-50: #f0f4f8;
+  --color-brand-100: #dbe5ef;
+  --color-brand-200: #bccfe2;
+  --color-brand-300: #93afcc;
+  --color-brand-400: #6487aa;
+  --color-brand-500: #46698c;
+  --color-brand-600: #355471;
+  --color-brand-700: #2a425c;
+  --color-brand-800: #1e3349;
+  --color-brand-900: #14263a;
+  --color-brand-950: #0c1929;
+
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+  --color-ink-950: #020617;
+
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+  --color-warning: #d97706;
+  --color-info: #2563eb;
+
+  --color-teal-500: #14b8a6;
+  --color-gold-500: #eab308;
+  --color-violet-500: #8b5cf6;
+}
+
+/* Theme: Lavender — soft lavender on pale wisteria */
+[data-theme="lavender"] {
+  --color-brand-50: #faf5ff;
+  --color-brand-100: #f3e8ff;
+  --color-brand-200: #e9d5ff;
+  --color-brand-300: #d8b4fe;
+  --color-brand-400: #c084fc;
+  --color-brand-500: #a855f7;
+  --color-brand-600: #9333ea;
+  --color-brand-700: #7e22ce;
+  --color-brand-800: #6b21a8;
+  --color-brand-900: #581c87;
+  --color-brand-950: #3b0764;
+
+  --color-ink-50: #faf9fb;
+  --color-ink-100: #f3f1f5;
+  --color-ink-200: #e4e0e8;
+  --color-ink-300: #cfc8d8;
+  --color-ink-400: #a69dae;
+  --color-ink-500: #7f7684;
+  --color-ink-600: #5c5560;
+  --color-ink-700: #443f48;
+  --color-ink-800: #2d292f;
+  --color-ink-900: #1c191c;
+  --color-ink-950: #0e0c0e;
+
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+  --color-warning: #d97706;
+  --color-info: #2563eb;
+
+  --color-teal-500: #14b8a6;
+  --color-gold-500: #eab308;
+  --color-violet-500: #a855f7;
+}
+
+/* Theme: Coral — warm coral on soft peach */
+[data-theme="coral"] {
+  --color-brand-50: #fff1f2;
+  --color-brand-100: #ffe4e6;
+  --color-brand-200: #fecdd3;
+  --color-brand-300: #fda4af;
+  --color-brand-400: #fb7185;
+  --color-brand-500: #f43f5e;
+  --color-brand-600: #e11d48;
+  --color-brand-700: #be123c;
+  --color-brand-800: #9f1239;
+  --color-brand-900: #881337;
+  --color-brand-950: #4c0519;
+
+  --color-ink-50: #fdfbf9;
+  --color-ink-100: #f7f2ef;
+  --color-ink-200: #e9e0da;
+  --color-ink-300: #d4c5bb;
+  --color-ink-400: #ab9788;
+  --color-ink-500: #827064;
+  --color-ink-600: #5e5148;
+  --color-ink-700: #443b35;
+  --color-ink-800: #2c2622;
+  --color-ink-900: #1b1815;
+  --color-ink-950: #0e0c0a;
+
+  --color-success: #16a34a;
+  --color-error: #be123c;
+  --color-warning: #d97706;
+  --color-info: #fb7185;
+
+  --color-teal-500: #14b8a6;
+  --color-gold-500: #eab308;
+  --color-violet-500: #8b5cf6;
+}
+
+/* Theme: Sage — muted sage green on warm linen */
+[data-theme="sage"] {
+  --color-brand-50: #f2f7f2;
+  --color-brand-100: #e3ede4;
+  --color-brand-200: #c8dcca;
+  --color-brand-300: #a3c4a7;
+  --color-brand-400: #7fa98a;
+  --color-brand-500: #648e6f;
+  --color-brand-600: #4e7358;
+  --color-brand-700: #3f5c46;
+  --color-brand-800: #334a39;
+  --color-brand-900: #2a3c30;
+  --color-brand-950: #16201a;
+
+  --color-ink-50: #fbfaf6;
+  --color-ink-100: #f4f2ec;
+  --color-ink-200: #e5e0d6;
+  --color-ink-300: #cfc6b8;
+  --color-ink-400: #a89c8a;
+  --color-ink-500: #837968;
+  --color-ink-600: #5f584b;
+  --color-ink-700: #454037;
+  --color-ink-800: #2d2a24;
+  --color-ink-900: #1c1a16;
+  --color-ink-950: #0f0d0a;
+
+  --color-success: #4e7358;
+  --color-error: #b0413e;
+  --color-warning: #b8860b;
+  --color-info: #5b8fb9;
+
+  --color-teal-500: #4a8f4d;
+  --color-gold-500: #8a8a5a;
+  --color-violet-500: #8b7d6b;
+}
+
+/* Theme: Copper — rich copper on warm clay */
+[data-theme="copper"] {
+  --color-brand-50: #fdf6ee;
+  --color-brand-100: #f9e9d8;
+  --color-brand-200: #f1d0ae;
+  --color-brand-300: #e6b07e;
+  --color-brand-400: #d88e52;
+  --color-brand-500: #c77a3c;
+  --color-brand-600: #ab6129;
+  --color-brand-700: #8b4a1e;
+  --color-brand-800: #6f3a1a;
+  --color-brand-900: #592f18;
+  --color-brand-950: #32190c;
+
+  --color-ink-50: #fbf9f6;
+  --color-ink-100: #f4f0ea;
+  --color-ink-200: #e5ddd2;
+  --color-ink-300: #cfc2b2;
+  --color-ink-400: #ab9a85;
+  --color-ink-500: #867564;
+  --color-ink-600: #62554a;
+  --color-ink-700: #474037;
+  --color-ink-800: #2e2a25;
+  --color-ink-900: #1c1a17;
+  --color-ink-950: #0f0e0c;
+
+  --color-success: #5c8a5c;
+  --color-error: #b03a2e;
+  --color-warning: #c77a3c;
+  --color-info: #3b6ea8;
+
+  --color-teal-500: #0d9488;
+  --color-gold-500: #c77a3c;
+  --color-violet-500: #8b5cf6;
+}
+
+/* Theme: Nordic — cool Scandinavian blue on crisp white */
+[data-theme="nordic"] {
+  --color-brand-50: #f2f7fb;
+  --color-brand-100: #e3eef6;
+  --color-brand-200: #c8ddec;
+  --color-brand-300: #a3c3dc;
+  --color-brand-400: #77a5c8;
+  --color-brand-500: #5b8fb9;
+  --color-brand-600: #44759e;
+  --color-brand-700: #375f83;
+  --color-brand-800: #2c4a6e;
+  --color-brand-900: #213a57;
+  --color-brand-950: #122440;
+
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+  --color-ink-950: #020617;
+
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+  --color-warning: #d97706;
+  --color-info: #44759e;
+
+  --color-teal-500: #14b8a6;
+  --color-gold-500: #eab308;
+  --color-violet-500: #8b5cf6;
+}
+
+/* Theme: Cherry — deep cherry red on soft rose */
+[data-theme="cherry"] {
+  --color-brand-50: #fce4ec;
+  --color-brand-100: #f8c8da;
+  --color-brand-200: #f19ab8;
+  --color-brand-300: #e56c96;
+  --color-brand-400: #d84a78;
+  --color-brand-500: #c2185b;
+  --color-brand-600: #a6104e;
+  --color-brand-700: #8a0e48;
+  --color-brand-800: #6e0b3c;
+  --color-brand-900: #57092f;
+  --color-brand-950: #33051b;
+
+  --color-ink-50: #fbf8f9;
+  --color-ink-100: #f4eef0;
+  --color-ink-200: #e5dadf;
+  --color-ink-300: #cfbfc7;
+  --color-ink-400: #a899a2;
+  --color-ink-500: #82737d;
+  --color-ink-600: #5f545b;
+  --color-ink-700: #453d43;
+  --color-ink-800: #2d282c;
+  --color-ink-900: #1c191b;
+  --color-ink-950: #0f0d0e;
+
+  --color-success: #16a34a;
+  --color-error: #be123c;
+  --color-warning: #d97706;
+  --color-info: #d84a78;
+
+  --color-teal-500: #14b8a6;
+  --color-gold-500: #eab308;
+  --color-violet-500: #8b5cf6;
+}
+
+/* Theme: Carbon — dark carbon with electric blue accent */
+[data-theme="carbon"] {
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
+
+  --color-ink-50: #f9fafb;
+  --color-ink-100: #f3f4f6;
+  --color-ink-200: #e5e7eb;
+  --color-ink-300: #d1d5db;
+  --color-ink-400: #9ca3af;
+  --color-ink-500: #6b7280;
+  --color-ink-600: #4b5563;
+  --color-ink-700: #374151;
+  --color-ink-800: #1f2937;
+  --color-ink-900: #111827;
+  --color-ink-950: #0b0f19;
+
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+  --color-warning: #d97706;
+  --color-info: #3b82f6;
+
+  --color-teal-500: #14b8a6;
+  --color-gold-500: #eab308;
+  --color-violet-500: #8b5cf6;
+}
+
+/* Theme: Slate — professional blue-grey on light ash */
+[data-theme="slate"] {
+  --color-brand-50: #f8fafc;
+  --color-brand-100: #f1f5f9;
+  --color-brand-200: #e2e8f0;
+  --color-brand-300: #cbd5e1;
+  --color-brand-400: #94a3b8;
+  --color-brand-500: #64748b;
+  --color-brand-600: #475569;
+  --color-brand-700: #334155;
+  --color-brand-800: #1e293b;
+  --color-brand-900: #0f172a;
+  --color-brand-950: #020617;
+
+  --color-ink-50: #f9fafb;
+  --color-ink-100: #f3f4f6;
+  --color-ink-200: #e5e7eb;
+  --color-ink-300: #d1d5db;
+  --color-ink-400: #9ca3af;
+  --color-ink-500: #6b7280;
+  --color-ink-600: #4b5563;
+  --color-ink-700: #374151;
+  --color-ink-800: #1f2937;
+  --color-ink-900: #111827;
+  --color-ink-950: #0b0f19;
+
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+  --color-warning: #d97706;
+  --color-info: #475569;
+
+  --color-teal-500: #14b8a6;
+  --color-gold-500: #eab308;
+  --color-violet-500: #8b5cf6;
+}
+
+/* Theme: Amber — rich amber on warm cream */
+[data-theme="amber"] {
+  --color-brand-50: #fffbeb;
+  --color-brand-100: #fef3c7;
+  --color-brand-200: #fde68a;
+  --color-brand-300: #fcd34d;
+  --color-brand-400: #fbbf24;
+  --color-brand-500: #f59e0b;
+  --color-brand-600: #d97706;
+  --color-brand-700: #b45309;
+  --color-brand-800: #92400e;
+  --color-brand-900: #78350f;
+  --color-brand-950: #451a03;
+
+  --color-ink-50: #fdfbf7;
+  --color-ink-100: #f7f3ea;
+  --color-ink-200: #ebe3d2;
+  --color-ink-300: #d9ccb3;
+  --color-ink-400: #b09e7e;
+  --color-ink-500: #84735a;
+  --color-ink-600: #605342;
+  --color-ink-700: #463c31;
+  --color-ink-800: #2e2821;
+  --color-ink-900: #1d1814;
+  --color-ink-950: #0f0b08;
+
+  --color-success: #16a34a;
+  --color-error: #dc2626;
+  --color-warning: #d97706;
+  --color-info: #2563eb;
+
+  --color-teal-500: #14b8a6;
+  --color-gold-500: #d97706;
+  --color-violet-500: #8b5cf6;
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;

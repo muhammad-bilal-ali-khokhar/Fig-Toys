@@ -12,6 +12,7 @@ describe("auth", () => {
     await seedUser("auth_user", "CASHIER", "1234");
     await seedUser("rate_limited_user", "CASHIER", "1234");
     await seedUser("pin_user", "CASHIER", "1234");
+    await seedUser("brute_user", "CASHIER", "1234");
   });
 
   it("sets a session cookie with role and server-derived permissions on success", async () => {
@@ -59,6 +60,47 @@ describe("auth", () => {
   it("requires a valid PIN even when username matches", async () => {
     const res = await login(app, "auth_user", "1234");
     expect(res.cookie).toBeTruthy();
+  });
+
+  it("persists lockout in the DB and writes a brute-force audit alert", async () => {
+    for (let i = 0; i < 5; i++) {
+      await request(app)
+        .post("/api/auth/login")
+        .send({ username: "brute_user", pin: "9999" });
+    }
+    const blocked = await request(app)
+      .post("/api/auth/login")
+      .send({ username: "brute_user", pin: "1234" });
+    expect(blocked.status).toBe(429);
+
+    const attempt = await prisma.loginAttempt.findFirst({
+      where: { key: "user:BRUTE_USER" },
+    });
+    expect(attempt).toBeTruthy();
+    expect(attempt!.failures).toBeGreaterThanOrEqual(5);
+    expect(attempt!.blockedUntil).toBeTruthy();
+
+    const alert = await prisma.auditLog.findFirst({
+      where: { action: "AUTH.BRUTE_FORCE", user: { username: "BRUTE_USER" } },
+    });
+    expect(alert).toBeTruthy();
+    expect(alert!.details).toContain("Brute-force suspected");
+  });
+
+  it("resets the lockout after a successful login", async () => {
+    await prisma.loginAttempt.upsert({
+      where: { key: "user:AUTH_USER" },
+      update: { failures: 3, blockedUntil: new Date() },
+      create: { key: "user:AUTH_USER", failures: 3, blockedUntil: new Date() },
+    });
+    const res = await login(app, "auth_user", "1234");
+    expect(res.cookie).toBeTruthy();
+    const attempt = await prisma.loginAttempt.findUnique({
+      where: { key: "user:AUTH_USER" },
+    });
+    expect(attempt).toBeTruthy();
+    expect(attempt!.failures).toBe(0);
+    expect(attempt!.blockedUntil).toBeNull();
   });
 
   it("returns the current user from /me with a session cookie", async () => {

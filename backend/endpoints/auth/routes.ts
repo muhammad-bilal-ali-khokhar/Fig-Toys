@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/lib/asyncHandler";
-import { rateLimit } from "../../core/lib/rateLimit";
-import { env } from "../../core/config/env";
+import { loginThrottle } from "../../core/lib/loginThrottle";
 import { requireAuth } from "../../core/middleware/auth";
 import { validate } from "../../core/middleware/validate";
 import { changePinHandler, loginHandler, logoutHandler, meHandler } from "./handlers";
@@ -12,11 +11,7 @@ const router = Router();
 router.post(
   "/login",
   validate(loginSchema),
-  rateLimit({
-    windowMs: env.LOGIN_RATE_LIMIT_WINDOW_MS,
-    max: env.LOGIN_RATE_LIMIT_MAX,
-    key: (req) => `${req.ip ?? "unknown"}|${String(req.body?.username ?? "").toUpperCase()}`,
-  }),
+  loginThrottle,
   asyncHandler(loginHandler),
 );
 

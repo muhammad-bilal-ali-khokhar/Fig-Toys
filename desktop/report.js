@@ -4,7 +4,7 @@
 // token server-side and opens the Issue. No token is ever shipped with the
 // desktop app — this module only knows where the backend lives.
 
-const DEFAULT_BACKEND_URL = "http://localhost:4701";
+const DEFAULT_BACKEND_URL = "http://localhost:47620";
 
 function backendUrl(cfg) {
   const custom = cfg && cfg.backendUrl && cfg.backendUrl.trim();

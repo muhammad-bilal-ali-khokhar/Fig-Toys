@@ -29,7 +29,7 @@ for arg in "$@"; do
   esac
 done
 
-# Stop any running instance so the ports (4701/3100) free up.
+# Stop any running instance so the ports (47620/58340) free up.
 pkill -f "Fig Mobile POS" 2>/dev/null || true
 pkill -f "$ROOT/desktop" 2>/dev/null || true
 sleep 1
@@ -61,7 +61,7 @@ fi
 if [ "$MODE" = "pack" ]; then
   # Ensure production bundles exist first (packaged app bundles them).
   if [ ! -f "$ROOT/production/backend/server.cjs" ] || [ ! -f "$ROOT/production/frontend/server.js" ]; then
-    (cd "$ROOT/frontend" && BACKEND_URL=http://localhost:4701 npm run build)
+    (cd "$ROOT/frontend" && BACKEND_URL=http://localhost:47620 npm run build)
     (cd "$ROOT/frontend" && npm run build:production)
     (cd "$ROOT/backend" && npm run build:production)
   fi
@@ -85,9 +85,9 @@ fi
 if [ "$MODE" = "build" ] || [ "$NEED_BUILD" = "1" ]; then
   echo "Building production bundles..."
   # BACKEND_URL is baked into the standalone server's proxy at build time. It
-  # must match the port the desktop app spawns the backend on (4701), or the
+  # must match the port the desktop app spawns the backend on (47620), or the
   # frontend will proxy to the wrong place.
-  (cd "$ROOT/frontend" && BACKEND_URL=http://localhost:4701 npm run build)
+  (cd "$ROOT/frontend" && BACKEND_URL=http://localhost:47620 npm run build)
   (cd "$ROOT/frontend" && npm run build:production)
   (cd "$ROOT/backend" && npm run build:production)
 fi

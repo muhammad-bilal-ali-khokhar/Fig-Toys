@@ -68,14 +68,86 @@ const DEV_ATTACH = process.argv.includes("--dev");
 const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 47620);
 const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 58340);
 
-// Returns true if nothing is listening on 127.0.0.1:<port>.
+// Returns true if nothing is listening on <port>. The backend/frontend bind to
+// "localhost", which resolves to ::1 (IPv6) before 127.0.0.1 (IPv4) on most
+// systems, so we must probe both families or a ::1-only listener slips through
+// the check and the child then crashes with EADDRINUSE.
 function isPortFree(port) {
   return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once("error", () => resolve(false));
-    server.once("listening", () => server.close(() => resolve(true)));
-    server.listen(port, "127.0.0.1");
+    let free = 0;
+    const expected = 2;
+    const done = () => {
+      if (++free >= expected) resolve(true);
+    };
+    const fail = () => resolve(false);
+    for (const host of ["127.0.0.1", "::1"]) {
+      const server = net.createServer();
+      server.once("error", fail);
+      server.once("listening", () => server.close(done));
+      try {
+        server.listen(port, host);
+      } catch {
+        fail();
+      }
+    }
   });
+}
+
+// The backend/frontend we spawn are separate node processes. If the app is
+// killed hard (SIGINT, crash, force-quit) they can outlive it and keep the
+// ports bound, so the next launch hits EADDRINUSE. The single-instance lock
+// guarantees at most one app instance, so any process still holding one of our
+// local ports is an orphan from a previous run — kill it before the port check.
+async function reapPortOrphans() {
+  const { execFile } = require("node:child_process");
+  const markers = ["server.cjs", "tsx", "next-server", path.sep + "frontend" + path.sep, "standalone"];
+  const isOurs = (cmdline) => cmdline && markers.some((m) => cmdline.includes(m));
+
+  for (const port of [BACKEND_PORT, FRONTEND_PORT]) {
+    let pids = [];
+    try {
+      if (process.platform === "win32") {
+        const out = await new Promise((resolve, reject) =>
+          execFile("netstat", ["-ano", "-p", "tcp"], (err, stdout) => (err ? reject(err) : resolve(stdout))));
+        for (const line of out.split("\n")) {
+          if (line.includes(`:${port}`) && /\sLISTENING\s/.test(line)) {
+            const pid = line.trim().split(/\s+/).pop();
+            if (/^\d+$/.test(pid)) pids.push(pid);
+          }
+        }
+      } else {
+        const out = await new Promise((resolve, reject) =>
+          execFile("lsof", ["-ti", `tcp:${port}`], (err, stdout, stderr) =>
+            err ? (err.code === 1 ? resolve("") : reject(err)) : resolve(stdout)));
+        pids = out.split("\n").filter(Boolean);
+      }
+    } catch {
+      continue;
+    }
+
+    for (const pid of pids) {
+      let cmdline = "";
+      try {
+        if (process.platform === "win32") {
+          cmdline = await new Promise((resolve) =>
+            execFile("wmic", ["process", "where", `processid=${pid}`, "get", "commandline", "/value"], (err, stdout) => resolve(stdout || "")));
+        } else {
+          cmdline = await new Promise((resolve) =>
+            execFile("ps", ["-p", pid, "-o", "command="], (err, stdout) => resolve(stdout || "")));
+        }
+      } catch {
+        continue;
+      }
+      if (isOurs(cmdline)) {
+        try {
+          process.kill(Number(pid), "SIGKILL");
+          logging.write(`Reaped orphaned process on port ${port} (pid ${pid})`);
+        } catch {
+          /* already gone */
+        }
+      }
+    }
+  }
 }
 
 const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "", theme: "fig", report: { enabled: true, backendUrl: "", secret: "" } };
@@ -1036,8 +1108,11 @@ if (!app.requestSingleInstanceLock()) {
         return;
       }
 
-      // Verify the fixed ports are free before spawning. If one is taken, fail
-      // loudly instead of silently picking another port.
+      // Clear any orphaned backend/frontend left behind by a hard-killed
+      // previous run, then verify the fixed ports are free before spawning. If
+      // one is still taken (e.g. by an unrelated app), fail loudly instead of
+      // silently picking another port.
+      await reapPortOrphans();
       if (!(await isPortFree(BACKEND_PORT)) || !(await isPortFree(FRONTEND_PORT))) {
         const err = new Error(
           `Port in use. Backend ${BACKEND_PORT} and frontend ${FRONTEND_PORT} must both be free (set FIG_BACKEND_PORT / FIG_FRONTEND_PORT to change).`,

@@ -1,3 +1,4 @@
+import { beforeEach } from "vitest";
 import { prisma } from "../core/lib/prisma";
 
 await prisma.license.upsert({
@@ -16,4 +17,8 @@ await prisma.license.upsert({
     status: "ACTIVE",
     expiresAt: null,
   },
+});
+
+beforeEach(async () => {
+  await prisma.loginAttempt.deleteMany();
 });

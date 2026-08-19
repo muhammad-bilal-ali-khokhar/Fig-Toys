@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { env } from "./core/config/env";
 import { prisma } from "./core/lib/prisma";
 import { createApp } from "./app";
@@ -9,7 +12,21 @@ import { scheduleBackups } from "./core/lib/backup";
 
 const app = createApp();
 
+function runMigrations() {
+  const raw = env.DATABASE_URL.replace(/^file:/, "");
+  const dbPath = raw.startsWith("./") || raw.startsWith("../") ? resolve(process.cwd(), raw) : raw;
+  const migrate = join(__dirname, "scripts", "migrate-db.cjs");
+  const migrationsDir = join(__dirname, "scripts", "migrations");
+  if (!existsSync(migrate) || !existsSync(migrationsDir)) return;
+  execFileSync(process.execPath, [migrate, dbPath, migrationsDir], {
+    stdio: "inherit",
+  });
+}
+
 async function bootstrap() {
+  if (env.NODE_ENV !== "test") {
+    runMigrations();
+  }
   const adminCount = await prisma.user.count({ where: { role: "ADMIN", active: true } });
   if (adminCount === 0) {
     try {

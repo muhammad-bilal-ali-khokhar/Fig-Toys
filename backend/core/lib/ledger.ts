@@ -150,6 +150,98 @@ export async function reverseMoney(db: Db, sourceType: string, sourceId: string)
   }
 }
 
+export type PaymentInput = {
+  method: "CASH" | "CARD" | "BANK_TRANSFER" | "CREDIT";
+  amount: number;
+  tendered?: number;
+  reference?: string;
+  bankAccountId?: string;
+};
+
+const MONEY_NOTES: Record<string, { cash: string; bank: string }> = {
+  SALE: { cash: "Sale (cash)", bank: "Sale (bank)" },
+  PURCHASE: { cash: "Purchase (cash)", bank: "Purchase (bank)" },
+  SALE_RETURN: { cash: "Sale return refund", bank: "Sale return refund" },
+  PURCHASE_RETURN: { cash: "Purchase return received", bank: "Purchase return received" },
+};
+
+export type ApplyPaymentsOptions = {
+  transactionId: string;
+  contactId: string;
+  payments: PaymentInput[];
+  moneySign?: 1 | -1;
+  balanceSign?: 1 | -1;
+  sourceType: string;
+  creditCreate?: boolean;
+};
+
+// Records each payment on a transaction and applies its effect: credit moves the
+// customer's CreditAccount balance, cash/bank move the money ledger. Movements are
+// always keyed to the transaction (sourceType + sourceId) so reverseMoney can undo
+// them on edit/void.
+export async function applyPayments(db: Db, opts: ApplyPaymentsOptions): Promise<number> {
+  const {
+    transactionId,
+    contactId,
+    payments,
+    moneySign = 1,
+    balanceSign = 1,
+    sourceType,
+    creditCreate = false,
+  } = opts;
+  const notes = MONEY_NOTES[sourceType] ?? { cash: sourceType, bank: sourceType };
+  let paid = 0;
+  for (const p of payments) {
+    let tendered: number | undefined;
+    let change: number | undefined;
+    if (p.method === "CASH" && p.tendered !== undefined) {
+      if (p.tendered < p.amount - 0.001) {
+        throw new ApiError(400, "payment.tender_short", "Cash received is less than the payment amount");
+      }
+      tendered = p.tendered;
+      change = Math.round((tendered - p.amount) * 100) / 100;
+    }
+    await db.payment.create({
+      data: {
+        transactionId,
+        method: p.method,
+        amount: p.amount,
+        ...(tendered !== undefined ? { tendered } : {}),
+        ...(change !== undefined ? { change } : {}),
+        reference: p.reference,
+        bankAccountId: p.bankAccountId,
+      },
+    });
+    paid += p.amount;
+    if (p.method === "CREDIT") {
+      const balance = { increment: p.amount * balanceSign };
+      if (creditCreate) {
+        await db.creditAccount.upsert({
+          where: { contactId },
+          create: { contactId, limit: 0, balance: p.amount * balanceSign },
+          update: { balance },
+        });
+      } else {
+        await db.creditAccount.update({ where: { contactId }, data: { balance } });
+      }
+    } else if (p.method === "CASH") {
+      if (moneySign === 1) {
+        await moneyIn(db, { account: "cash", amount: p.amount, sourceType, sourceId: transactionId, note: notes.cash });
+      } else {
+        await moneyOut(db, { account: "cash", amount: p.amount, sourceType, sourceId: transactionId, note: notes.cash });
+      }
+    } else if (p.method === "BANK_TRANSFER") {
+      const bankAccountId = p.bankAccountId ?? undefined;
+      if (moneySign === 1) {
+        await moneyIn(db, { account: "bank", amount: p.amount, bankAccountId, sourceType, sourceId: transactionId, note: notes.bank });
+      } else {
+        await moneyOut(db, { account: "bank", amount: p.amount, bankAccountId, sourceType, sourceId: transactionId, note: notes.bank });
+      }
+    }
+  }
+  return paid;
+}
+
 export async function getMoneyOverview() {
   const [cash, banks, cardReceived, cardReturned, cardSettled, credit] = await Promise.all([
     prisma.cashAccount.findUnique({ where: { id: CASH_ACCOUNT_ID } }),

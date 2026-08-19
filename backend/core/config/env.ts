@@ -14,6 +14,9 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().optional(),
   LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+  LOGIN_LOCKOUT_BASE_SECONDS: z.coerce.number().int().positive().default(15),
+  LOGIN_LOCKOUT_MULTIPLIER: z.coerce.number().int().positive().default(2),
+  LOGIN_LOCKOUT_CAP_SECONDS: z.coerce.number().int().positive().default(3600),
 
   // Automatic backups (saved to ./backups)
   AUTO_BACKUP_ON_START: z

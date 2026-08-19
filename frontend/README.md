@@ -6,7 +6,7 @@ Next.js (App Router) + TypeScript + Tailwind CSS. Talks to the backend REST API 
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000 (Turbopack, live updates)
+npm run dev      # http://localhost:58340 (Turbopack, live updates)
 ```
 
 ## Structure

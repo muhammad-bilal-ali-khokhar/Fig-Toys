@@ -1,4 +1,5 @@
 import { prisma } from "../../core/lib/prisma";
+import { quantitySign } from "../../core/lib/stock";
 import { listUnits } from "../unit/service";
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -27,16 +28,7 @@ export async function listInventory(canViewCosts = false) {
 
   for (const item of items) {
     const type = item.transaction.type;
-    const sign =
-      type === "PURCHASE"
-        ? 1
-        : type === "SALE"
-          ? -1
-          : type === "PURCHASE_RETURN"
-            ? -1
-            : type === "SALE_RETURN"
-              ? 1
-              : 0;
+    const sign = quantitySign(type);
     let agg = byProduct.get(item.productId);
     if (!agg) {
       agg = { qty: 0, lastPurchase: null };

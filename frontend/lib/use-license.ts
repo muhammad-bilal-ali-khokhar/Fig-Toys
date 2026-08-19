@@ -1,16 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { apiRequest } from "@/lib/apiClient";
+import { getLicenseStatus } from "@/lib/services/onboarding";
+import type { LicenseStatus } from "@/lib/services/onboarding";
 
-export type LicenseStatus = {
-  status: "UNLICENSED" | "ACTIVE" | "EXPIRED";
-  customerName: string | null;
-  edition: string;
-  expiresAt: string | null;
-  maxDevices: number;
-  deviceId: string | null;
-};
+export type { LicenseStatus };
 
 export function useLicenseStatus() {
   const [license, setLicense] = useState<LicenseStatus | null>(null);
@@ -18,7 +12,7 @@ export function useLicenseStatus() {
 
   const refetch = useCallback(async () => {
     try {
-      setLicense(await apiRequest<LicenseStatus>("/license/status"));
+      setLicense(await getLicenseStatus());
     } catch {
       setLicense(null);
     } finally {

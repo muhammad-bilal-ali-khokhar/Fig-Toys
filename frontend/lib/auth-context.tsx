@@ -9,19 +9,9 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import { apiRequest } from "@/lib/apiClient";
+import { getCurrentUser, login as loginRequest, logout as logoutRequest } from "@/lib/services/auth";
+import type { AuthUser } from "@/lib/services/auth";
 import { AUTH } from "@/lib/constants";
-import type { Role } from "@/lib/constants/users";
-
-export type AuthUser = {
-  id: string;
-  username: string;
-  name: string;
-  email: string;
-  role: Role;
-  avatar: string | null;
-  permissions: string[];
-};
 
 type AuthStatus = "loading" | "ready";
 
@@ -32,9 +22,7 @@ type AuthContextValue = {
   logout: () => Promise<void>;
 };
 
-type AuthResponse = {
-  user: AuthUser;
-};
+export type { AuthUser };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -44,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    apiRequest<AuthResponse>("/auth/me")
+    getCurrentUser()
       .then((data) => {
         if (!cancelled) setUser(data.user);
       })
@@ -60,17 +48,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, pin: string) => {
-    const data = await apiRequest<AuthResponse>("/auth/login", {
-      method: "POST",
-      body: { username, pin },
-    });
+    const data = await loginRequest(username, pin);
     setUser(data.user);
     return data.user;
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      await apiRequest("/auth/logout", { method: "POST" });
+      await logoutRequest();
     } catch {
       // session is cleared server-side regardless
     }

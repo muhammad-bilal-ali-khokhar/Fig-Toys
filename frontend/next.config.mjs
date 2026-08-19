@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-const backendUrl = process.env.BACKEND_URL ?? "http://localhost:7901";
+const backendUrl = process.env.BACKEND_URL ?? "http://localhost:47620";
 
 const nextConfig = {
   output: "standalone",

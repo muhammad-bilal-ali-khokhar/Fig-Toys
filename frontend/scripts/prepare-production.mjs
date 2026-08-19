@@ -6,7 +6,7 @@
 //   public/           — public files
 //
 // Run `npm run build` (in frontend/) first, with BACKEND_URL pointing at the
-// backend the app spawns (http://localhost:4701).
+// backend the app spawns (http://localhost:47620).
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

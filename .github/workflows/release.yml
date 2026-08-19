@@ -102,7 +102,7 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          BACKEND_URL: http://localhost:4701
+          BACKEND_URL: http://localhost:47620
         run: npm run build
 
       # Prepare the self-contained production frontend bundle (renames

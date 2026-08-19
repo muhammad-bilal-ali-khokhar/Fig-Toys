@@ -405,9 +405,23 @@
       .art {
         position: relative;
         overflow: hidden;
-        background: #f6f3ee;
+        background: #ffffff;
+        padding: 11px;
       }
-      .art img {
+      .art-inner {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        border-radius: 20px;
+      }
+      .art-inner .version {
+        position: absolute;
+        bottom: 14px;
+        right: 18px;
+        z-index: 5;
+      }
+      .art-inner img {
         position: absolute;
         inset: 0;
         width: 100%;
@@ -460,11 +474,12 @@
         </div>
 
         <div class="art">
-          <img id="splashImg" src="spalsh_1.png" alt="" draggable="false" />
+          <div class="art-inner">
+            <img id="splashImg" src="spalsh_1.png" alt="" draggable="false" />
+            <div class="version" id="version"></div>
+          </div>
         </div>
       </div>
-
-      <div class="version" id="version"></div>
 
     <script>
       (function () {

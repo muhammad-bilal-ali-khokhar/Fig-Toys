@@ -4,7 +4,8 @@ import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
 import { dateAtZone, DEFAULT_TIMEZONE } from "../../core/lib/time";
 import { getCompanyFinancials } from "../../core/lib/company";
-import { moneyIn, moneyOut, reverseMoney } from "../../core/lib/ledger";
+import { applyPayments, reverseMoney } from "../../core/lib/ledger";
+import { availableQuantity, removeMovements, setUnitStatus } from "../../core/lib/stock";
 import type { TransactionType, UnitSource } from "../../generated/prisma/enums";
 import type { Prisma } from "../../generated/prisma/client";
 import type {
@@ -15,14 +16,6 @@ import type {
 } from "./schemas";
 
 type Db = Prisma.TransactionClient | typeof prisma;
-
-type PaymentInput = {
-  method: "CASH" | "CARD" | "BANK_TRANSFER" | "CREDIT";
-  amount: number;
-  tendered?: number;
-  reference?: string;
-  bankAccountId?: string;
-};
 
 type PurchaseLineUnit = CreatePurchaseInput["items"][number];
 
@@ -84,60 +77,6 @@ export async function resolveNumber(requested: string | undefined, prefix: strin
     () => prisma.transaction.findMany({ where: { number: { startsWith: `${prefix}-` } }, select: { number: true } }),
     prefix,
   );
-}
-
-async function applyPayments(
-  db: Db,
-  transactionId: string,
-  contactId: string,
-  payments: PaymentInput[],
-  balanceSign: 1 | -1 = 1,
-  moneySign: 1 | -1 = 1,
-) {
-  let paid = 0;
-  for (const p of payments) {
-    let tendered: number | undefined;
-    let change: number | undefined;
-    if (p.method === "CASH" && p.tendered !== undefined) {
-      if (p.tendered < p.amount - 0.001) {
-        throw new ApiError(400, "payment.tender_short", "Cash received is less than the payment amount");
-      }
-      tendered = p.tendered;
-      change = Math.round((tendered - p.amount) * 100) / 100;
-    }
-    await db.payment.create({
-      data: {
-        transactionId,
-        method: p.method,
-        amount: p.amount,
-        ...(tendered !== undefined ? { tendered } : {}),
-        ...(change !== undefined ? { change } : {}),
-        reference: p.reference,
-        bankAccountId: p.bankAccountId,
-      },
-    });
-    paid += p.amount;
-    if (p.method === "CREDIT") {
-      await db.creditAccount.update({
-        where: { contactId },
-        data: { balance: { increment: p.amount * balanceSign } },
-      });
-    } else if (p.method === "CASH") {
-      if (moneySign === 1) {
-        await moneyIn(db, { account: "cash", amount: p.amount, sourceType: "SALE", note: "Sale (cash)" });
-      } else {
-        await moneyOut(db, { account: "cash", amount: p.amount, sourceType: "PURCHASE", note: "Purchase (cash)" });
-      }
-    } else if (p.method === "BANK_TRANSFER") {
-      const bankAccountId = p.bankAccountId ?? undefined;
-      if (moneySign === 1) {
-        await moneyIn(db, { account: "bank", amount: p.amount, bankAccountId, sourceType: "SALE", note: "Sale (bank)" });
-      } else {
-        await moneyOut(db, { account: "bank", amount: p.amount, bankAccountId, sourceType: "PURCHASE", note: "Purchase (bank)" });
-      }
-    }
-  }
-  return paid;
 }
 
 function statusFor(total: number, paid: number) {
@@ -248,25 +187,7 @@ export async function createSale(input: CreateSaleInput, userId: string) {
               total: item.total,
             });
           } else {
-            const soldItems = await tx.transactionItem.findMany({
-              where: { productId: item.productId },
-              select: { quantity: true, transaction: { select: { type: true } } },
-            });
-            let available = 0;
-            for (const si of soldItems) {
-              const t = si.transaction.type;
-              const sign =
-                t === "PURCHASE"
-                  ? 1
-                  : t === "SALE"
-                    ? -1
-                    : t === "PURCHASE_RETURN"
-                      ? -1
-                      : t === "SALE_RETURN"
-                        ? 1
-                        : 0;
-              available += sign * si.quantity;
-            }
+            const available = await availableQuantity(tx, item.productId);
             if (item.quantity > available) {
               throw new ApiError(400, "stock.insufficient", `Not enough stock — only ${available} available`);
             }
@@ -304,7 +225,7 @@ export async function createSale(input: CreateSaleInput, userId: string) {
           include: { items: true },
         });
 
-        await applyPayments(tx, created.id, contact.id, input.payments);
+        await applyPayments(tx, { transactionId: created.id, contactId: contact.id, payments: input.payments, sourceType: "SALE", moneySign: 1, balanceSign: 1 });
 
         const soldUnitIds = items.filter((i) => i.unitId).map((i) => i.unitId as string);
         const reservations = soldUnitIds.length
@@ -469,7 +390,7 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
       }
     }
 
-    await applyPayments(tx, created.id, contact.id, input.payments, -1, -1);
+    await applyPayments(tx, { transactionId: created.id, contactId: contact.id, payments: input.payments, sourceType: "PURCHASE", moneySign: -1, balanceSign: -1 });
     return created;
   });
 
@@ -530,12 +451,15 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
           ? Number(saleItem.unitPrice) - Number(saleItem.discount)
           : Number(product.sellPrice);
         const refund = item.refund != null ? item.refund : defaultRefund;
-        await tx.unit.update({
-          where: { id: unit.id },
-          data: { status: "IN_STOCK", condition: "USED", source: "SALE_RETURN", returnedFromSource: unit.source },
-        });
-        await tx.stockMovement.create({
-          data: { unitId: unit.id, productId: item.productId, type: "IN", note: "Sale return" },
+        await setUnitStatus(tx, {
+          unitId: unit.id,
+          productId: item.productId,
+          status: "IN_STOCK",
+          condition: "USED",
+          source: "SALE_RETURN",
+          returnedFromSource: unit.source,
+          movementType: "IN",
+          note: "Sale return",
         });
         createdItems.push({
           productId: item.productId,
@@ -597,27 +521,14 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
       },
     });
 
-    for (const p of payments) {
-      await tx.payment.create({
-        data: {
-          transactionId: created.id,
-          method: p.method,
-          amount: p.amount,
-          reference: p.reference,
-          bankAccountId: p.bankAccountId,
-        },
-      });
-      if (p.method === "CREDIT") {
-        await tx.creditAccount.update({
-          where: { contactId: sale.contactId },
-          data: { balance: { decrement: p.amount } },
-        });
-      } else if (p.method === "CASH") {
-        await moneyOut(tx, { account: "cash", amount: p.amount, sourceType: "SALE_RETURN", sourceId: created.id, note: "Sale return refund" });
-      } else if (p.method === "BANK_TRANSFER") {
-        await moneyOut(tx, { account: "bank", amount: p.amount, bankAccountId: p.bankAccountId ?? undefined, sourceType: "SALE_RETURN", sourceId: created.id, note: "Sale return refund" });
-      }
-    }
+    await applyPayments(tx, {
+      transactionId: created.id,
+      contactId: sale.contactId,
+      payments,
+      sourceType: "SALE_RETURN",
+      moneySign: -1,
+      balanceSign: -1,
+    });
     return created;
   });
 
@@ -671,12 +582,14 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
       if (unit.status !== "IN_STOCK") {
         throw new ApiError(400, "unit.not_in_stock", `Unit ${unit.imei} is not in stock`);
       }
-      await tx.unit.update({
-        where: { id: unit.id },
-        data: { status: "RETURNED", source: "PURCHASE_RETURN", returnedFromSource: unit.source },
-      });
-      await tx.stockMovement.create({
-        data: { unitId: unit.id, productId: unit.productId, type: "OUT", note: "Purchase return" },
+      await setUnitStatus(tx, {
+        unitId: unit.id,
+        productId: unit.productId,
+        status: "RETURNED",
+        source: "PURCHASE_RETURN",
+        returnedFromSource: unit.source,
+        movementType: "OUT",
+        note: "Purchase return",
       });
       total += Number(unit.costPrice);
       createdItems.push({
@@ -721,28 +634,15 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
       },
     });
 
-    for (const p of payments) {
-      await tx.payment.create({
-        data: {
-          transactionId: created.id,
-          method: p.method,
-          amount: p.amount,
-          reference: p.reference,
-          bankAccountId: p.bankAccountId,
-        },
-      });
-      if (p.method === "CREDIT") {
-        await tx.creditAccount.upsert({
-          where: { contactId: purchase.contactId },
-          create: { contactId: purchase.contactId, limit: 0, balance: p.amount },
-          update: { balance: { increment: p.amount } },
-        });
-      } else if (p.method === "CASH") {
-        await moneyIn(tx, { account: "cash", amount: p.amount, sourceType: "PURCHASE_RETURN", sourceId: created.id, note: "Purchase return received" });
-      } else if (p.method === "BANK_TRANSFER") {
-        await moneyIn(tx, { account: "bank", amount: p.amount, bankAccountId: p.bankAccountId ?? undefined, sourceType: "PURCHASE_RETURN", sourceId: created.id, note: "Purchase return received" });
-      }
-    }
+    await applyPayments(tx, {
+      transactionId: created.id,
+      contactId: purchase.contactId,
+      payments,
+      sourceType: "PURCHASE_RETURN",
+      moneySign: 1,
+      balanceSign: 1,
+      creditCreate: true,
+    });
 
     return created;
   });
@@ -780,20 +680,24 @@ export async function voidReturn(id: string, userId: string) {
       for (const unit of units) {
         const originalSource = (unit.returnedFromSource as UnitSource) ?? "VENDOR_PURCHASE";
         if (txn.type === "PURCHASE_RETURN") {
-          await tx.unit.update({
-            where: { id: unit.id },
-            data: { status: "IN_STOCK", source: originalSource, returnedFromSource: null },
-          });
-          await tx.stockMovement.create({
-            data: { unitId: unit.id, productId: unit.productId, type: "IN", note: `Return voided (${txn.number})` },
+          await setUnitStatus(tx, {
+            unitId: unit.id,
+            productId: unit.productId,
+            status: "IN_STOCK",
+            source: originalSource,
+            returnedFromSource: null,
+            movementType: "IN",
+            note: `Return voided (${txn.number})`,
           });
         } else {
-          await tx.unit.update({
-            where: { id: unit.id },
-            data: { status: "SOLD", source: originalSource, returnedFromSource: null },
-          });
-          await tx.stockMovement.create({
-            data: { unitId: unit.id, productId: unit.productId, type: "OUT", note: `Return voided (${txn.number})` },
+          await setUnitStatus(tx, {
+            unitId: unit.id,
+            productId: unit.productId,
+            status: "SOLD",
+            source: originalSource,
+            returnedFromSource: null,
+            movementType: "OUT",
+            note: `Return voided (${txn.number})`,
           });
         }
       }
@@ -927,19 +831,9 @@ export async function modifySale(id: string, input: CreateSaleInput, userId: str
           where: { id: item.unitId },
           data: { status: "IN_STOCK" },
         });
-        const movements = await tx.stockMovement.findMany({
-          where: { unitId: item.unitId, type: "OUT", note: "Sold" },
-        });
-        for (const m of movements) {
-          await tx.stockMovement.delete({ where: { id: m.id } });
-        }
+        await removeMovements(tx, { unitId: item.unitId, type: "OUT", note: "Sold" });
       } else {
-        const movements = await tx.stockMovement.findMany({
-          where: { productId: item.productId, type: "OUT", note: "Sold" },
-        });
-        for (const m of movements) {
-          await tx.stockMovement.delete({ where: { id: m.id } });
-        }
+        await removeMovements(tx, { productId: item.productId, type: "OUT", note: "Sold" });
       }
     }
 
@@ -1013,7 +907,7 @@ export async function modifySale(id: string, input: CreateSaleInput, userId: str
       })),
     });
 
-    await applyPayments(tx, id, contact.id, input.payments);
+    await applyPayments(tx, { transactionId: id, contactId: contact.id, payments: input.payments, sourceType: "SALE", moneySign: 1, balanceSign: 1 });
 
     return tx.transaction.findUnique({ where: { id } });
   });
@@ -1073,20 +967,10 @@ export async function modifyPurchase(id: string, input: CreatePurchaseInput, use
         const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
         if (unit && unit.status === "IN_STOCK") {
           await tx.unit.delete({ where: { id: item.unitId } });
-          const movements = await tx.stockMovement.findMany({
-            where: { unitId: item.unitId, type: "IN", note: "Purchased" },
-          });
-          for (const m of movements) {
-            await tx.stockMovement.delete({ where: { id: m.id } });
-          }
+          await removeMovements(tx, { unitId: item.unitId, type: "IN", note: "Purchased" });
         }
       } else {
-        const movements = await tx.stockMovement.findMany({
-          where: { productId: item.productId, type: "IN", note: "Purchased", unitId: null },
-        });
-        for (const m of movements) {
-          await tx.stockMovement.delete({ where: { id: m.id } });
-        }
+        await removeMovements(tx, { productId: item.productId, type: "IN", note: "Purchased", excludeUnits: true });
       }
     }
 
@@ -1158,7 +1042,7 @@ export async function modifyPurchase(id: string, input: CreatePurchaseInput, use
       }
     }
 
-    await applyPayments(tx, id, contact.id, input.payments, -1, -1);
+    await applyPayments(tx, { transactionId: id, contactId: contact.id, payments: input.payments, sourceType: "PURCHASE", moneySign: -1, balanceSign: -1 });
     return tx.transaction.findUnique({ where: { id } });
   });
 
@@ -1211,20 +1095,10 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
             where: { id: item.unitId },
             data: { status: "SOLD" },
           });
-          const movements = await tx.stockMovement.findMany({
-            where: { unitId: item.unitId, type: "IN", note: "Sale return" },
-          });
-          for (const m of movements) {
-            await tx.stockMovement.delete({ where: { id: m.id } });
-          }
+          await removeMovements(tx, { unitId: item.unitId, type: "IN", note: "Sale return" });
         }
       } else {
-        const movements = await tx.stockMovement.findMany({
-          where: { productId: item.productId, type: "IN", note: "Sale return", unitId: null },
-        });
-        for (const m of movements) {
-          await tx.stockMovement.delete({ where: { id: m.id } });
-        }
+        await removeMovements(tx, { productId: item.productId, type: "IN", note: "Sale return", excludeUnits: true });
       }
     }
 
@@ -1254,12 +1128,15 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
           ? Number(saleItem.unitPrice) - Number(saleItem.discount)
           : Number(unit.costPrice);
         const refund = item.refund != null ? item.refund : defaultRefund;
-        await tx.unit.update({
-          where: { id: item.unitId },
-          data: { status: "IN_STOCK", condition: "USED", source: "SALE_RETURN", returnedFromSource: unit.source },
-        });
-        await tx.stockMovement.create({
-          data: { unitId: item.unitId, productId: item.productId, type: "IN", note: "Sale return" },
+        await setUnitStatus(tx, {
+          unitId: item.unitId,
+          productId: item.productId,
+          status: "IN_STOCK",
+          condition: "USED",
+          source: "SALE_RETURN",
+          returnedFromSource: unit.source,
+          movementType: "IN",
+          note: "Sale return",
         });
         total += refund;
         createdItems.push({
@@ -1323,27 +1200,14 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
     await tx.transactionItem.deleteMany({ where: { transactionId: id } });
     await tx.transactionItem.createMany({ data: createdItems.map((ci) => ({ ...ci, transactionId: id })) });
 
-    for (const p of payments) {
-      await tx.payment.create({
-        data: {
-          transactionId: id,
-          method: p.method,
-          amount: p.amount,
-          reference: p.reference,
-          bankAccountId: p.bankAccountId,
-        },
-      });
-      if (p.method === "CREDIT") {
-        await tx.creditAccount.update({
-          where: { contactId: sale.contactId },
-          data: { balance: { decrement: p.amount } },
-        });
-      } else if (p.method === "CASH") {
-        await moneyOut(tx, { account: "cash", amount: p.amount, sourceType: "SALE_RETURN", sourceId: id, note: "Sale return refund" });
-      } else if (p.method === "BANK_TRANSFER") {
-        await moneyOut(tx, { account: "bank", amount: p.amount, bankAccountId: p.bankAccountId ?? undefined, sourceType: "SALE_RETURN", sourceId: id, note: "Sale return refund" });
-      }
-    }
+    await applyPayments(tx, {
+      transactionId: id,
+      contactId: sale.contactId,
+      payments,
+      sourceType: "SALE_RETURN",
+      moneySign: -1,
+      balanceSign: -1,
+    });
 
     return tx.transaction.findUnique({ where: { id } });
   });
@@ -1383,16 +1247,13 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
         const unit = await tx.unit.findUnique({ where: { id: item.unitId } });
         if (unit) {
           const originalSource = (unit.returnedFromSource as UnitSource) ?? "VENDOR_PURCHASE";
-          await tx.unit.update({
-            where: { id: item.unitId },
-            data: { status: "IN_STOCK", source: originalSource, returnedFromSource: null },
+          await setUnitStatus(tx, {
+            unitId: item.unitId,
+            status: "IN_STOCK",
+            source: originalSource,
+            returnedFromSource: null,
           });
-          const movements = await tx.stockMovement.findMany({
-            where: { unitId: item.unitId, type: "OUT", note: "Purchase return" },
-          });
-          for (const m of movements) {
-            await tx.stockMovement.delete({ where: { id: m.id } });
-          }
+          await removeMovements(tx, { unitId: item.unitId, type: "OUT", note: "Purchase return" });
         }
       }
     }
@@ -1430,12 +1291,14 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
       if (unit.status !== "IN_STOCK") {
         throw new ApiError(400, "unit.not_in_stock", `Unit ${unit.imei} is not in stock`);
       }
-      await tx.unit.update({
-        where: { id: unit.id },
-        data: { status: "RETURNED", source: "PURCHASE_RETURN", returnedFromSource: unit.source },
-      });
-      await tx.stockMovement.create({
-        data: { unitId: unit.id, productId: unit.productId, type: "OUT", note: "Purchase return" },
+      await setUnitStatus(tx, {
+        unitId: unit.id,
+        productId: unit.productId,
+        status: "RETURNED",
+        source: "PURCHASE_RETURN",
+        returnedFromSource: unit.source,
+        movementType: "OUT",
+        note: "Purchase return",
       });
       total += Number(unit.costPrice);
       createdItems.push({
@@ -1482,28 +1345,15 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
     await tx.transactionItem.deleteMany({ where: { transactionId: id } });
     await tx.transactionItem.createMany({ data: createdItems.map((ci) => ({ ...ci, transactionId: id })) });
 
-    for (const p of payments) {
-      await tx.payment.create({
-        data: {
-          transactionId: id,
-          method: p.method,
-          amount: p.amount,
-          reference: p.reference,
-          bankAccountId: p.bankAccountId,
-        },
-      });
-      if (p.method === "CREDIT") {
-        await tx.creditAccount.upsert({
-          where: { contactId: purchase.contactId },
-          create: { contactId: purchase.contactId, limit: 0, balance: p.amount },
-          update: { balance: { increment: p.amount } },
-        });
-      } else if (p.method === "CASH") {
-        await moneyIn(tx, { account: "cash", amount: p.amount, sourceType: "PURCHASE_RETURN", sourceId: id, note: "Purchase return received" });
-      } else if (p.method === "BANK_TRANSFER") {
-        await moneyIn(tx, { account: "bank", amount: p.amount, bankAccountId: p.bankAccountId ?? undefined, sourceType: "PURCHASE_RETURN", sourceId: id, note: "Purchase return received" });
-      }
-    }
+    await applyPayments(tx, {
+      transactionId: id,
+      contactId: purchase.contactId,
+      payments,
+      sourceType: "PURCHASE_RETURN",
+      moneySign: 1,
+      balanceSign: 1,
+      creditCreate: true,
+    });
 
     return tx.transaction.findUnique({ where: { id } });
   });

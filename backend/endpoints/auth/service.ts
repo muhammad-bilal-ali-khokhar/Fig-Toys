@@ -6,6 +6,7 @@ import { effectivePermissions } from "../../core/lib/permissions";
 import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import { env } from "../../core/config/env";
+import { buildLoginKeys, registerLoginFailure, registerLoginSuccess } from "../../core/lib/loginThrottle";
 import type { LoginInput } from "./schemas";
 
 type UserRecord = {
@@ -30,12 +31,15 @@ function toUserPayload(user: UserRecord) {
   };
 }
 
-export async function loginUser({ username, pin }: LoginInput) {
+export async function loginUser({ username, pin, ip }: LoginInput & { ip: string }) {
+  const keys = buildLoginKeys(username, ip);
+
   const user = await prisma.user.findUnique({
     where: { username: username.toUpperCase() },
   });
 
   if (user && !user.active) {
+    await registerLoginFailure(keys, username);
     throw new ApiError(
       401,
       "auth.user_inactive",
@@ -46,12 +50,15 @@ export async function loginUser({ username, pin }: LoginInput) {
   const pinValid = user ? await bcrypt.compare(pin, user.pinHash) : false;
 
   if (!user || !pinValid) {
+    await registerLoginFailure(keys, username);
     throw new ApiError(
       401,
       "auth.invalid_credentials",
       "Invalid username or PIN.",
     );
   }
+
+  await registerLoginSuccess(keys);
 
   const token = signToken({
     sub: user.id,

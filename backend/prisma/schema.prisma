@@ -500,6 +500,17 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model LoginAttempt {
+  id             String    @id @default(cuid())
+  key            String    @unique
+  failures       Int       @default(0)
+  blockedUntil   DateTime?
+  lastAlertedTier Int      @default(0)
+  updatedAt      DateTime  @updatedAt
+
+  @@map("login_attempts")
+}
+
 model DashboardWidget {
   id       String @id @default(cuid())
   userId   String

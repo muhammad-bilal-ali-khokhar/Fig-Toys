@@ -4,7 +4,7 @@ import { changePin, loginUser, getUser } from "./service";
 import type { ChangePinInput, LoginInput } from "./schemas";
 
 export async function loginHandler(req: Request, res: Response) {
-  const { token, user } = await loginUser(req.body as LoginInput);
+  const { token, user } = await loginUser({ ...(req.body as LoginInput), ip: req.ip ?? "unknown" });
   setAuthCookie(res, token);
   res.json({ data: { user } });
 }
