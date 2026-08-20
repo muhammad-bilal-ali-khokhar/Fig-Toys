@@ -9,6 +9,30 @@ export const APP = {
   devMarker: process.env.NODE_ENV !== "production" ? "DEV-20260817" : "",
 } as const;
 
+export const UPDATE = {
+  title: "Check for updates",
+  current: "Current version",
+  available: "Update available",
+  upToDate: "You're on the latest version.",
+  checking: "Checking for updates…",
+  downloading: "Downloading update…",
+  download: "Download update",
+  downloaded: "Update ready to install.",
+  install: "Install & restart",
+  later: "Later",
+  changelog: "What's new",
+  retry: "Check again",
+  notElectron: "Updates are handled by the desktop app. In a browser, just download the latest installer from the website.",
+  error: "Could not check for updates",
+  app: "App",
+  frontend: "Frontend",
+  backend: "Backend",
+  restartToApply: "Restart to apply",
+  noUpdate: "Up to date",
+  checkingContent: "Checking…",
+  updateAll: "Update all now",
+} as const;
+
 export const DEFAULT_LOCALE = "en-PK";
 
 export const DEFAULT_TIMEZONE = "Asia/Karachi";

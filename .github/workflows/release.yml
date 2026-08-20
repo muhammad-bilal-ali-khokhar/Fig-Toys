@@ -172,4 +172,5 @@ jobs:
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
           R2_VERSION: ${{ needs.release.outputs.version }}
           R2_SOURCE_DIR: desktop/release
+          R2_CONTENT_DIR: production
         run: node scripts/publish-to-r2.mjs

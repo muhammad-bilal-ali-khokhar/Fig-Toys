@@ -13,6 +13,21 @@ declare global {
     error: string;
   };
 
+  type ContentPartState = {
+    status: "idle" | "downloading" | "done" | "error";
+    version: string;
+    available: string;
+    progress: number;
+    error: string;
+  };
+
+  type ContentState = {
+    base: string;
+    checking: boolean;
+    backend: ContentPartState;
+    frontend: ContentPartState;
+  };
+
   interface Window {
     fig?: {
       isElectron?: boolean;
@@ -54,15 +69,10 @@ declare global {
         copy: (text: string) => Promise<boolean>;
       };
       content?: {
-        check: () => Promise<{
-          type: "content" | "full";
-          available: boolean;
-          contentVersion: string;
-          applied: string;
-          version: string;
-        } | null>;
-        apply: () => Promise<string | null>;
-        onStatus: (cb: (state: { applying: boolean; progress: number }) => void) => () => void;
+        status: () => Promise<ContentState>;
+        check: () => Promise<ContentState>;
+        apply: () => Promise<ContentState>;
+        onStatus: (cb: (state: ContentState) => void) => () => void;
       };
       about?: {
         open: () => Promise<unknown>;

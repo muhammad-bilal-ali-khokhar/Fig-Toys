@@ -7,6 +7,10 @@ Release body.
 
 ## Unreleased
 
+- **Faster frontend/backend updates** — instead of re-downloading the whole app for every change, the desktop app now also checks for smaller, separate **frontend** and **backend** updates and downloads only what changed, then applies it on the next launch. Settings → Update shows three rows — App, Frontend, Backend — each with its version, a check, and a download/apply control, plus an "Update all now" button. Frontend/backend fixes arrive as a fraction of the installer size.
+- **Update panel in Settings** — the desktop app now has a dedicated **Update** tab (Settings → Update) that shows your current version, checks for a newer release, downloads it with a live progress bar, and lets you install & restart or read what's new. It appears only in the desktop app.
+- **Desktop app now updates itself automatically** — installed builds silently check for a newer version on startup and download it in the background, then prompt you to restart and apply it. You can also trigger the same from Settings → Update.
+
 - **Theme now saved in the database** — your app theme is stored on the
   company profile (in the database) instead of only on this device, so the
   chosen colour style follows every terminal and every user automatically.

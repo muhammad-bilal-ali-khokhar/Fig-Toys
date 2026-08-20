@@ -18,11 +18,12 @@ import {
   PrinterIcon,
   SettingsIcon,
   TrendingUpIcon,
+  UpdaterIcon,
   UserIcon,
   WalletIcon,
 } from "@/components/icons";
 
-export type TabId = "shop" | "preferences" | "financial" | "bank" | "sounds" | "users" | "audit" | "backup" | "print" | "desktop" | "license" | "theme";
+export type TabId = "shop" | "preferences" | "financial" | "bank" | "sounds" | "users" | "audit" | "backup" | "print" | "desktop" | "update" | "license" | "theme";
 
 export const SETTINGS_TABS: {
   id: TabId;
@@ -30,6 +31,7 @@ export const SETTINGS_TABS: {
   icon: React.ReactNode;
   hint?: string;
   permission?: Permission;
+  electronOnly?: boolean;
 }[] = [
   { id: "shop", label: "Shop details", icon: <SettingsIcon className="h-4 w-4" /> },
   { id: "preferences", label: "Preferences", icon: <LockIcon className="h-4 w-4" /> },
@@ -41,6 +43,7 @@ export const SETTINGS_TABS: {
   { id: "backup", label: "Backup & restore", icon: <PrinterIcon className="h-4 w-4" />, permission: PERMISSIONS.backup },
   { id: "print", label: "Print & thermal", icon: <PrinterIcon className="h-4 w-4" />, permission: PERMISSIONS.printView },
   { id: "desktop", label: "Desktop app", icon: <SettingsIcon className="h-4 w-4" /> },
+  { id: "update", label: "Update", icon: <UpdaterIcon className="h-4 w-4" />, electronOnly: true },
   { id: "license", label: "License", icon: <LockIcon className="h-4 w-4" /> },
   { id: "theme", label: "Theme", icon: <PaletteIcon className="h-4 w-4" /> },
 ];
@@ -63,8 +66,12 @@ export function SettingsSidebar({
   const { data: profile } = useApi<CompanyProfile>("/settings/company");
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
+  const isElectron = typeof window !== "undefined" && Boolean(window.fig?.isElectron);
   const tabs = SETTINGS_TABS.filter(
-    (t) => (!q || t.label.toLowerCase().includes(q)) && (!t.permission || hasPermission(user, t.permission)),
+    (t) =>
+      (!q || t.label.toLowerCase().includes(q)) &&
+      (!t.permission || hasPermission(user, t.permission)) &&
+      (!t.electronOnly || isElectron),
   );
   const tools = TOOL_LINKS.filter(
     (t) => (!q || t.label.toLowerCase().includes(q)) && (!t.permission || hasPermission(user, t.permission)),

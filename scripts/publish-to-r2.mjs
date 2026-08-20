@@ -8,6 +8,7 @@
 //   R2_BUCKET, R2_PUBLIC_URL, R2_VERSION (optional), R2_SOURCE_DIR (default desktop/release)
 import { createHash, createHmac } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 // Pull the human-written release description for a version from the curated
@@ -208,6 +209,52 @@ async function main() {
     "application/javascript",
     "no-cache",
   );
+
+  // Frontend/backend content bundles for fast, separate updates. When
+  // R2_CONTENT_DIR points at the repo's production/ folder, we zip the backend
+  // and frontend bundles, publish each under content/, and write a content.json
+  // manifest the desktop app uses to download just what changed.
+  const contentDir = path.resolve(process.env.R2_CONTENT_DIR || "");
+  if (contentDir && fs.existsSync(contentDir)) {
+    const { execSync } = await import("node:child_process");
+    const makeZip = (name, sub) => {
+      const zip = path.join(os.tmpdir(), `${name}-${version}.zip`);
+      execSync(`tar -a -c -f "${zip}" -C "${contentDir}" "${sub}"`);
+      return zip;
+    };
+    const uploadBundle = async (kind, name) => {
+      const zip = makeZip(kind, kind);
+      const buf = readFileSync(zip);
+      const key = `content/${name}-${version}.zip`;
+      await putObject(key, buf, "application/octet-stream");
+      return {
+        version,
+        url: `${PUBLIC}/${key}`,
+        sha256: sha256(buf),
+        size: buf.length,
+      };
+    };
+    const backend = await uploadBundle("backend", "backend");
+    const frontend = await uploadBundle("frontend", "frontend");
+    const contentManifest = {
+      appVersion: version,
+      backend,
+      frontend,
+    };
+    await putObject(
+      "content.json",
+      Buffer.from(JSON.stringify(contentManifest, null, 2)),
+      "application/json",
+      "no-cache",
+    );
+    await putObject(
+      "content.js",
+      Buffer.from(`window.FIG_CONTENT=${JSON.stringify(contentManifest)};`),
+      "application/javascript",
+      "no-cache",
+    );
+    console.log(`  content bundles (v${version}): backend ${bytes(backend.size)}, frontend ${bytes(frontend.size)}`);
+  }
 
   console.log("Done. Download page:");
   console.log(`  ${PUBLIC}`);
