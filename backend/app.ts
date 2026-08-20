@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { env } from "./core/config/env";
 import { errorHandler, notFoundHandler } from "./core/middleware/error";
+import { requestLogger } from "./core/lib/logger";
 import authRouter from "./endpoints/auth/routes";
 import brandRouter from "./endpoints/brand/routes";
 import categoryRouter from "./endpoints/category/routes";
@@ -32,6 +33,7 @@ import moneyRouter from "./endpoints/money/routes";
 import feedbackRouter from "./endpoints/feedback/routes";
 import licenseRouter from "./endpoints/license/routes";
 import searchRouter from "./endpoints/search/routes";
+import eventsRouter from "./endpoints/events/routes";
 import { requireLicense } from "./core/middleware/license";
 
 export function createApp() {
@@ -50,6 +52,8 @@ export function createApp() {
   );
   app.use(express.json({ limit: "1mb" }));
 
+  app.use(requestLogger);
+
   app.get("/api/health", (_req, res) => {
     res.json({ data: { status: "ok" } });
   });
@@ -59,6 +63,8 @@ export function createApp() {
   // Everything else requires an active license, except auth and setup which
   // must be reachable before activation and during onboarding.
   app.use("/api", requireLicense());
+
+  app.use("/api/events", eventsRouter);
 
   app.use("/api/auth", authRouter);
   app.use("/api/brand", brandRouter);

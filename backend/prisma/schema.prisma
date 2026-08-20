@@ -570,6 +570,19 @@ model CrashReport {
   @@map("crash_reports")
 }
 
+model EventLog {
+  id        String   @id @default(cuid())
+  source    String
+  level     String
+  type      String
+  message   String
+  detail    String?
+  meta      String?
+  createdAt DateTime @default(now())
+
+  @@map("event_logs")
+}
+
 model CompanyProfile {
   id         String   @id @default("store")
   name       String

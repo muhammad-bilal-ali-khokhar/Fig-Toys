@@ -7,6 +7,10 @@ Release body.
 
 ## Unreleased
 
+- **Online activation now ships with the app** — the license redemption URL is baked into the desktop app, so entering a 10-digit activation code activates online on every install instead of showing "Online activation is not configured".
+- **Structured backend logging** — the API now logs every request (method, URL, status, duration, user) and every unhandled error with its stack, as structured JSON lines, so issues are far easier to debug and report. Logs go to the desktop app's existing log file (captured silently in the packaged app) and to a local `logs/fig-backend.log`. The detail level can be tuned with `LOG_LEVEL` (debug | info | warn | error).
+- **Silent runtime event log across the whole app** — the desktop app, the frontend and the API now feed a single background log of runtime events: frontend uncaught errors and failed API calls, plus backend and desktop lifecycle messages, are recorded quietly so problems can be diagnosed and reported without asking the shop for details. In the desktop app these also flow into the existing log viewer, and a copy is kept in the database for deeper analysis. All log files now live in a `logs/` folder.
+
 ## v0.1.55
 
 - **Faster frontend/backend updates** — instead of re-downloading the whole app for every change, the desktop app now also checks for smaller, separate **frontend** and **backend** updates and downloads only what changed, then applies it on the next launch. Settings → Update shows three rows — App, Frontend, Backend — each with its version, a check, and a download/apply control, plus an "Update all now" button. Frontend/backend fixes arrive as a fraction of the installer size.

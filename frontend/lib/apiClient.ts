@@ -1,5 +1,6 @@
 import { API_BASE, AUTH } from "@/lib/constants";
 import { enqueueQueuedRequest } from "@/lib/offline-queue";
+import { logger } from "@/lib/logger";
 
 export class ApiClientError extends Error {
   constructor(
@@ -39,6 +40,7 @@ export async function apiRequest<T>(
       enqueueQueuedRequest({ path, method: method as "POST" | "PUT" | "PATCH" | "DELETE", body });
       throw new ApiClientError(0, "offline_queued", "You're offline. This change is saved and will sync when you're back online.");
     }
+    logger.warn("api.network", `Network error ${method} ${path}`, { error: String(err) });
     throw err;
   }
 
@@ -49,6 +51,9 @@ export async function apiRequest<T>(
     const payload = (await res.json().catch(() => null)) as {
       error?: { code?: string; message?: string };
     } | null;
+    if (res.status >= 500) {
+      logger.error("api.error", `${method} ${path} failed (${res.status})`, payload?.error);
+    }
     throw new ApiClientError(
       res.status,
       payload?.error?.code ?? "unknown",

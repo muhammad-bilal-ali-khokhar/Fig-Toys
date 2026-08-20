@@ -12,6 +12,9 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default("7d"),
   BCRYPT_ROUNDS: z.coerce.number().int().positive().default(10),
   CORS_ORIGIN: z.string().optional(),
+  LOG_LEVEL: z
+    .enum(["debug", "info", "warn", "error"])
+    .default("debug"),
   LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
   LOGIN_LOCKOUT_BASE_SECONDS: z.coerce.number().int().positive().default(15),

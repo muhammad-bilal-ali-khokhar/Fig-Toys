@@ -75,6 +75,15 @@ const DEV_ATTACH = process.argv.includes("--dev");
 const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 47620);
 const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 58340);
 
+// External service URLs. These are public endpoints, not secrets, so they are
+// safe to ship with the app — this keeps them working in packaged builds where
+// no .env file or env var is present.
+const URLS = {
+  downloadBase: "https://download.myko.pk",
+  changelog: "https://github.com/arsalanwahab/Fig-POS/releases/latest",
+  licenseRedeem: "https://fiery-panda-147.convex.site/redeem",
+};
+
 // Returns true if nothing is listening on <port>. The backend/frontend bind to
 // "localhost", which resolves to ::1 (IPv6) before 127.0.0.1 (IPv4) on most
 // systems, so we must probe both families or a ::1-only listener slips through
@@ -302,7 +311,7 @@ autoUpdater.on("error", (err) => {
 // backendDir()/frontendDir() then prefer, so the new code is used from that
 // same launch. A manual download from Settings applies on the next restart.
 // ---------------------------------------------------------------------------
-const CONTENT_BASE = (process.env.FIG_CONTENT_URL || "https://download.myko.pk").replace(/\/+$/, "");
+const CONTENT_BASE = (process.env.FIG_CONTENT_URL || URLS.downloadBase).replace(/\/+$/, "");
 const CONTENT_MANIFEST = `${CONTENT_BASE}/content.json`;
 const TIMEOUT_MS = 60_000;
 
@@ -473,7 +482,7 @@ async function applyContentNow() {
 // though there is no terminal on Windows.
 // ---------------------------------------------------------------------------
 try {
-  logging.init(userDataDir());
+  logging.init(path.join(userDataDir(), "logs"));
 } catch {
   /* userData not ready yet */
 }
@@ -691,7 +700,10 @@ function getRedeemUrl() {
   } catch {
     // ignore unreadable .env
   }
-  return "";
+  // Public Convex HTTP endpoint — not a secret, safe to ship with the app. This
+  // fallback keeps online activation working in packaged builds where neither
+  // the env var nor the gitignored backend/.env file is present.
+  return URLS.licenseRedeem;
 }
 
 // The database always lives in the OS user-data dir — the same in dev and in a
@@ -799,6 +811,7 @@ function spawnBackend() {
     // Run the backend from the user-data dir so backups and any data files it
     // writes persist outside Program Files (which is wiped on app updates).
     const child = spawn(process.execPath, [bundled], { cwd: userDataDir(), env: baseEnv, stdio: ["ignore", "pipe", "pipe"] });
+    logging.write(`[backend] spawned (pid ${child.pid})`);
     logging.childStream(child, "backend");
     return child;
   }
@@ -833,6 +846,7 @@ function spawnFrontend() {
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
+    logging.write(`[frontend] spawned (pid ${child.pid})`);
     logging.childStream(child, "frontend");
     return child;
   }
@@ -1067,6 +1081,20 @@ function createWindow(url) {
 
   mainWindow.loadURL(url);
 
+  // Tee the renderer's console into the log file so frontend messages (which
+  // include structured log lines and uncaught errors) are captured silently in
+  // the packaged app just like the main process and backend are.
+  mainWindow.webContents.on("console-message", (_e, levelOrDetails, messageOrNothing) => {
+    const level = typeof levelOrDetails === "object" ? levelOrDetails.level : levelOrDetails;
+    const message = typeof levelOrDetails === "object" ? levelOrDetails.message : messageOrNothing;
+    const tag = level === 3 ? "renderer:error" : level === 2 ? "renderer:warn" : "renderer:info";
+    logging.write(`[${tag}] ${String(message)}`);
+  });
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    logging.write(`[renderer] loaded ${mainWindow && mainWindow.webContents.getURL()}`);
+  });
+
   hardenWindow(mainWindow);
   mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
     if (/^https?:\/\//.test(u)) shell.openExternal(u);
@@ -1224,7 +1252,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   ipcMain.handle("update:open-changelog", () => {
-    shell.openExternal("https://github.com/arsalanwahab/Fig-POS/releases/latest");
+    shell.openExternal(URLS.changelog);
     return true;
   });
 

@@ -174,14 +174,9 @@ export function DesktopAppTab() {
       <div className="rounded-3xl bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Diagnostics / logs</p>
-          <div className="flex gap-2">
-            <Button variant="grey" size="sm" onClick={() => void window.fig?.logs?.open()}>
-              Open logs folder
-            </Button>
-            <Button variant="grey" size="sm" onClick={() => void window.fig?.logs?.get().then(setLogs)}>
-              {logs ? "Refresh logs" : "View logs"}
-            </Button>
-          </div>
+          <Button variant="grey" size="sm" onClick={() => void window.fig?.logs?.get().then(setLogs)}>
+            {logs ? "Refresh logs" : "View logs"}
+          </Button>
         </div>
         {logs && (
           <pre className="max-h-64 overflow-auto rounded-2xl bg-ink-50 p-3 text-xs leading-relaxed text-ink-700">

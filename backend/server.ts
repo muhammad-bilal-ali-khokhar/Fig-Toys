@@ -9,6 +9,7 @@ import { seedBrands } from "./endpoints/brand/seed";
 import { seedCategories } from "./endpoints/category/seed";
 import { seedColors } from "./endpoints/color/seed";
 import { scheduleBackups } from "./core/lib/backup";
+import { logger } from "./core/lib/logger";
 
 const app = createApp();
 
@@ -35,19 +36,17 @@ async function bootstrap() {
       await seedBrands();
       await seedColors();
     } catch (err) {
-      console.warn("Catalog defaults could not be seeded:", err instanceof Error ? err.message : err);
+      logger.warn("Catalog defaults could not be seeded", err instanceof Error ? { error: err.message } : { error: String(err) });
     }
   }
   const server = app.listen(env.PORT, env.HOST, () => {
-    console.log(
-      `Fig Mobile POS API listening on http://${env.HOST}:${env.PORT}`,
-    );
+    logger.info(`Fig Mobile POS API listening on http://${env.HOST}:${env.PORT}`);
   });
 
   scheduleBackups();
 
   function shutdown(signal: string) {
-    console.log(`${signal} received, shutting down...`);
+    logger.info(`${signal} received, shutting down...`);
     server.close(() => {
       prisma.$disconnect().then(() => process.exit(0));
     });
