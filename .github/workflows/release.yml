@@ -57,9 +57,35 @@ jobs:
           echo "--- release notes preview ---"
           cat .release-notes.md
 
+      # Cut the human-written release notes: rename the top "## Unreleased"
+      # section to the version being released and start a fresh (empty)
+      # "## Unreleased" for the next cycle. This keeps each release's
+      # description to only its own notes, so publish-to-r2.mjs doesn't dump
+      # older releases' notes into the newest version.
+      - name: Cut release notes section
+        run: |
+          node -e '
+            const fs = require("fs");
+            const version = process.argv[1];
+            const f = "docs/RELEASE_NOTES.md";
+            const lines = fs.readFileSync(f, "utf8").split("\n");
+            const i = lines.findIndex((l) => l.trim() === "## Unreleased");
+            if (i === -1) { console.log("No ## Unreleased section; skipping"); process.exit(0); }
+            let j = -1;
+            for (let k = i + 1; k < lines.length; k++) {
+              if (/^## /.test(lines[k])) { j = k; break; }
+            }
+            if (j === -1) j = lines.length;
+            const body = lines.slice(i + 1, j).join("\n").trim();
+            const rest = lines.slice(j).join("\n").trim();
+            const out = "## Unreleased\n\n## v" + version + "\n\n" + body + "\n\n" + rest + "\n";
+            fs.writeFileSync(f, out);
+            console.log("Cut ## Unreleased into ## v" + version);
+          ' "${{ steps.version.outputs.version }}"
+
       - name: Commit + tag
         run: |
-          git add backend/package.json frontend/package.json desktop/package.json CHANGELOG.md .release-notes.md
+          git add backend/package.json frontend/package.json desktop/package.json CHANGELOG.md .release-notes.md docs/RELEASE_NOTES.md
           git commit -m "v${{ steps.version.outputs.version }}"
           git tag "v${{ steps.version.outputs.version }}"
           git push origin main --tags

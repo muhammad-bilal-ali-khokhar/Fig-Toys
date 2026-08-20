@@ -7,22 +7,24 @@ Release body.
 
 ## Unreleased
 
+## v0.1.55
+
 - **Faster frontend/backend updates** — instead of re-downloading the whole app for every change, the desktop app now also checks for smaller, separate **frontend** and **backend** updates and downloads only what changed, then applies it on the next launch. Settings → Update shows three rows — App, Frontend, Backend — each with its version, a check, and a download/apply control, plus an "Update all now" button. Frontend/backend fixes arrive as a fraction of the installer size.
 - **Update panel in Settings** — the desktop app now has a dedicated **Update** tab (Settings → Update) that shows your current version, checks for a newer release, downloads it with a live progress bar, and lets you install & restart or read what's new. It appears only in the desktop app.
 - **Desktop app now updates itself automatically** — installed builds silently check for a newer version on startup and download it in the background, then prompt you to restart and apply it. You can also trigger the same from Settings → Update.
+
+## v0.1.54
 
 - **Theme now saved in the database** — your app theme is stored on the
   company profile (in the database) instead of only on this device, so the
   chosen colour style follows every terminal and every user automatically.
   When you pick a theme, it's saved to the shop and the whole app updates.
-
 - **24 new app themes** — the theme picker grew from 30 to 54 color schemes:
   **Plum**, **Seafoam**, **Tangerine**, **Wine**, **Petrol**, **Olive**, **Mocha**,
   **Sky**, **Grape**, **Cobalt**, **Brick**, **Denim**, **Peach**, **Indigo**,
   **Avocado**, **Sapphire**, **Tulip**, **Honey**, **Moss**, **Storm**, **Fuchsia**,
   **Rust**, **Jade**, and **Orchid**. Each restyles buttons, highlights, and panels.
   Pick one from Settings → Appearance.
-
 - **License activation no longer rejected as forged** — the desktop app was
   bundling a stale public key, so every signed license key was rejected with
   "This license key has been altered or forged." The desktop bundle now ships
@@ -83,31 +85,29 @@ Release body.
   into its own `contacts-table` component. Listing, searching, filtering, adding,
   editing, deleting, and CSV import/export all work exactly as before, but the
   page is now much easier to maintain.
-
 - **Dashboard code cleanup (no behavior change)** — split the single-file
   dashboard into a structured `components/dashboard/` folder: shared chart and
   card primitives, activity-formatting helpers, the KPI widgets, and one
   component per dashboard widget under `widgets/`. The dashboard layout and every
   widget render exactly as before, but the page is now much easier to maintain.
-
 - **Shared payment & stock helpers (no behavior change)** — payment processing
   (recording payments, moving credit/cash/bank balances) is now a single shared
   helper used by sales, purchases, and every return flow, instead of being
   copied across four nearly identical return functions. Stock movements and unit
   status changes were consolidated the same way, and the "how much is in stock"
   calculation now lives in one place. Existing behaviour is unchanged.
-
 - **Onboarding code cleanup (no behavior change)** — split the single-file setup
   wizard into a structured `components/onboarding/` folder (one component per
   step: license, store, settings, banks, admin, done) plus a dedicated
   `lib/services/onboarding.ts` API layer. The setup flow looks and works exactly
   as before, but is now easier to maintain.
-
 - **Login code cleanup (no behavior change)** — split the single-file sign-in
   screen into a structured `components/login/` folder (shell, form, and a
   `use-login` state hook) and moved the auth API calls into a dedicated
   `lib/services/auth.ts` layer. Signing in, the remembered-users list, and the
   PIN entry all work exactly as before, but the code is now easier to maintain.
+
+## v0.1.53
 
 - **Human-written release descriptions** — every release now ships with a
   clear, user-facing description instead of a raw dump of commit messages. The
