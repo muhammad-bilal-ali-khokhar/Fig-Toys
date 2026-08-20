@@ -87,6 +87,24 @@
             scrollbar-width: none;
         }
 
+        /* Scroll Reveal Animations */
+        .reveal-up {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 1s cubic-bezier(0.25, 1, 0.5, 1), transform 1s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .reveal-scale {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 1.2s cubic-bezier(0.25, 1, 0.5, 1), transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .is-revealed {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
         /* Custom selection color */
         ::selection {
             background-color: theme('colors.brand.200');
@@ -1134,6 +1152,28 @@
                 });
                 host.replaceChildren(...rows);
             }
+
+            // Scroll-reveal fade/scale animations. A low threshold keeps tall
+            // sections (like the download/version-history block) from staying
+            // invisible, since 15% of a very tall element never enters the viewport.
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px 0px -10% 0px',
+                threshold: 0.01
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-revealed');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.reveal-up, .reveal-scale').forEach(el => {
+                observer.observe(el);
+            });
         });
     </script>
 </body>
