@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Release Notes - Fig POS</title>
+
+    <!-- Google Fonts: Inter as fallback for SF Pro -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#faf5f7', 100: '#f3e5eb', 200: '#e5c7d5', 300: '#d39ab5',
+                            400: '#bb6d91', 500: '#9b3f68', 600: '#853456', 700: '#6f2a48',
+                            800: '#57223b', 900: '#421a2e', 950: '#250c18'
+                        },
+                        ink: {
+                            50: '#faf8f3', 100: '#f3efe7', 200: '#e6ded1', 300: '#d3c7b6',
+                            400: '#aaa08f', 500: '#7d7467', 600: '#5c554b', 700: '#443f37',
+                            800: '#2d2924', 900: '#1c1916', 950: '#0f0d0b'
+                        },
+                        teal: {
+                            50: '#f2f8f1', 100: '#dcebd8', 200: '#bddbb5', 300: '#91c58a',
+                            400: '#65aa63', 500: '#4a8f4d', 600: '#3a733e', 700: '#2f5b33',
+                            800: '#27482b', 900: '#203a25', 950: '#102013'
+                        },
+                        gold: {
+                            50: '#fff9e8', 100: '#fff0bd', 200: '#ffe08a', 300: '#fbc95a',
+                            400: '#f5b832', 500: '#e9a21a', 600: '#c68112', 700: '#9e640f',
+                            800: '#774a10', 900: '#57360e', 950: '#321d06'
+                        },
+                        violet: {
+                            50: '#faf5fb', 100: '#f1e5f5', 200: '#dfc7e8', 300: '#c49bd5',
+                            400: '#a66abb', 500: '#7e3f95', 600: '#69347d', 700: '#572b68',
+                            800: '#452351', 900: '#351b3d', 950: '#1f1025'
+                        },
+                        semantic: {
+                            success: '#3f8f4a', error: '#c0392b', warning: '#c98a24', info: '#3b6ea8'
+                        }
+                    },
+                    spacing: {
+                        '128': '32rem',
+                        '144': '36rem',
+                    },
+                    transitionTimingFunction: {
+                        'apple': 'cubic-bezier(0.25, 1, 0.5, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Strict adherence to NO SHADOWS rule */
+        * {
+            box-shadow: none !important;
+            text-shadow: none !important;
+            filter: drop-shadow(0 0 0 transparent) !important;
+        }
+
+        body {
+            background-color: theme('colors.ink.50');
+            color: theme('colors.ink.950');
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Hide scrollbar for clean UI elements */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Custom selection color */
+        ::selection {
+            background-color: theme('colors.brand.200');
+            color: theme('colors.brand.950');
+        }
+    </style>
+</head>
+<body class="selection:bg-brand-200">
+
+    <nav class="fixed top-0 w-full z-50 bg-ink-50/90 backdrop-blur-sm border-b border-ink-200 transition-colors duration-300">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-8">
+                <!-- Fig Logo -->
+                <a href="index.html" class="text-xl font-bold tracking-tight text-ink-950 flex items-center gap-2">
+                    <img class="w-7 h-7 rounded-lg" src="icon.png" alt="Fig" />
+                    Fig
+                </a>
+                <div class="hidden md:flex gap-6 text-sm font-medium text-ink-600">
+                    <a href="index.html#product" class="hover:text-ink-950 transition-colors">Product</a>
+                    <a href="index.html#features" class="hover:text-ink-950 transition-colors">Features</a>
+                    <a href="index.html#reports" class="hover:text-ink-950 transition-colors">Reports</a>
+                    <a href="index.html#how-it-works" class="hover:text-ink-950 transition-colors">How it works</a>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 text-sm font-medium">
+                <a href="index.html#download" class="bg-brand-600 text-ink-50 px-4 py-2 rounded-full hover:bg-brand-700 transition-colors border border-brand-700">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <section class="pt-32 pb-20">
+            <div class="max-w-4xl mx-auto px-6">
+                <div class="mb-4">
+                    <a href="index.html" class="text-sm font-medium text-brand-600 hover:text-brand-700">&larr; Back to download</a>
+                </div>
+                <h1 class="text-5xl md:text-7xl font-semibold tracking-tighter leading-tight mb-4 text-ink-950">
+                    Release notes.
+                </h1>
+                <p class="text-xl text-ink-600 font-normal mb-12 max-w-2xl">
+                    What's new in the latest releases of Fig POS for Windows.
+                </p>
+
+                <div class="space-y-4" id="version-history"></div>
+            </div>
+        </section>
+
+        <footer class="py-8 bg-ink-100 border-t border-ink-200 text-center text-ink-500 text-sm">
+            <div class="max-w-7xl mx-auto px-6">
+                <div class="flex items-center justify-center gap-2 mb-4">
+                    <img class="w-6 h-6 rounded-md" src="icon.png" alt="Fig" />
+                    <span class="font-semibold text-ink-800">Fig POS</span>
+                </div>
+                <p>&copy; 2026 Fig POS. A beautifully engineered operating system.</p>
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        // Load release data from the bucket via script tags (bypasses CORS).
+        window.FIG_VERSIONS = null;
+    </script>
+    <script src="https://download.myko.pk/versions.js?v=20260818" defer></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            function renderDescription(container, description) {
+                if (!description) return;
+                const bullets = [];
+                String(description)
+                    .replace(/\r/g, "")
+                    .split("\n")
+                    .map((l) => l.trim())
+                    .forEach((line) => {
+                        if (line.startsWith("-")) {
+                            bullets.push(line);
+                        } else if (line.length > 0 && bullets.length) {
+                            bullets[bullets.length - 1] += " " + line;
+                        }
+                    });
+                const ul = document.createElement("ul");
+                ul.className = "text-sm text-ink-600 leading-relaxed max-w-2xl list-disc pl-5 text-left";
+                bullets.forEach((line) => {
+                    const li = document.createElement("li");
+                    li.className = "mt-1.5";
+                    li.textContent = line
+                        .replace(/^\s*-\s*/, "")
+                        .replace(/\*\*/g, "")
+                        .replace(/`([^`]*)`/g, "$1");
+                    ul.append(li);
+                });
+                container.replaceChildren(ul);
+            }
+
+            const versions = (window.FIG_VERSIONS && window.FIG_VERSIONS.versions) || [];
+            const host = document.getElementById("version-history");
+            if (versions.length) {
+                const rows = versions.map((v) => {
+                    const el = document.createElement("div");
+                    el.className = "bg-ink-100 border border-ink-200 rounded-2xl p-6";
+                    const title = document.createElement("div");
+                    title.className = "flex flex-wrap items-center gap-3 mb-1";
+                    const name = document.createElement("span");
+                    name.className = "font-semibold text-ink-950";
+                    name.textContent = "v" + v.version;
+                    const date = document.createElement("span");
+                    date.className = "text-sm text-ink-500";
+                    date.textContent = v.publishedAt
+                        ? new Date(v.publishedAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
+                        : "";
+                    const size = document.createElement("span");
+                    size.className = "text-sm text-ink-500";
+                    size.textContent = v.size ? v.size + " · 64-bit" : "";
+                    title.append(name, date, size);
+                    el.append(title);
+                    if (v.description) {
+                        const desc = document.createElement("div");
+                        desc.className = "mt-3";
+                        renderDescription(desc, v.description);
+                        el.append(desc);
+                    }
+                    const link = document.createElement("a");
+                    link.className = "inline-block mt-4 bg-brand-600 text-ink-50 px-5 py-2.5 rounded-full text-sm font-medium hover:bg-brand-700 transition-colors border border-brand-700";
+                    link.href = v.url.setup;
+                    link.textContent = "Download v" + v.version;
+                    link.setAttribute("download", "");
+                    link.rel = "noopener";
+                    el.append(link);
+                    return el;
+                });
+                host.replaceChildren(...rows);
+            } else {
+                const empty = document.createElement("p");
+                empty.className = "text-ink-500";
+                empty.textContent = "No releases found yet.";
+                host.replaceChildren(empty);
+            }
+        });
+    </script>
+</body>
+</html>
