@@ -1,11 +1,6 @@
-# Release Notes
-
-Human-written, user-facing descriptions of what actually changed in each
-release. The top section is the one being worked on; when a release is cut the
-workflow uses it (the section above the next `## v` heading) as the GitHub
-Release body.
-
 ## Unreleased
+
+## v0.1.56
 
 - **Online activation now ships with the app** — the license redemption URL is baked into the desktop app, so entering a 10-digit activation code activates online on every install instead of showing "Online activation is not configured".
 - **Structured backend logging** — the API now logs every request (method, URL, status, duration, user) and every unhandled error with its stack, as structured JSON lines, so issues are far easier to debug and report. Logs go to the desktop app's existing log file (captured silently in the packaged app) and to a local `logs/fig-backend.log`. The detail level can be tuned with `LOG_LEVEL` (debug | info | warn | error).

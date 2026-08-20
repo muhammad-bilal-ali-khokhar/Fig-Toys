@@ -4,7 +4,18 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.55
+## v0.1.56
+
+- Released on: 2026-08-20
+
+- feat: add structured backend logging and silent runtime event log
+- feat: show one summary bullet per download card and link read-more to releases page
+- fix: partition release notes per version so each release shows only its own description
+- feat: truncate release descriptions with a read-more toggle on download cards
+- feat: restore cinematic hero scroll animation on download site
+- feat: re-add scroll reveal animations to download site
+- feat: add release notes page and limit download section to 3 releases
+- fix: make download site sections visible without scroll animations
 
 - Released on: 2026-08-20
 
