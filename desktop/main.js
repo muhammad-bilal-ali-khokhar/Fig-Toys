@@ -907,7 +907,6 @@ function hardenWindow(win) {
   const wc = win.webContents;
   wc.on("before-input-event", (event, input) => {
     if (input.control && input.key.toLowerCase() === "r") event.preventDefault();
-    if (input.control && input.shift && input.key.toLowerCase() === "i") event.preventDefault();
   });
 }
 
