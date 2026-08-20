@@ -7,6 +7,10 @@ Release body.
 
 ## Unreleased
 
+- **Online license activation fixed on desktop** — the desktop app now passes
+  the license redemption URL to its built-in backend, so entering a 10-digit
+  activation code activates online instead of showing "Online activation is not
+  configured". Restart the desktop app to pick this up.
 - **Print buttons for every report** — the Sales list and Sale returns reports
   now also have a **Print** button, so all reports print: Sales report, Purchases
   report, Profit report, Expenses report, Payables, Receivables, Purchase list,

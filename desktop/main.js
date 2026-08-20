@@ -484,6 +484,31 @@ function getLicensePublicKey() {
   return "";
 }
 
+// Online license redemption URL (Convex HTTP action that swaps a 10-digit
+// activation code for a signed license key). Read from the environment or the
+// backend .env file and passed to the backend so online activation works.
+function getRedeemUrl() {
+  if (process.env.LICENSE_REDEEM_URL && process.env.LICENSE_REDEEM_URL.trim()) {
+    return process.env.LICENSE_REDEEM_URL.trim();
+  }
+  const envFile = path.join(__dirname, "..", "backend", ".env");
+  try {
+    if (fs.existsSync(envFile)) {
+      const line = fs
+        .readFileSync(envFile, "utf8")
+        .split("\n")
+        .find((l) => l.trim().startsWith("LICENSE_REDEEM_URL="));
+      if (line) {
+        const value = line.split("=").slice(1).join("=").trim().replace(/^["']|["']$/g, "");
+        if (value) return value;
+      }
+    }
+  } catch {
+    // ignore unreadable .env
+  }
+  return "";
+}
+
 // The database always lives in the OS user-data dir — the same in dev and in a
 // packaged build — so behaviour (and data) is identical either way.
 function dbPath() {
@@ -579,6 +604,7 @@ function spawnBackend() {
     FIG_GH_REPO: process.env.FIG_GH_REPO || "arsalanwahab/Fig-POS",
     FIG_FEEDBACK_SECRET: process.env.FIG_FEEDBACK_SECRET || "",
     LICENSE_PUBLIC_KEY: getLicensePublicKey(),
+    LICENSE_REDEEM_URL: getRedeemUrl(),
     FIG_DESKTOP: "1",
   };
 
