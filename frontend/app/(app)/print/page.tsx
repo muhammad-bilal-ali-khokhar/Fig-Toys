@@ -758,11 +758,7 @@ function PrintStudioContent() {
           )}
           <span className="text-xs font-medium text-ink-400">Change</span>
         </button>
-        {layoutType === "report" ? (
-          <div className="flex min-w-56 max-w-md flex-1 items-center rounded-2xl bg-white px-3 py-1.5 shadow-sm">
-            <PeriodPicker value={reportRange} onChange={setReportRange} />
-          </div>
-        ) : layoutType === "document" ? (
+        {layoutType === "document" ? (
           <div className="min-w-56 max-w-xs flex-1">
             <Dropdown
               value={selectedId}
@@ -898,6 +894,12 @@ function PrintStudioContent() {
           Print
         </Button>
       </div>
+
+      {layoutType === "report" && (
+        <div className="mb-4">
+          <PeriodPicker value={reportRange} onChange={setReportRange} />
+        </div>
+      )}
 
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-ink-900/5">
         <div className="flex flex-1 justify-center overflow-auto overscroll-none p-4">
