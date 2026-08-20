@@ -84,6 +84,14 @@ const DEFAULTS: Record<string, { format: string; options: Record<string, boolean
     },
     qrType: "none",
   },
+  SALES_REPORT: { format: "a4", options: {}, qrType: "none" },
+  PURCHASES_REPORT: { format: "a4", options: {}, qrType: "none" },
+  PROFIT_REPORT: { format: "a4", options: {}, qrType: "none" },
+  EXPENSES_REPORT: { format: "a4", options: {}, qrType: "none" },
+  PAYABLES: { format: "a4", options: {}, qrType: "none" },
+  RECEIVABLES: { format: "a4", options: {}, qrType: "none" },
+  PURCHASE_LIST: { format: "a4", options: {}, qrType: "none" },
+  PURCHASE_RETURNS: { format: "a4", options: {}, qrType: "none" },
 };
 
 export async function listPrintSettings() {

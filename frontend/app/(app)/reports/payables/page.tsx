@@ -6,7 +6,7 @@ import { KpiCard } from "@/components/reports/report-card";
 import { BalanceList } from "@/components/reports/balance-list";
 import { formatPKR } from "@/lib/money";
 import { ReportPrint } from "@/components/reports/report-print";
-import { BalancesReportDoc } from "@/components/reports/report-print-docs";
+import { ReportDoc } from "@/app/(app)/print/dlayout";
 import { Button } from "@/components/ui/button";
 
 export default function PayablesPage() {
@@ -27,7 +27,7 @@ export default function PayablesPage() {
           )}
         >
           {(profile) =>
-            data ? <BalancesReportDoc profile={profile} data={data} kind="payable" title="Payables" /> : null
+            data ? <ReportDoc format="a4" kind="PAYABLES" profile={profile} data={data} /> : null
           }
         </ReportPrint>
       </div>

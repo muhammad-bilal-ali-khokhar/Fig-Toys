@@ -11,7 +11,7 @@ import { formatPKR } from "@/lib/money";
 import { pluralize } from "@/lib/pluralize";
 import { PAYMENT_METHOD_LABELS, REPORT_CONDITION_LABELS } from "@/lib/constants";
 import { ReportPrint } from "@/components/reports/report-print";
-import { SalesReportDoc } from "@/components/reports/report-print-docs";
+import { ReportDoc } from "@/app/(app)/print/dlayout";
 import { Button } from "@/components/ui/button";
 
 export default function SalesReportPage() {
@@ -31,7 +31,7 @@ export default function SalesReportPage() {
             </Button>
           )}
         >
-          {(profile) => (data ? <SalesReportDoc profile={profile} data={data} range={range} /> : null)}
+          {(profile) => (data ? <ReportDoc format="a4" kind="SALES_REPORT" profile={profile} data={data} range={range} /> : null)}
         </ReportPrint>
       </div>
 

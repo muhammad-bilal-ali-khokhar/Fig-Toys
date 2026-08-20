@@ -10,6 +10,14 @@ const docTypes = [
   "EXPENSE_SHEET",
   "INVENTORY",
   "CONTACTS",
+  "SALES_REPORT",
+  "PURCHASES_REPORT",
+  "PROFIT_REPORT",
+  "EXPENSES_REPORT",
+  "PAYABLES",
+  "RECEIVABLES",
+  "PURCHASE_LIST",
+  "PURCHASE_RETURNS",
 ] as const;
 
 export const printSettingSchema = z.object({

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { TypePill, type TypePillTone } from "@/components/ui/type-pill";
 import { InvoiceViewer } from "@/components/transactions/invoice-viewer";
 import { ReportPrint } from "@/components/reports/report-print";
-import { TransactionListDoc } from "@/components/reports/report-print-docs";
+import { ReportDoc, type ReportDocKind } from "@/app/(app)/print/dlayout";
 
 export function TransactionList({
   type,
@@ -42,6 +42,12 @@ export function TransactionList({
   const { data, loading } = useApi<Transaction[]>(`/transaction?${params.toString()}`);
 
   const list = data ?? [];
+  const kind: Record<string, ReportDocKind> = {
+    SALE: "SALES_LIST",
+    SALE_RETURN: "SALE_RETURNS",
+    PURCHASE: "PURCHASE_LIST",
+    PURCHASE_RETURN: "PURCHASE_RETURNS",
+  };
   const { page, pageSize, setPage, setPageSize, pageCount, from: fromRow, to: toRow, slice } = usePagination(list.length);
   const pageItems = slice(list);
 
@@ -66,7 +72,7 @@ export function TransactionList({
             )}
           >
             {(profile) =>
-              list.length > 0 ? <TransactionListDoc profile={profile} title={printTitle} rows={list} /> : null
+              list.length > 0 ? <ReportDoc format="a4" kind={kind[type]} profile={profile} rows={list} /> : null
             }
           </ReportPrint>
         )}

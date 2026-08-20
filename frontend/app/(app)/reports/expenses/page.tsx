@@ -10,7 +10,7 @@ import { formatPKR } from "@/lib/money";
 import { pluralize } from "@/lib/pluralize";
 import { EXPENSE_CATEGORY_LABELS } from "@/lib/constants";
 import { ReportPrint } from "@/components/reports/report-print";
-import { ExpensesReportDoc } from "@/components/reports/report-print-docs";
+import { ReportDoc } from "@/app/(app)/print/dlayout";
 import { Button } from "@/components/ui/button";
 
 export default function ExpensesReportPage() {
@@ -30,7 +30,7 @@ export default function ExpensesReportPage() {
             </Button>
           )}
         >
-          {(profile) => (data ? <ExpensesReportDoc profile={profile} data={data} range={range} /> : null)}
+          {(profile) => (data ? <ReportDoc format="a4" kind="EXPENSES_REPORT" profile={profile} data={data} range={range} /> : null)}
         </ReportPrint>
       </div>
 
