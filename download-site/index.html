@@ -1148,21 +1148,13 @@
                         desc.className = "mt-3 max-w-xl";
                         const bullets = buildBullets(v.description);
                         if (bullets.length) {
-                            const listWrap = document.createElement("div");
-                            listWrap.append(makeList(bullets, 2));
-                            desc.append(listWrap);
-                            if (bullets.length > 2) {
-                                const btn = document.createElement("button");
-                                btn.type = "button";
-                                btn.className = "mt-2 text-sm font-medium text-brand-600 hover:text-brand-700";
-                                btn.textContent = "Read more";
-                                let expanded = false;
-                                btn.addEventListener("click", () => {
-                                    expanded = !expanded;
-                                    listWrap.replaceChildren(makeList(bullets, expanded ? bullets.length : 2));
-                                    btn.textContent = expanded ? "Show less" : "Read more";
-                                });
-                                desc.append(btn);
+                            desc.append(makeList(bullets, 1));
+                            if (bullets.length > 1) {
+                                const more = document.createElement("a");
+                                more.className = "mt-2 inline-block text-sm font-medium text-brand-600 hover:text-brand-700";
+                                more.href = "releases.html";
+                                more.textContent = "Read more";
+                                desc.append(more);
                             }
                         }
                         info.append(desc);
