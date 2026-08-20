@@ -87,6 +87,66 @@ describe("transaction money math", () => {
   });
 });
 
+describe("card settlement guard", () => {
+  beforeAll(async () => {
+    await resetDb();
+    await seedUser("settle_admin", "ADMIN");
+    await seedCatalog();
+    cookie = (await login(app, "settle_admin")).cookie;
+  });
+
+  const auth = () => ({ Cookie: cookie });
+
+  async function cardSale(amount: number) {
+    const { product, contact } = await prisma.product.findFirstOrThrow().then(async (p) => ({
+      product: p,
+      contact: await prisma.contact.findFirstOrThrow(),
+    }));
+    const unit = await prisma.unit.create({
+      data: {
+        productId: product.id,
+        imei: String(Date.now()),
+        condition: "NEW",
+        costPrice: 50000,
+      },
+    });
+    const res = await request(app)
+      .post("/api/transaction/sale")
+      .set(auth())
+      .send({
+        contactId: contact.id,
+        items: [{ productId: product.id, unitId: unit.id, quantity: 1, unitPrice: amount }],
+        payments: [{ method: "CARD", amount }],
+      });
+    expect(res.status).toBe(201);
+  }
+
+  it("blocks settling more than the pending card amount", async () => {
+    await cardSale(50000);
+
+    const res = await request(app)
+      .post("/api/money/settle-card")
+      .set(auth())
+      .send({ amount: 60000, target: "cash" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error?.code).toBe("money.settle_exceeds_pending");
+  });
+
+  it("allows settling up to the pending card amount and reduces pending", async () => {
+    const overview = await request(app).get("/api/money/").set(auth());
+    const pending = overview.body.data.pendingCard;
+
+    const res = await request(app)
+      .post("/api/money/settle-card")
+      .set(auth())
+      .send({ amount: pending, target: "cash" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.pendingCard).toBe(0);
+  });
+});
+
 afterAll(async () => {
   await prisma.$disconnect();
 });

@@ -242,14 +242,8 @@ export async function applyPayments(db: Db, opts: ApplyPaymentsOptions): Promise
   return paid;
 }
 
-export async function getMoneyOverview() {
-  const [cash, banks, cardReceived, cardReturned, cardSettled, credit] = await Promise.all([
-    prisma.cashAccount.findUnique({ where: { id: CASH_ACCOUNT_ID } }),
-    prisma.bankAccount.findMany({
-      where: { active: true },
-      select: { id: true, name: true, bankName: true, accountNo: true, balance: true },
-      orderBy: { createdAt: "asc" },
-    }),
+export async function getPendingCardAmount() {
+  const [cardReceived, cardReturned, cardSettled] = await Promise.all([
     prisma.payment.aggregate({
       where: { method: "CARD", transaction: { type: "SALE" } },
       _sum: { amount: true },
@@ -262,25 +256,38 @@ export async function getMoneyOverview() {
       where: { sourceType: "CARD_SETTLEMENT", kind: "IN" },
       _sum: { amount: true },
     }),
-    prisma.creditAccount.aggregate({ _sum: { balance: true } }),
   ]);
-
   const received = Number(cardReceived._sum.amount ?? 0);
   const returned = Number(cardReturned._sum.amount ?? 0);
   const settled = Number(cardSettled._sum.amount ?? 0);
+  return Math.max(0, received - returned - settled);
+}
+
+export async function getMoneyOverview() {
+  const [cash, banks, pendingCard, credit] = await Promise.all([
+    prisma.cashAccount.findUnique({ where: { id: CASH_ACCOUNT_ID } }),
+    prisma.bankAccount.findMany({
+      where: { active: true },
+      select: { id: true, name: true, bankName: true, accountNo: true, balance: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    getPendingCardAmount(),
+    prisma.creditAccount.aggregate({ _sum: { balance: true } }),
+  ]);
+
   const netCredit = Number(credit._sum.balance ?? 0);
 
   return {
     cashBalance: Number(cash?.balance ?? 0),
     banks: banks.map((b) => ({ ...b, balance: Number(b.balance) })),
     totalBankBalance: banks.reduce((s, b) => s + Number(b.balance), 0),
-    pendingCard: Math.max(0, received - returned - settled),
+    pendingCard,
     receivables: Math.max(0, netCredit),
     payables: Math.max(0, -netCredit),
     summary: {
       cash: Number(cash?.balance ?? 0),
       bank: banks.reduce((s, b) => s + Number(b.balance), 0),
-      cardPending: Math.max(0, received - returned - settled),
+      cardPending: pendingCard,
       credit: netCredit,
     },
   };

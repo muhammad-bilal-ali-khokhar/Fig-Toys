@@ -3,6 +3,7 @@ import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import {
   getMoneyOverview,
+  getPendingCardAmount,
   listMoneyMovements,
   moneyIn,
   moneyOut,
@@ -29,6 +30,14 @@ export async function settleCard(input: SettleCardInput, userId: string) {
   await assertBank(input.target === "bank" ? input.bankAccountId : undefined);
   if (input.target === "bank" && !input.bankAccountId) {
     throw new ApiError(400, "money.bank_required", "Pick which bank account received the card money");
+  }
+  const pending = await getPendingCardAmount();
+  if (input.amount > pending + 0.001) {
+    throw new ApiError(
+      400,
+      "money.settle_exceeds_pending",
+      `Cannot settle more than the pending card amount (Rs ${pending.toLocaleString()})`,
+    );
   }
   await moneyIn(prisma, {
     account: input.target,

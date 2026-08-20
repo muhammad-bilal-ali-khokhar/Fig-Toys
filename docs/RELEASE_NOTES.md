@@ -7,6 +7,12 @@ Release body.
 
 ## Unreleased
 
+- **Card settlement can't overshoot the pending amount** — in Money, "settle card"
+  now refuses to record more than the card money that is actually pending (sales
+  by card minus card refunds minus what's already been settled). Previously you
+  could settle any amount, even with nothing pending, which inflated the bank
+  balance. Now the app shows the exact pending amount and stops you from settling
+  more than it.
 - **Stronger protection against guessing your PIN** — login now blocks repeated
   failed attempts with escalating timeouts that get longer the more guesses are
   made (15s, then longer each time, capping at an hour). Blocks are remembered
