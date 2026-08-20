@@ -78,24 +78,6 @@
             -moz-osx-font-smoothing: grayscale;
         }
 
-        /* Scroll Reveal Animations */
-        .reveal-up {
-            opacity: 0;
-            transform: translateY(40px);
-            transition: opacity 1s cubic-bezier(0.25, 1, 0.5, 1), transform 1s cubic-bezier(0.25, 1, 0.5, 1);
-        }
-        
-        .reveal-scale {
-            opacity: 0;
-            transform: scale(0.95);
-            transition: opacity 1.2s cubic-bezier(0.25, 1, 0.5, 1), transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
-        }
-
-        .is-revealed {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
-
         /* Hide scrollbar for clean UI elements */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
@@ -113,7 +95,7 @@
         
         /* Sticky Hero specific styles */
         .hero-sticky-container {
-            height: 250vh;
+            height: 100vh;
         }
         .hero-sticky-element {
             position: sticky;
@@ -168,7 +150,7 @@
                 </div>
 
                 <!-- Product Dashboard UI (scales up on scroll) -->
-                <div class="w-full px-4 md:px-8 flex justify-center absolute bottom-0 left-0 right-0 transform origin-bottom" id="hero-ui-wrapper" style="transform: scale(0.85) translateY(10%);">
+                <div class="w-full px-4 md:px-8 flex justify-center absolute bottom-0 left-0 right-0" id="hero-ui-wrapper">
                     <div class="w-full max-w-6xl aspect-[16/10] bg-ink-50 border border-ink-200 rounded-t-3xl overflow-hidden flex flex-col">
                         <!-- POS Top Bar -->
                         <div class="h-14 border-b border-ink-200 flex items-center justify-between px-6 bg-ink-100">
@@ -254,21 +236,21 @@
                 </div>
 
                 <!-- Scrolling Overlay Metrics (Hidden initially, appear during scroll) -->
-                <div class="absolute inset-0 pointer-events-none flex items-center justify-center opacity-0 transition-opacity duration-500" id="hero-metrics">
+                <div class="absolute inset-0 pointer-events-none flex items-center justify-center" id="hero-metrics">
                     <div class="grid grid-cols-2 gap-8 max-w-4xl w-full px-6">
-                        <div class="bg-ink-50/90 backdrop-blur-md border border-ink-200 rounded-3xl p-8 transform translate-y-10 transition-transform duration-700 ease-out metric-card">
+                        <div class="bg-ink-50/90 backdrop-blur-md border border-ink-200 rounded-3xl p-8 metric-card">
                             <p class="text-sm font-medium text-ink-500 mb-2">Today's Sales</p>
                             <p class="text-4xl lg:text-5xl font-semibold text-ink-950 tracking-tight">Rs 486,500</p>
                         </div>
-                        <div class="bg-brand-900/90 backdrop-blur-md border border-brand-800 rounded-3xl p-8 transform translate-y-10 transition-transform duration-700 ease-out delay-100 metric-card">
+                        <div class="bg-brand-900/90 backdrop-blur-md border border-brand-800 rounded-3xl p-8 metric-card">
                             <p class="text-sm font-medium text-brand-300 mb-2">Net Profit</p>
                             <p class="text-4xl lg:text-5xl font-semibold text-ink-50 tracking-tight">Rs 72,840</p>
                         </div>
-                        <div class="bg-ink-50/90 backdrop-blur-md border border-ink-200 rounded-3xl p-8 transform translate-y-10 transition-transform duration-700 ease-out delay-200 metric-card">
+                        <div class="bg-ink-50/90 backdrop-blur-md border border-ink-200 rounded-3xl p-8 metric-card">
                             <p class="text-sm font-medium text-ink-500 mb-2">Units Sold</p>
                             <p class="text-4xl lg:text-5xl font-semibold text-ink-950 tracking-tight">24 Phones</p>
                         </div>
-                        <div class="bg-teal-900/90 backdrop-blur-md border border-teal-800 rounded-3xl p-8 transform translate-y-10 transition-transform duration-700 ease-out delay-300 metric-card">
+                        <div class="bg-teal-900/90 backdrop-blur-md border border-teal-800 rounded-3xl p-8 metric-card">
                             <p class="text-sm font-medium text-teal-300 mb-2">Stock Value</p>
                             <p class="text-4xl lg:text-5xl font-semibold text-ink-50 tracking-tight">Rs 3.2M</p>
                         </div>
@@ -1152,92 +1134,6 @@
                 });
                 host.replaceChildren(...rows);
             }
-
-            // Intersection Observer for fade/scale in animations
-            const observerOptions = {
-                root: null,
-                rootMargin: '0px',
-                threshold: 0.15
-            };
-
-            const observer = new IntersectionObserver((entries, observer) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('is-revealed');
-                        observer.unobserve(entry.target); // Run once
-                    }
-                });
-            }, observerOptions);
-
-            document.querySelectorAll('.reveal-up, .reveal-scale').forEach(el => {
-                observer.observe(el);
-            });
-
-            // Cinematic Hero Scroll Logic
-            const heroWrapper = document.getElementById('hero-ui-wrapper');
-            const heroText = document.getElementById('hero-text');
-            const heroMetrics = document.getElementById('hero-metrics');
-            const mainNav = document.getElementById('main-nav');
-            const metricCards = document.querySelectorAll('.metric-card');
-
-            window.addEventListener('scroll', () => {
-                const scrollY = window.scrollY;
-                const windowHeight = window.innerHeight;
-                
-                // Nav blur effect based on scroll
-                if (scrollY > 50) {
-                    mainNav.classList.add('bg-ink-50/90', 'backdrop-blur-md');
-                    mainNav.classList.remove('bg-transparent');
-                } else {
-                    // keep it slightly visible at top
-                }
-
-                // Calculate progress within the sticky section (0 to 1)
-                // The sticky container is 250vh tall. We care about the first 150vh of scrolling.
-                let progress = scrollY / (windowHeight * 1.5);
-                progress = Math.max(0, Math.min(progress, 1)); // Clamp between 0 and 1
-
-                // 1. Scale the UI Dashboard (0.85 -> 1.0)
-                const scale = 0.85 + (0.15 * progress);
-                // Translate Y slightly upwards to center it
-                const translateY = 10 - (10 * progress); 
-                
-                if (heroWrapper && progress < 1) {
-                    heroWrapper.style.transform = `scale(${scale}) translateY(${translateY}%)`;
-                } else if (heroWrapper) {
-                    heroWrapper.style.transform = `scale(1) translateY(0)`;
-                }
-
-                // 2. Fade out Hero Text
-                if (heroText) {
-                    const textOpacity = 1 - (progress * 2); // Fade out twice as fast
-                    heroText.style.opacity = Math.max(0, textOpacity);
-                    heroText.style.transform = `translateY(-${progress * 50}px)`;
-                }
-
-                // 3. Fade in Metrics when UI is nearly full screen
-                if (heroMetrics) {
-                    if (progress > 0.7) {
-                        heroMetrics.style.opacity = 1;
-                        metricCards.forEach((card, index) => {
-                            // Slight delay for each card using CSS transition delays, just triggering translate here
-                            setTimeout(() => {
-                                card.classList.remove('translate-y-10');
-                                card.classList.add('translate-y-0');
-                            }, index * 100);
-                        });
-                    } else {
-                        heroMetrics.style.opacity = 0;
-                        metricCards.forEach(card => {
-                            card.classList.add('translate-y-10');
-                            card.classList.remove('translate-y-0');
-                        });
-                    }
-                }
-            });
-            
-            // Trigger scroll event once to set initial states
-            window.dispatchEvent(new Event('scroll'));
         });
     </script>
 </body>
