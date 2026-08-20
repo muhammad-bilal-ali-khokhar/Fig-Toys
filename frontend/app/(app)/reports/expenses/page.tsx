@@ -9,15 +9,29 @@ import type { ExpenseReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { pluralize } from "@/lib/pluralize";
 import { EXPENSE_CATEGORY_LABELS } from "@/lib/constants";
+import { ReportPrint } from "@/components/reports/report-print";
+import { ExpensesReportDoc } from "@/components/reports/report-print-docs";
+import { Button } from "@/components/ui/button";
 
 export default function ExpensesReportPage() {
   const { data, loading, range, setRange } = usePeriodReport<ExpenseReport>("/report/expenses");
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-ink-900">Expenses report</h2>
-        <p className="text-xs text-ink-500">Shop spending by category, including rent, salaries, utilities and more.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-ink-900">Expenses report</h2>
+          <p className="text-xs text-ink-500">Shop spending by category, including rent, salaries, utilities and more.</p>
+        </div>
+        <ReportPrint
+          trigger={(open, busy) => (
+            <Button variant="grey" onClick={open} loading={busy}>
+              Print
+            </Button>
+          )}
+        >
+          {(profile) => (data ? <ExpensesReportDoc profile={profile} data={data} range={range} /> : null)}
+        </ReportPrint>
       </div>
 
       <PeriodPicker value={range} onChange={setRange} />

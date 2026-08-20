@@ -12,6 +12,7 @@ export default function SalesListPage() {
       pillTone="brand"
       pillLabel={(t) => t.status}
       summary={<SalesSummary />}
+      printTitle="Sales list"
     />
   );
 }

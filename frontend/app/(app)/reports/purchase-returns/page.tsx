@@ -11,6 +11,7 @@ export default function PurchaseReturnsReportPage() {
       subtitle="Items returned to suppliers in the selected period."
       pillTone="grey"
       pillLabel={(t) => TRANSACTION_TYPE_LABELS[t.type] ?? t.type}
+      printTitle="Purchase returns"
     />
   );
 }

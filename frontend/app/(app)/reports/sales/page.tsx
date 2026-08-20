@@ -10,15 +10,29 @@ import type { SalesReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { pluralize } from "@/lib/pluralize";
 import { PAYMENT_METHOD_LABELS, REPORT_CONDITION_LABELS } from "@/lib/constants";
+import { ReportPrint } from "@/components/reports/report-print";
+import { SalesReportDoc } from "@/components/reports/report-print-docs";
+import { Button } from "@/components/ui/button";
 
 export default function SalesReportPage() {
   const { data, loading, range, setRange } = usePeriodReport<SalesReport>("/report/sales");
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-ink-900">Sales report</h2>
-        <p className="text-xs text-ink-500">Revenue, items and breakdowns by condition, brand, payment and staff.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-ink-900">Sales report</h2>
+          <p className="text-xs text-ink-500">Revenue, items and breakdowns by condition, brand, payment and staff.</p>
+        </div>
+        <ReportPrint
+          trigger={(open, busy) => (
+            <Button variant="grey" onClick={open} loading={busy}>
+              Print
+            </Button>
+          )}
+        >
+          {(profile) => (data ? <SalesReportDoc profile={profile} data={data} range={range} /> : null)}
+        </ReportPrint>
       </div>
 
       <PeriodPicker value={range} onChange={setRange} />

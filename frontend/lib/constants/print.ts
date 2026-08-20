@@ -11,7 +11,15 @@ export type PrintDocType =
   | "EXPENSE"
   | "EXPENSE_SHEET"
   | "INVENTORY"
-  | "CONTACTS";
+  | "CONTACTS"
+  | "SALES_REPORT"
+  | "PURCHASES_REPORT"
+  | "PROFIT_REPORT"
+  | "EXPENSES_REPORT"
+  | "PAYABLES"
+  | "RECEIVABLES"
+  | "PURCHASE_LIST"
+  | "PURCHASE_RETURNS";
 
 export type PrintSetting = {
   docType: PrintDocType;
@@ -20,13 +28,14 @@ export type PrintSetting = {
   qrType: QrTarget;
 };
 
-export type PrintLayoutType = "document" | "inventory" | "expense" | "contacts";
+export type PrintLayoutType = "document" | "inventory" | "expense" | "contacts" | "report";
 
 export const PRINT_LAYOUT_TYPES: { value: PrintLayoutType; label: string }[] = [
   { value: "document", label: "Documents" },
   { value: "inventory", label: "Inventory" },
   { value: "expense", label: "Expenses" },
   { value: "contacts", label: "Contacts" },
+  { value: "report", label: "Reports" },
 ];
 
 export const INVENTORY_FORMAT_IDS: PrintFormatId[] = ["80", "a4"];

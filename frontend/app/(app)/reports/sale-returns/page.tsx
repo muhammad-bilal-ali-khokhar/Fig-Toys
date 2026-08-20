@@ -11,6 +11,7 @@ export default function SaleReturnsReportPage() {
       subtitle="Items returned by customers in the selected period."
       pillTone="grey"
       pillLabel={(t) => TRANSACTION_TYPE_LABELS[t.type] ?? t.type}
+      printTitle="Sale returns"
     />
   );
 }

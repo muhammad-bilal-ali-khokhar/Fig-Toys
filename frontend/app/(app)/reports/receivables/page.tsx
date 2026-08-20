@@ -5,15 +5,31 @@ import type { BalancesReport } from "@/lib/api-types";
 import { KpiCard } from "@/components/reports/report-card";
 import { BalanceList } from "@/components/reports/balance-list";
 import { formatPKR } from "@/lib/money";
+import { ReportPrint } from "@/components/reports/report-print";
+import { BalancesReportDoc } from "@/components/reports/report-print-docs";
+import { Button } from "@/components/ui/button";
 
 export default function ReceivablesPage() {
   const { data, loading } = useApi<BalancesReport>("/report/balances");
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-ink-900">Receivables</h2>
-        <p className="text-xs text-ink-500">Customers who still owe money on credit sales.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-ink-900">Receivables</h2>
+          <p className="text-xs text-ink-500">Customers who still owe money on credit sales.</p>
+        </div>
+        <ReportPrint
+          trigger={(open, busy) => (
+            <Button variant="grey" onClick={open} loading={busy}>
+              Print
+            </Button>
+          )}
+        >
+          {(profile) =>
+            data ? <BalancesReportDoc profile={profile} data={data} kind="receivable" title="Receivables" /> : null
+          }
+        </ReportPrint>
       </div>
 
       {loading ? (

@@ -11,6 +11,8 @@ import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import { TypePill, type TypePillTone } from "@/components/ui/type-pill";
 import { InvoiceViewer } from "@/components/transactions/invoice-viewer";
+import { ReportPrint } from "@/components/reports/report-print";
+import { TransactionListDoc } from "@/components/reports/report-print-docs";
 
 export function TransactionList({
   type,
@@ -19,6 +21,7 @@ export function TransactionList({
   pillTone = "grey",
   pillLabel,
   summary,
+  printTitle,
 }: {
   type: string;
   title: string;
@@ -26,6 +29,7 @@ export function TransactionList({
   pillTone?: TypePillTone;
   pillLabel: (t: Transaction) => string;
   summary?: ReactNode;
+  printTitle?: string;
 }) {
   const [range, setRange] = useState<ReportRange>({ from: toISODate(new Date()), to: toISODate(new Date()) });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -52,6 +56,19 @@ export function TransactionList({
           <Button variant={showSummary ? "primary" : "grey"} onClick={() => setShowSummary((v) => !v)}>
             {showSummary ? "Hide summary" : "Show summary"}
           </Button>
+        )}
+        {printTitle && (
+          <ReportPrint
+            trigger={(open, busy) => (
+              <Button variant="grey" onClick={open} loading={busy} disabled={list.length === 0}>
+                Print
+              </Button>
+            )}
+          >
+            {(profile) =>
+              list.length > 0 ? <TransactionListDoc profile={profile} title={printTitle} rows={list} /> : null
+            }
+          </ReportPrint>
         )}
       </div>
 

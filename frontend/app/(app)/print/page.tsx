@@ -7,9 +7,10 @@ import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { CompanyProfile, Contact, Expense, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
+import type { BalancesReport, CompanyProfile, Contact, Expense, ExpenseReport, ProfitReport, PurchaseReport, ReportRange, SalesReport, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
+import { toISODate } from "@/lib/dates";
 import { whatsappLink } from "@/lib/whatsapp";
 import { canViewCosts } from "@/lib/roles";
 import { CARRIER_LABELS, STATUS_LABELS } from "@/lib/constants/units";
@@ -47,6 +48,15 @@ import {
   VoucherDocument,
   type BankAccount,
 } from "@/components/print/documents";
+import {
+  BalancesReportDoc,
+  ExpensesReportDoc,
+  ProfitReportDoc,
+  PurchasesReportDoc,
+  SalesReportDoc,
+  TransactionListDoc,
+} from "@/components/reports/report-print-docs";
+import { PeriodPicker } from "@/components/reports/period-picker";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -76,7 +86,42 @@ const TYPE_DOT: Record<string, string> = {
   PURCHASE_RETURN: "bg-ink-500",
   VOUCHER: "bg-brand-600",
   EXPENSE: "bg-error",
+  SALES_REPORT: "bg-brand-500",
+  PURCHASES_REPORT: "bg-ink-300",
+  PROFIT_REPORT: "bg-success",
+  EXPENSES_REPORT: "bg-error",
+  PAYABLES: "bg-warning",
+  RECEIVABLES: "bg-brand-600",
+  PURCHASE_LIST: "bg-ink-500",
+  PURCHASE_RETURNS: "bg-ink-300",
 };
+
+type ReportDocType =
+  | "SALES_REPORT"
+  | "PURCHASES_REPORT"
+  | "PROFIT_REPORT"
+  | "EXPENSES_REPORT"
+  | "PAYABLES"
+  | "RECEIVABLES"
+  | "PURCHASE_LIST"
+  | "PURCHASE_RETURNS";
+
+const REPORT_DOC_TYPES: { value: ReportDocType; label: string; hint: string }[] = [
+  { value: "SALES_REPORT", label: "Sales report", hint: "Revenue and sales breakdowns" },
+  { value: "PURCHASES_REPORT", label: "Purchase report", hint: "Money spent buying stock" },
+  { value: "PROFIT_REPORT", label: "Profit report", hint: "Revenue vs cost and expenses" },
+  { value: "EXPENSES_REPORT", label: "Expenses report", hint: "Spending by category" },
+  { value: "PAYABLES", label: "Payables", hint: "Vendors you still owe" },
+  { value: "RECEIVABLES", label: "Receivables", hint: "Customers who still owe you" },
+  { value: "PURCHASE_LIST", label: "Purchase list", hint: "Every purchase in the period" },
+  { value: "PURCHASE_RETURNS", label: "Purchase returns", hint: "Items returned to suppliers" },
+];
+
+const REPORT_DOC_TYPE_VALUES = REPORT_DOC_TYPES.map((t) => t.value);
+
+function isReportDocType(d: string): d is ReportDocType {
+  return (REPORT_DOC_TYPE_VALUES as string[]).includes(d);
+}
 
 type PrintLayout = {
   id: string;
@@ -92,6 +137,7 @@ function docToLayoutType(d: PrintDocType): PrintLayoutType {
   if (d === "INVENTORY") return "inventory";
   if (d === "EXPENSE_SHEET") return "expense";
   if (d === "CONTACTS") return "contacts";
+  if (isReportDocType(d)) return "report";
   return "document";
 }
 
@@ -99,6 +145,7 @@ function optionLabelsFor(layoutType: PrintLayoutType): { key: string; label: str
   if (layoutType === "inventory") return INVENTORY_OPTION_LABELS as unknown as { key: string; label: string; hint: string }[];
   if (layoutType === "expense") return EXPENSE_SHEET_OPTION_LABELS as unknown as { key: string; label: string; hint: string }[];
   if (layoutType === "contacts") return CONTACTS_OPTION_LABELS as unknown as { key: string; label: string; hint: string }[];
+  if (layoutType === "report") return [];
   return PRINT_OPTION_LABELS as unknown as { key: string; label: string; hint: string }[];
 }
 
@@ -106,6 +153,7 @@ function defaultOptionsFor(layoutType: PrintLayoutType): Record<string, boolean>
   if (layoutType === "inventory") return { ...INVENTORY_DEFAULT_OPTIONS };
   if (layoutType === "expense") return { ...EXPENSE_SHEET_DEFAULT_OPTIONS };
   if (layoutType === "contacts") return { ...CONTACTS_DEFAULT_OPTIONS };
+  if (layoutType === "report") return {};
   return { ...PRINT_DEFAULT_OPTIONS };
 }
 
@@ -173,6 +221,9 @@ function PrintStudioContent() {
     if (deepLinkType === "SALE" || deepLinkType === "PURCHASE" || deepLinkType === "SALE_RETURN" || deepLinkType === "PURCHASE_RETURN" || deepLinkType === "VOUCHER" || deepLinkType === "EXPENSE") {
       return deepLinkType as PrintDocType;
     }
+    if (deepLinkType && isReportDocType(deepLinkType)) {
+      return deepLinkType as PrintDocType;
+    }
     return "SALE";
   });
   const layoutType = docToLayoutType(printDocType);
@@ -197,8 +248,24 @@ function PrintStudioContent() {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
+  const reportType = isReportDocType(printDocType) ? printDocType : null;
+  const reportStart = new Date();
+  reportStart.setDate(reportStart.getDate() - 14);
+  const [reportRange, setReportRange] = useState<ReportRange>({ from: toISODate(reportStart), to: toISODate(new Date()) });
+  const [salesReport, setSalesReport] = useState<SalesReport | null>(null);
+  const [purchasesReport, setPurchasesReport] = useState<PurchaseReport | null>(null);
+  const [profitReport, setProfitReport] = useState<ProfitReport | null>(null);
+  const [expensesReport, setExpensesReport] = useState<ExpenseReport | null>(null);
+  const [balancesReport, setBalancesReport] = useState<BalancesReport | null>(null);
+  const [purchaseList, setPurchaseList] = useState<Transaction[] | null>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+
   const activeFormat: PrintFormatId =
-    layoutType !== "document" && format === "58" ? "80" : format;
+    layoutType === "report"
+      ? format
+      : layoutType !== "document" && format === "58"
+        ? "80"
+        : format;
   const fmt = PRINT_FORMATS.find((f) => f.id === activeFormat) ?? PRINT_FORMATS[1];
   const selectedDoc = documents.find((d) => d.id === selectedId) ?? null;
   const selectedVoucher = vouchers.find((v) => v.id === selectedId) ?? null;
@@ -207,29 +274,47 @@ function PrintStudioContent() {
   const inStockCount = units.filter((u) => u.status === "IN_STOCK").length;
   const contactsReceivable = contacts.reduce((sum, c) => sum + (parseFloat(c.receivable) || 0), 0);
   const contactsPayable = contacts.reduce((sum, c) => sum + (parseFloat(c.payable) || 0), 0);
+  const reportReady =
+    reportType === "SALES_REPORT"
+      ? salesReport !== null
+      : reportType === "PURCHASES_REPORT"
+        ? purchasesReport !== null
+        : reportType === "PROFIT_REPORT"
+          ? profitReport !== null
+          : reportType === "EXPENSES_REPORT"
+            ? expensesReport !== null
+            : reportType === "PAYABLES" || reportType === "RECEIVABLES"
+              ? balancesReport !== null
+              : reportType === "PURCHASE_LIST" || reportType === "PURCHASE_RETURNS"
+                ? (purchaseList ?? []).length > 0
+                : false;
   const canPrint =
-    layoutType === "inventory" || layoutType === "expense" || layoutType === "contacts"
-      ? layoutType === "inventory"
-        ? units.length > 0
-        : layoutType === "expense"
-          ? expenses.length > 0
-          : contacts.length > 0
-      : docType === "VOUCHER"
-        ? selectedVoucher !== null
-        : docType === "EXPENSE"
-          ? selectedExpense !== null
-          : detail !== null;
-  const pdfFileName = layoutType === "inventory"
-    ? "inventory"
-    : layoutType === "expense"
-      ? "expense-sheet"
-      : layoutType === "contacts"
-        ? "contacts-list"
+    layoutType === "report"
+      ? reportReady
+      : layoutType === "inventory" || layoutType === "expense" || layoutType === "contacts"
+        ? layoutType === "inventory"
+          ? units.length > 0
+          : layoutType === "expense"
+            ? expenses.length > 0
+            : contacts.length > 0
         : docType === "VOUCHER"
-          ? selectedVoucher?.number ?? "voucher"
+          ? selectedVoucher !== null
           : docType === "EXPENSE"
-            ? selectedExpense?.number ?? "expense"
-            : selectedDoc?.number ?? "document";
+            ? selectedExpense !== null
+            : detail !== null;
+  const pdfFileName = layoutType === "report"
+    ? REPORT_DOC_TYPES.find((t) => t.value === reportType)?.value.toLowerCase().replace("_", "-") ?? "report"
+    : layoutType === "inventory"
+      ? "inventory"
+      : layoutType === "expense"
+        ? "expense-sheet"
+        : layoutType === "contacts"
+          ? "contacts-list"
+          : docType === "VOUCHER"
+            ? selectedVoucher?.number ?? "voucher"
+            : docType === "EXPENSE"
+              ? selectedExpense?.number ?? "expense"
+              : selectedDoc?.number ?? "document";
 
   const docOptions =
     docType === "EXPENSE"
@@ -455,6 +540,72 @@ function PrintStudioContent() {
     };
   }, [selectedId, docType, toast]);
 
+  useEffect(() => {
+    if (layoutType !== "report" || !reportType) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingReport(true);
+      try {
+        const q = new URLSearchParams();
+        if (reportRange.from) q.set("from", reportRange.from);
+        if (reportRange.to) q.set("to", reportRange.to);
+        if (reportType === "SALES_REPORT") {
+          const d = await apiRequest<SalesReport>(`/report/sales?${q.toString()}`);
+          if (!cancelled) setSalesReport(d ?? null);
+        } else if (reportType === "PURCHASES_REPORT") {
+          const d = await apiRequest<PurchaseReport>(`/report/purchases?${q.toString()}`);
+          if (!cancelled) setPurchasesReport(d ?? null);
+        } else if (reportType === "PROFIT_REPORT") {
+          const d = await apiRequest<ProfitReport | null>(`/report/profit?${q.toString()}`);
+          if (!cancelled) setProfitReport(d ?? null);
+        } else if (reportType === "EXPENSES_REPORT") {
+          const d = await apiRequest<ExpenseReport>(`/report/expenses?${q.toString()}`);
+          if (!cancelled) setExpensesReport(d ?? null);
+        } else if (reportType === "PAYABLES" || reportType === "RECEIVABLES") {
+          const d = await apiRequest<BalancesReport>("/report/balances");
+          if (!cancelled) setBalancesReport(d ?? null);
+        } else {
+          const t = reportType === "PURCHASE_LIST" ? "PURCHASE" : "PURCHASE_RETURN";
+          const tq = new URLSearchParams({ type: t, limit: "100" });
+          if (reportRange.from) tq.set("from", reportRange.from);
+          if (reportRange.to) tq.set("to", reportRange.to);
+          const d = await apiRequest<Transaction[]>(`/transaction?${tq.toString()}`);
+          if (!cancelled) setPurchaseList(d ?? []);
+        }
+      } catch (err) {
+        if (!cancelled) toast(err instanceof Error ? err.message : "Failed to load report", "error");
+      } finally {
+        if (!cancelled) setLoadingReport(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [layoutType, reportType, reportRange.from, reportRange.to, toast]);
+
+  const renderReportDoc = () => {
+    switch (reportType) {
+      case "SALES_REPORT":
+        return salesReport ? <SalesReportDoc profile={profile} data={salesReport} range={reportRange} format={activeFormat} /> : null;
+      case "PURCHASES_REPORT":
+        return purchasesReport ? <PurchasesReportDoc profile={profile} data={purchasesReport} range={reportRange} format={activeFormat} /> : null;
+      case "PROFIT_REPORT":
+        return profitReport ? <ProfitReportDoc profile={profile} data={profitReport} range={reportRange} format={activeFormat} /> : null;
+      case "EXPENSES_REPORT":
+        return expensesReport ? <ExpensesReportDoc profile={profile} data={expensesReport} range={reportRange} format={activeFormat} /> : null;
+      case "PAYABLES":
+        return balancesReport ? <BalancesReportDoc profile={profile} data={balancesReport} kind="payable" title="Payables" format={activeFormat} /> : null;
+      case "RECEIVABLES":
+        return balancesReport ? <BalancesReportDoc profile={profile} data={balancesReport} kind="receivable" title="Receivables" format={activeFormat} /> : null;
+      case "PURCHASE_LIST":
+        return (purchaseList ?? []).length > 0 ? <TransactionListDoc profile={profile} title="Purchase list" rows={purchaseList ?? []} format={activeFormat} /> : null;
+      case "PURCHASE_RETURNS":
+        return (purchaseList ?? []).length > 0 ? <TransactionListDoc profile={profile} title="Purchase returns" rows={purchaseList ?? []} format={activeFormat} /> : null;
+      default:
+        return null;
+    }
+  };
+
   const qrPayload = useMemo(() => {
     const wa = profile?.whatsapp?.trim();
     return wa ? whatsappLink(wa) : null;
@@ -594,6 +745,11 @@ function PrintStudioContent() {
               <span className={`h-2 w-2 rounded-full ${TYPE_DOT.VOUCHER}`} />
               Contacts list
             </>
+          ) : layoutType === "report" && reportType ? (
+            <>
+              <span className={`h-2 w-2 rounded-full ${TYPE_DOT[reportType]}`} />
+              {REPORT_DOC_TYPES.find((t) => t.value === reportType)?.label}
+            </>
           ) : (
             <>
               <span className={`h-2 w-2 rounded-full ${TYPE_DOT[docType]}`} />
@@ -602,7 +758,11 @@ function PrintStudioContent() {
           )}
           <span className="text-xs font-medium text-ink-400">Change</span>
         </button>
-        {layoutType === "document" ? (
+        {layoutType === "report" ? (
+          <div className="flex min-w-56 max-w-md flex-1 items-center rounded-2xl bg-white px-3 py-1.5 shadow-sm">
+            <PeriodPicker value={reportRange} onChange={setReportRange} />
+          </div>
+        ) : layoutType === "document" ? (
           <div className="min-w-56 max-w-xs flex-1">
             <Dropdown
               value={selectedId}
@@ -672,7 +832,9 @@ function PrintStudioContent() {
           </div>
         )}
         <SegmentedControl
-          options={PRINT_FORMATS.filter((f) => layoutType !== "document" ? f.id !== "58" : true).map((f) => ({ value: f.id, label: f.label }))}
+          options={PRINT_FORMATS.filter((f) =>
+            layoutType === "document" || layoutType === "report" ? true : f.id !== "58",
+          ).map((f) => ({ value: f.id, label: f.label }))}
           value={activeFormat}
           onChange={(v: string) => {
             const nf = v as PrintFormatId;
@@ -684,6 +846,7 @@ function PrintStudioContent() {
           variant="secondary"
           className="px-4 py-2 text-xs"
           onClick={() => setShowHideOpen(true)}
+          disabled={layoutType === "report"}
         >
           <SettingsIcon className="h-4 w-4" />
           Show / Hide
@@ -738,7 +901,28 @@ function PrintStudioContent() {
 
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-ink-900/5">
         <div className="flex flex-1 justify-center overflow-auto overscroll-none p-4">
-          {layoutType === "inventory" ? (
+          {layoutType === "report" ? (
+            loadingReport ? (
+              <p className="py-10 text-sm text-ink-400">Loading report…</p>
+            ) : renderReportDoc() ? (
+              <div
+                id="print-area"
+                style={{ width: fmt.previewWidth }}
+                className="shrink-0 bg-white shadow-lg transition-[width]"
+              >
+                {renderReportDoc()}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+                <PrinterIcon className="h-8 w-8 text-ink-300" />
+                <p className="text-sm text-ink-400">
+                  {reportType === "PROFIT_REPORT"
+                    ? "No data for the selected period, or you don't have access to profit reports."
+                    : "No data for the selected period. Try widening the date range."}
+                </p>
+              </div>
+            )
+          ) : layoutType === "inventory" ? (
             loadingUnits ? (
               <p className="py-10 text-sm text-ink-400">Loading inventory…</p>
             ) : units.length > 0 ? (
@@ -952,6 +1136,24 @@ function PrintStudioContent() {
               <span className="block text-xs text-ink-500">List of all your customers and vendors</span>
             </span>
           </button>
+          <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-ink-400">Reports</p>
+          {REPORT_DOC_TYPES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => {
+                setPrintDocType(t.value);
+                setTypePickerOpen(false);
+              }}
+              className="flex w-full items-center gap-3 rounded-2xl border border-ink-100 px-4 py-3 text-left transition hover:bg-ink-50"
+            >
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${TYPE_DOT[t.value]}`} />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink-900">{t.label}</span>
+                <span className="block text-xs text-ink-500">{t.hint}</span>
+              </span>
+            </button>
+          ))}
         </div>
       </PrintModal>
 
@@ -978,7 +1180,9 @@ function PrintStudioContent() {
           <>
             <style>{printCss}</style>
             <div id="print-portal">
-              {layoutType === "inventory" ? (
+              {layoutType === "report" ? (
+                renderReportDoc() && <div className="print-doc">{renderReportDoc()}</div>
+              ) : layoutType === "inventory" ? (
                 units.length > 0 && (
                   <div className="print-doc">
                     <InventoryDocument

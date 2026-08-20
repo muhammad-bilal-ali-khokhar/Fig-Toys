@@ -9,15 +9,29 @@ import { ReportTable } from "@/components/reports/report-table";
 import type { ProfitReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { REPORT_CONDITION_LABELS } from "@/lib/constants";
+import { ReportPrint } from "@/components/reports/report-print";
+import { ProfitReportDoc } from "@/components/reports/report-print-docs";
+import { Button } from "@/components/ui/button";
 
 export default function ProfitReportPage() {
   const { data, loading, range, setRange } = usePeriodReport<ProfitReport | null>("/report/profit");
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-ink-900">Profit report</h2>
-        <p className="text-xs text-ink-500">Revenue against cost of goods and expenses, broken down by day, brand, model and condition.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-ink-900">Profit report</h2>
+          <p className="text-xs text-ink-500">Revenue against cost of goods and expenses, broken down by day, brand, model and condition.</p>
+        </div>
+        <ReportPrint
+          trigger={(open, busy) => (
+            <Button variant="grey" onClick={open} loading={busy} disabled={!data}>
+              Print
+            </Button>
+          )}
+        >
+          {(profile) => (data ? <ProfitReportDoc profile={profile} data={data} range={range} /> : null)}
+        </ReportPrint>
       </div>
 
       <PeriodPicker value={range} onChange={setRange} />

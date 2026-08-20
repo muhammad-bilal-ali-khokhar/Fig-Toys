@@ -7,6 +7,21 @@ Release body.
 
 ## Unreleased
 
+- **Print buttons for every report** — the Sales list and Sale returns reports
+  now also have a **Print** button, so all reports print: Sales report, Purchases
+  report, Profit report, Expenses report, Payables, Receivables, Purchase list,
+  Purchase returns, Sales list, and Sale returns.
+- **Reports now print in any size** — in Print Studio, every report layout now
+  supports all three formats: **58mm thermal**, **80mm thermal**, and **A4**.
+  Pick the format from the selector and the report re-renders to fit — wide
+  tables on A4, compact stacked rows on thermal rolls. The report-page quick
+  Print buttons still print A4.
+- **Print buttons for all main reports** — every report screen now has a
+  **Print** button: Sales report, Purchases report, Profit report, Expenses
+  report, Payables, Receivables, Purchase list, and Purchase returns. Each opens
+  the browser print dialog with a clean, branded A4 layout (your store name,
+  report title, and date range at the top, with totals and a footer). List
+  reports print every matching entry in the selected period.
 - **Card settlement can't overshoot the pending amount** — in Money, "settle card"
   now refuses to record more than the card money that is actually pending (sales
   by card minus card refunds minus what's already been settled). Previously you

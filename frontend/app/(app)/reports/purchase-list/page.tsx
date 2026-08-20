@@ -10,6 +10,7 @@ export default function PurchaseListPage() {
       subtitle="Every purchase in the selected period."
       pillTone="brand"
       pillLabel={(t) => t.status}
+      printTitle="Purchase list"
     />
   );
 }

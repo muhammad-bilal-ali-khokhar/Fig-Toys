@@ -10,15 +10,29 @@ import type { PurchaseReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { pluralize } from "@/lib/pluralize";
 import { REPORT_CONDITION_LABELS } from "@/lib/constants";
+import { ReportPrint } from "@/components/reports/report-print";
+import { PurchasesReportDoc } from "@/components/reports/report-print-docs";
+import { Button } from "@/components/ui/button";
 
 export default function PurchasesReportPage() {
   const { data, loading, range, setRange } = usePeriodReport<PurchaseReport>("/report/purchases");
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-ink-900">Purchase report</h2>
-        <p className="text-xs text-ink-500">Money spent buying stock, units bought and vendor breakdowns.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-ink-900">Purchase report</h2>
+          <p className="text-xs text-ink-500">Money spent buying stock, units bought and vendor breakdowns.</p>
+        </div>
+        <ReportPrint
+          trigger={(open, busy) => (
+            <Button variant="grey" onClick={open} loading={busy}>
+              Print
+            </Button>
+          )}
+        >
+          {(profile) => (data ? <PurchasesReportDoc profile={profile} data={data} range={range} /> : null)}
+        </ReportPrint>
       </div>
 
       <PeriodPicker value={range} onChange={setRange} />
