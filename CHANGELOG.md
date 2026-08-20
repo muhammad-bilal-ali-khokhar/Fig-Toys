@@ -4,7 +4,17 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.54
+## v0.1.55
+
+- Released on: 2026-08-20
+
+- feat: fast separate frontend/backend updates with an in-app Update panel
+- feat: store app theme in the database and add more color themes
+- fix: pass license redeem URL to desktop backend so online activation works
+- Refactor report printing into modular per-format layouts
+- Move report period picker to its own row in Print Studio
+- Add report print buttons for sales-list/sale-returns and multi-format (58/80/a4) report layouts
+- Guard card settlement against exceeding the pending card amount
 
 - Released on: 2026-08-19
 
