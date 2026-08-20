@@ -8,8 +8,10 @@ import {
   companyPutHandler,
   soundGetHandler,
   soundPutHandler,
+  themeGetHandler,
+  themePutHandler,
 } from "./handlers";
-import { companyProfileSchema, soundPrefsSchema } from "./schemas";
+import { companyProfileSchema, soundPrefsSchema, themeSchema } from "./schemas";
 
 const router = Router();
 
@@ -20,5 +22,7 @@ router.use(requireAuth);
 router.put("/company", requirePermission(PERMISSIONS.settingsWrite), validate(companyProfileSchema), asyncHandler(companyPutHandler));
 router.get("/sound", requirePermission(PERMISSIONS.settingsView), asyncHandler(soundGetHandler));
 router.put("/sound", requirePermission(PERMISSIONS.settingsView), validate(soundPrefsSchema), asyncHandler(soundPutHandler));
+router.get("/theme", asyncHandler(themeGetHandler));
+router.put("/theme", validate(themeSchema), asyncHandler(themePutHandler));
 
 export default router;

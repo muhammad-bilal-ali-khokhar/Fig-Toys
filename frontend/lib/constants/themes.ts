@@ -28,7 +28,31 @@ export type ThemeId =
   | "cherry"
   | "carbon"
   | "slate"
-  | "amber";
+  | "amber"
+  | "plum"
+  | "seafoam"
+  | "tangerine"
+  | "wine"
+  | "petrol"
+  | "olive"
+  | "mocha"
+  | "sky"
+  | "grape"
+  | "cobalt"
+  | "brick"
+  | "denim"
+  | "peach"
+  | "indigo"
+  | "avocado"
+  | "sapphire"
+  | "tulip"
+  | "honey"
+  | "moss"
+  | "storm"
+  | "fuchsia"
+  | "rust"
+  | "jade"
+  | "orchid";
 
 export type ThemeDef = {
   id: ThemeId;
@@ -221,5 +245,149 @@ export const THEMES: ThemeDef[] = [
     label: "Amber",
     description: "Rich amber on warm cream.",
     swatch: ["#f59e0b", "#b45309", "#fffbeb"],
+  },
+  {
+    id: "plum",
+    label: "Plum",
+    description: "Deep plum purple on warm lavender.",
+    swatch: ["#9d4d80", "#462037", "#faf9fa"],
+  },
+  {
+    id: "seafoam",
+    label: "Seafoam",
+    description: "Soft seafoam green on light aqua.",
+    swatch: ["#26c08e", "#0f513f", "#effdf7"],
+  },
+  {
+    id: "tangerine",
+    label: "Tangerine",
+    description: "Bright tangerine on warm cream.",
+    swatch: ["#f97a12", "#7a310e", "#fdfbf8"],
+  },
+  {
+    id: "wine",
+    label: "Wine",
+    description: "Deep wine on soft rose.",
+    swatch: ["#bd4566", "#5c1f32", "#fcf4f6"],
+  },
+  {
+    id: "petrol",
+    label: "Petrol",
+    description: "Deep petrol teal-blue on light grey.",
+    swatch: ["#2d8793", "#213d47", "#f8fafb"],
+  },
+  {
+    id: "olive",
+    label: "Olive",
+    description: "Olive green on warm sand.",
+    swatch: ["#8c9d4f", "#3a4228", "#fbfaf6"],
+  },
+  {
+    id: "mocha",
+    label: "Mocha",
+    description: "Rich mocha brown on warm cream.",
+    swatch: ["#a96f49", "#4e3129", "#fdfbf8"],
+  },
+  {
+    id: "sky",
+    label: "Sky",
+    description: "Bright sky blue on crisp white.",
+    swatch: ["#2597ff", "#144684", "#fafbfc"],
+  },
+  {
+    id: "grape",
+    label: "Grape",
+    description: "Vibrant grape purple on pale grey.",
+    swatch: ["#8f63d9", "#4a2c6d", "#faf9fb"],
+  },
+  {
+    id: "cobalt",
+    label: "Cobalt",
+    description: "Bold cobalt blue on slate.",
+    swatch: ["#2e7bff", "#153884", "#f8fafc"],
+  },
+  {
+    id: "brick",
+    label: "Brick",
+    description: "Terracotta brick on warm grey.",
+    swatch: ["#bc5f3c", "#602b20", "#faf9f8"],
+  },
+  {
+    id: "denim",
+    label: "Denim",
+    description: "Denim blue on soft blue-grey.",
+    swatch: ["#497db2", "#263b55", "#f8fafc"],
+  },
+  {
+    id: "peach",
+    label: "Peach",
+    description: "Soft peach on warm ivory.",
+    swatch: ["#f95f32", "#7e2716", "#fdfbf8"],
+  },
+  {
+    id: "indigo",
+    label: "Indigo",
+    description: "Deep indigo on light slate.",
+    swatch: ["#6366f1", "#312e81", "#f8fafc"],
+  },
+  {
+    id: "avocado",
+    label: "Avocado",
+    description: "Avocado green on warm cream.",
+    swatch: ["#90a143", "#3c4322", "#fbfaf7"],
+  },
+  {
+    id: "sapphire",
+    label: "Sapphire",
+    description: "Sapphire blue on deep navy.",
+    swatch: ["#2597ff", "#144384", "#f4f7fb"],
+  },
+  {
+    id: "tulip",
+    label: "Tulip",
+    description: "Tulip red on soft cream.",
+    swatch: ["#f93333", "#801616", "#fdfbf9"],
+  },
+  {
+    id: "honey",
+    label: "Honey",
+    description: "Honey gold on warm white.",
+    swatch: ["#f9b61a", "#7a4114", "#fdfcf8"],
+  },
+  {
+    id: "moss",
+    label: "Moss",
+    description: "Moss green on pale stone.",
+    swatch: ["#64894f", "#2c3a27", "#fafaf7"],
+  },
+  {
+    id: "storm",
+    label: "Storm",
+    description: "Stormy blue-grey on light grey.",
+    swatch: ["#718690", "#3a4248", "#fafafa"],
+  },
+  {
+    id: "fuchsia",
+    label: "Fuchsia",
+    description: "Vivid fuchsia on pale pink.",
+    swatch: ["#d946ef", "#6a1576", "#fbf9fb"],
+  },
+  {
+    id: "rust",
+    label: "Rust",
+    description: "Rust orange-red on warm beige.",
+    swatch: ["#b85d47", "#5a2e28", "#fbfaf7"],
+  },
+  {
+    id: "jade",
+    label: "Jade",
+    description: "Jade green on pale green-grey.",
+    swatch: ["#14b589", "#0e4c3e", "#f7faf9"],
+  },
+  {
+    id: "orchid",
+    label: "Orchid",
+    description: "Orchid purple on pale lavender.",
+    swatch: ["#c25cc4", "#5c265c", "#faf9fb"],
   },
 ] as const;

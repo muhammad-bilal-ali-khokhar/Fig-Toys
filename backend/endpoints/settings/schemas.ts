@@ -34,3 +34,9 @@ export const soundPrefsSchema = z.object({
 });
 
 export type SoundPrefsInput = z.infer<typeof soundPrefsSchema>;
+
+export const themeSchema = z.object({
+  theme: z.string().trim().min(1).max(40),
+});
+
+export type ThemeInput = z.infer<typeof themeSchema>;

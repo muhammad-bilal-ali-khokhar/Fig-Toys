@@ -11,6 +11,22 @@ const DEFAULT_SOUND_PREFS = {
   pop: true,
 } as const;
 
+const THEME_KEY = "app.theme";
+
+export async function getTheme(): Promise<string | null> {
+  const row = await prisma.settings.findUnique({ where: { key: THEME_KEY } });
+  return row?.value ?? null;
+}
+
+export async function updateTheme(theme: string) {
+  await prisma.settings.upsert({
+    where: { key: THEME_KEY },
+    update: { value: theme },
+    create: { key: THEME_KEY, value: theme },
+  });
+  return theme;
+}
+
 export async function getCompanyProfile() {
   const profile = await prisma.companyProfile.findUnique({ where: { id: COMPANY_ID } });
   return profile ? { ...profile, currencySymbol: currencySymbol(profile.currency) } : null;

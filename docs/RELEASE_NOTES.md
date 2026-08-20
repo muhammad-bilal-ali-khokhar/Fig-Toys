@@ -7,6 +7,23 @@ Release body.
 
 ## Unreleased
 
+- **Theme now saved in the database** — your app theme is stored on the
+  company profile (in the database) instead of only on this device, so the
+  chosen colour style follows every terminal and every user automatically.
+  When you pick a theme, it's saved to the shop and the whole app updates.
+
+- **24 new app themes** — the theme picker grew from 30 to 54 color schemes:
+  **Plum**, **Seafoam**, **Tangerine**, **Wine**, **Petrol**, **Olive**, **Mocha**,
+  **Sky**, **Grape**, **Cobalt**, **Brick**, **Denim**, **Peach**, **Indigo**,
+  **Avocado**, **Sapphire**, **Tulip**, **Honey**, **Moss**, **Storm**, **Fuchsia**,
+  **Rust**, **Jade**, and **Orchid**. Each restyles buttons, highlights, and panels.
+  Pick one from Settings → Appearance.
+
+- **License activation no longer rejected as forged** — the desktop app was
+  bundling a stale public key, so every signed license key was rejected with
+  "This license key has been altered or forged." The desktop bundle now ships
+  the matching public key, so entering a 10-digit activation code works again.
+  Restart the desktop app to pick this up.
 - **Online license activation fixed on desktop** — the desktop app now passes
   the license redemption URL to its built-in backend, so entering a 10-digit
   activation code activates online instead of showing "Online activation is not

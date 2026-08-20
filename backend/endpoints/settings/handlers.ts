@@ -2,10 +2,12 @@ import type { Request, Response } from "express";
 import {
   getCompanyProfile,
   getSoundPrefs,
+  getTheme,
   updateCompanyProfile,
   updateSoundPrefs,
+  updateTheme,
 } from "./service";
-import type { CompanyProfileInput, SoundPrefsInput } from "./schemas";
+import type { CompanyProfileInput, SoundPrefsInput, ThemeInput } from "./schemas";
 
 export async function companyGetHandler(req: Request, res: Response) {
   res.json({ data: await getCompanyProfile() });
@@ -21,4 +23,12 @@ export async function soundGetHandler(req: Request, res: Response) {
 
 export async function soundPutHandler(req: Request, res: Response) {
   res.json({ data: await updateSoundPrefs(req.user!.id, req.body as SoundPrefsInput) });
+}
+
+export async function themeGetHandler(req: Request, res: Response) {
+  res.json({ data: await getTheme() });
+}
+
+export async function themePutHandler(req: Request, res: Response) {
+  res.json({ data: await updateTheme((req.body as ThemeInput).theme) });
 }
