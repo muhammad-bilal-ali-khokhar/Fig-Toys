@@ -4,7 +4,16 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.56
+## v0.1.58
+
+- Released on: 2026-08-21
+
+- feat: PO receive opens purchase flow with IMEI/barcode and larger window
+- feat: expand bank picker seed list to 46 Pakistani banks including microfinance, UPaisa and Zindigi
+- style: remove shadow from Print Studio picker controls
+- feat: add Pakistani bank picker with manage window, open data folder button, resilient log folder, and fixed run-app flags
+- fix: return unsubscribe functions from preload onStatus, unblock DevTools, add Windows run scripts
+- chore: commit env config and license keys (private repo)
 
 - Released on: 2026-08-20
 

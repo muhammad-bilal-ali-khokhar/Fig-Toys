@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.1.58
+
 - **Purchase order receiving now opens the Purchase page** — pressing **Receive** on a purchase order no longer bumps stock by quantity only. It takes you to the normal **Purchase** page with the order's vendor, items, prices and advance pre-filled, so you enter IMEIs (or barcodes for accessories) exactly like a real purchase. The purchase creates proper stock units, and the order is marked Partial/Received automatically. The receive popup is also larger and scrollable.
 - **Desktop window is larger** — the packaged app now opens at 1680×1020 (was 1440×900) with a larger minimum size, so purchase/purchase-order screens no longer feel cramped.
 - **Sale & purchase receipts group identical models** — Sales Receipts, Purchase
