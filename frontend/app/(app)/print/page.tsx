@@ -647,7 +647,7 @@ function PrintStudioContent() {
         <button
           type="button"
           onClick={() => setTypePickerOpen(true)}
-          className="flex items-center gap-1.5 rounded-2xl bg-white px-3.5 py-2 text-sm font-semibold text-ink-900 shadow-sm transition hover:bg-ink-50"
+          className="flex items-center gap-1.5 rounded-2xl bg-white px-3.5 py-2 text-sm font-semibold text-ink-900  transition hover:bg-ink-50"
         >
           {layoutType === "inventory" ? (
             <>
@@ -687,7 +687,7 @@ function PrintStudioContent() {
               }}
               searchable
               trigger={
-                <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">
+                <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-2 text-sm">
                   <span className="truncate text-ink-900">
                     {docType === "VOUCHER"
                       ? selectedVoucher
