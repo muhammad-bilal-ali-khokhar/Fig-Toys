@@ -12,7 +12,8 @@
 #   ./scripts/run-app.sh --build    # always rebuild production bundles, run source
 #   ./scripts/run-app.sh --dev      # run from source with --dev (live reload)
 #   ./scripts/run-app.sh --app      # run an already-built packaged app (no rebuild)
-#   ./scripts/run-app.sh --pack     # build the packaged app, then run it
+#   ./scripts/run-app.sh --pack     # build the packaged app (--dir), then run it
+#   ./scripts/run-app.sh --dist     # build the NSIS installer (.exe)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -25,6 +26,7 @@ for arg in "$@"; do
     --dev) MODE="dev" ;;
     --app) MODE="app" ;;
     --pack) MODE="pack" ;;
+    --dist) MODE="dist" ;;
     *) echo "Unknown flag: $arg" >&2; exit 1 ;;
   esac
 done
@@ -68,6 +70,24 @@ if [ "$MODE" = "pack" ]; then
   echo "Building packaged app (--dir, no publish)..."
   (cd "$DESKTOP" && npm run pack)
   run_packaged
+  exit 0
+fi
+
+if [ "$MODE" = "dist" ]; then
+  if [ ! -f "$ROOT/production/backend/server.cjs" ] || [ ! -f "$ROOT/production/frontend/server.js" ]; then
+    echo "Building production bundles..."
+    (cd "$ROOT/frontend" && BACKEND_URL=http://localhost:47620 npm run build)
+    (cd "$ROOT/frontend" && npm run build:production)
+    (cd "$ROOT/backend" && npm run build:production)
+  fi
+  echo "Building NSIS installer..."
+  (cd "$DESKTOP" && npm run dist)
+  installer="$(ls "$DESKTOP"/release/Fig-POS-Setup-*.exe 2>/dev/null | head -1)"
+  if [ -n "$installer" ]; then
+    echo "Installer built: $installer"
+  else
+    echo "Installer not found in desktop/release/" >&2
+  fi
   exit 0
 fi
 

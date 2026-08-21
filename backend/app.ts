@@ -8,6 +8,7 @@ import authRouter from "./endpoints/auth/routes";
 import brandRouter from "./endpoints/brand/routes";
 import categoryRouter from "./endpoints/category/routes";
 import cityRouter from "./endpoints/city/routes";
+import bankRouter from "./endpoints/bank/routes";
 import colorRouter from "./endpoints/color/routes";
 import contactRouter from "./endpoints/contact/routes";
 import productRouter from "./endpoints/product/routes";
@@ -70,6 +71,7 @@ export function createApp() {
   app.use("/api/brand", brandRouter);
   app.use("/api/category", categoryRouter);
   app.use("/api/city", cityRouter);
+  app.use("/api/bank", bankRouter);
   app.use("/api/color", colorRouter);
   app.use("/api/contact", contactRouter);
   app.use("/api/product", productRouter);

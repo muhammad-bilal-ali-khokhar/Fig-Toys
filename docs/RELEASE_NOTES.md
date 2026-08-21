@@ -1,5 +1,29 @@
 ## Unreleased
 
+- **"Open data folder" button in Settings** — Settings → Desktop app now has an
+  **Open data folder** button that opens the folder holding your database,
+  backups, and logs straight in File Explorer, so you can back it up or share
+  log files without hunting through AppData. Uninstalling the app never deletes
+  this folder.
+- **Log folder is now created automatically** — the app no longer depends on a
+  one-time attempt at startup to create its `logs` folder. If the folder is
+  missing (or couldn't be created yet), every log write retries creating it, so
+  `%APPDATA%\Fig POS for Mobile Phones\logs\fig.log` always exists once the app
+  has run. Logging also initializes again as soon as Electron is ready, instead
+  of silently staying off if the early startup attempt failed.
+- **Fixed `run-app.cmd` flags** — `--build`, `--dev`, `--pack` etc. passed from
+  `scripts\run-app.cmd` were silently dropped by PowerShell argument parsing,
+  so the app always launched without rebuilding. The wrapper now maps them to
+  the correct `-Mode` parameter.
+- **Bank name picker with all Pakistani banks** — when adding or editing a bank
+  account (Settings → Bank accounts, and during onboarding), the "Bank name"
+  field is now a searchable dropdown pre-filled with 30 Pakistani banks and
+  wallets — Meezan Bank, HBL, UBL, MCB, Allied Bank, Bank Alfalah, Easypaisa,
+  JazzCash, NayaPay, SadaPay and more. Start typing to search; if your bank
+  isn't listed, choose **Use "…"** to keep what you typed and it's saved to the
+  bank list automatically for next time. A **Manage** button in the form opens
+  the bank list where you can add, rename, or remove banks.
+
 ## v0.1.56
 
 - **Online activation now ships with the app** — the license redemption URL is baked into the desktop app, so entering a 10-digit activation code activates online on every install instead of showing "Online activation is not configured".

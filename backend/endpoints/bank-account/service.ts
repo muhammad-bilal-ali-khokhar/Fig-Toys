@@ -2,6 +2,7 @@ import { prisma } from "../../core/lib/prisma";
 import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import { COMPANY_ID } from "../../core/lib/company";
+import { ensureBank } from "../bank/service";
 import type { BankAccountInput, BankAccountUpdateInput } from "./schemas";
 
 export async function listBankAccounts() {
@@ -12,6 +13,7 @@ export async function listBankAccounts() {
 }
 
 export async function createBankAccount(input: BankAccountInput, userId: string) {
+  await ensureBank(input.bankName);
   const makeDefault = input.isDefault === true;
   if (makeDefault) {
     await prisma.bankAccount.updateMany({
@@ -56,6 +58,9 @@ export async function updateBankAccount(id: string, input: BankAccountUpdateInpu
     if (others === 0) {
       throw new ApiError(409, "bank_account.need_default", "At least one default account is required");
     }
+  }
+  if (input.bankName !== undefined) {
+    await ensureBank(input.bankName);
   }
 
   const account = await prisma.bankAccount.update({

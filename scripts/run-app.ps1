@@ -5,11 +5,25 @@
 #   .\scripts\run-app.ps1 --build    # always rebuild production bundles, run source
 #   .\scripts\run-app.ps1 --dev      # run from source with --dev (live reload)
 #   .\scripts\run-app.ps1 --app      # run an already-built packaged app (no rebuild)
-#   .\scripts\run-app.ps1 --pack     # build the packaged app, then run it
+#   .\scripts\run-app.ps1 --pack     # build the packaged app (--dir), then run it
+#   .\scripts\run-app.ps1 --dist     # build the NSIS installer (.exe)
 param(
-    [ValidateSet("run","build","dev","app","pack")]
-    [string]$Mode = "run"
+    [string]$Mode,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Flags
 )
+
+$ValidModes = @("run","build","dev","app","pack","dist")
+if (-not $Mode -and $Flags -and $Flags.Count -gt 0) {
+    $Mode = $Flags[0] -replace '^-+',''
+}
+if ([string]::IsNullOrEmpty($Mode)) {
+    $Mode = "run"
+}
+if ($ValidModes -notcontains $Mode) {
+    Write-Host "Unknown option '$Mode'. Valid options: $($ValidModes | ForEach-Object { "--$_" })" -ForegroundColor Red
+    exit 1
+}
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path $PSScriptRoot
@@ -31,7 +45,7 @@ function Find-Packaged {
 function Run-Packaged {
     $exe = Find-Packaged
     if (-not $exe) {
-        Write-Host "No packaged build found. Run: .\scripts\run-app.ps1 -Mode pack" -ForegroundColor Red
+        Write-Host "No packaged build found. Run: .\scripts\run-app.ps1 --pack" -ForegroundColor Red
         exit 1
     }
     Write-Host "Launching packaged app: $exe" -ForegroundColor Cyan
@@ -64,6 +78,35 @@ if ($Mode -eq "pack") {
     npm run pack
     Pop-Location
     Run-Packaged
+    exit 0
+}
+
+# --dist: build production bundles, then the NSIS installer
+if ($Mode -eq "dist") {
+    $backendExists = Test-Path (Join-Path $Root "production\backend\server.cjs")
+    $frontendExists = Test-Path (Join-Path $Root "production\frontend\server.js")
+    if (-not $backendExists -or -not $frontendExists) {
+        Write-Host "Building production bundles..." -ForegroundColor Cyan
+        Push-Location (Join-Path $Root "frontend")
+        $env:BACKEND_URL = "http://localhost:47620"
+        npm run build
+        Remove-Item Env:\BACKEND_URL -ErrorAction SilentlyContinue
+        npm run build:production
+        Pop-Location
+        Push-Location (Join-Path $Root "backend")
+        npm run build:production
+        Pop-Location
+    }
+    Write-Host "Building NSIS installer..." -ForegroundColor Cyan
+    Push-Location $Desktop
+    npm run dist
+    Pop-Location
+    $installer = Get-ChildItem -Path (Join-Path $Desktop "release") -Filter "Fig-POS-Setup-*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($installer) {
+        Write-Host "Installer built: $($installer.FullName)" -ForegroundColor Green
+    } else {
+        Write-Host "Installer not found in desktop\release\" -ForegroundColor Red
+    }
     exit 0
 }
 

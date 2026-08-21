@@ -67,18 +67,23 @@ export function FormField({
   label,
   hint,
   error,
+  action,
   children,
 }: {
   label: string;
   hint?: string;
   error?: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-ink-500">
-        {label}
-        {hint && <span className="font-normal text-ink-400">: {hint}</span>}
+      <label className="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-ink-500">
+        <span>
+          {label}
+          {hint && <span className="font-normal text-ink-400">: {hint}</span>}
+        </span>
+        {action}
       </label>
       {children}
       {error && <p className="mt-1 text-xs font-medium text-error">{error}</p>}

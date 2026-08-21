@@ -21,14 +21,29 @@ if (!fs.existsSync(src)) {
   throw new Error(`Standalone output missing at ${src} — run 'npm run build' first`);
 }
 
-fs.rmSync(out, { recursive: true, force: true });
-fs.cpSync(src, out, { recursive: true });
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const nm = path.join(out, "node_modules");
-const deps = path.join(out, "deps");
-if (fs.existsSync(nm)) {
-  fs.renameSync(nm, deps);
+async function renameWithRetry(from, to, attempts = 10) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      fs.renameSync(from, to);
+      return;
+    } catch (err) {
+      if (attempt === attempts) {
+        console.warn(
+          `rename failed after ${attempts} attempts (${err.code ?? err.message}) — falling back to copy`
+        );
+        break;
+      }
+      await sleep(250 * attempt);
+    }
+  }
+  fs.cpSync(from, to, { recursive: true });
+  fs.rmSync(from, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
 }
+
+fs.rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
+fs.cpSync(src, out, { recursive: true });
 
 // Bring static + public into the bundle so it is fully self-contained.
 const staticSrc = path.join(frontend, ".next", "static");
@@ -38,6 +53,12 @@ if (fs.existsSync(staticSrc)) {
 const publicSrc = path.join(frontend, "public");
 if (fs.existsSync(publicSrc)) {
   fs.cpSync(publicSrc, path.join(out, "public"), { recursive: true });
+}
+
+const nm = path.join(out, "node_modules");
+const deps = path.join(out, "deps");
+if (fs.existsSync(nm)) {
+  await renameWithRetry(nm, deps);
 }
 
 console.log("Production frontend built at " + out);

@@ -5,6 +5,7 @@ import { env } from "./core/config/env";
 import { prisma } from "./core/lib/prisma";
 import { createApp } from "./app";
 import { seedCities } from "./endpoints/city/seed";
+import { seedBanks } from "./endpoints/bank/seed";
 import { seedBrands } from "./endpoints/brand/seed";
 import { seedCategories } from "./endpoints/category/seed";
 import { seedColors } from "./endpoints/color/seed";
@@ -38,6 +39,11 @@ async function bootstrap() {
     } catch (err) {
       logger.warn("Catalog defaults could not be seeded", err instanceof Error ? { error: err.message } : { error: String(err) });
     }
+  }
+  try {
+    await seedBanks();
+  } catch (err) {
+    logger.warn("Banks could not be seeded", err instanceof Error ? { error: err.message } : { error: String(err) });
   }
   const server = app.listen(env.PORT, env.HOST, () => {
     logger.info(`Fig Mobile POS API listening on http://${env.HOST}:${env.PORT}`);

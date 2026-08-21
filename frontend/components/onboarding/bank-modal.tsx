@@ -1,10 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { apiRequest } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dropdown } from "@/components/ui/dropdown";
 import { Field } from "@/components/onboarding/step-card";
 import { XIcon } from "@/components/icons";
 import { ONBOARDING } from "@/lib/constants";
+import type { Bank } from "@/lib/api-types";
 import type { BankForm } from "@/components/onboarding/types";
 
 type Props = {
@@ -17,6 +21,22 @@ type Props = {
 };
 
 export function BankModal({ draft, editing, error, onPatch, onSave, onCancel }: Props) {
+  const [banks, setBanks] = useState<Bank[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiRequest<Bank[]>("/bank")
+      .then((list) => {
+        if (!cancelled) setBanks(list ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setBanks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink-900/40 p-4 sm:items-center">
       <div className="w-full max-w-lg rounded-2xl border border-ink-200 bg-white p-6 shadow-xl shadow-ink-900/10">
@@ -40,11 +60,14 @@ export function BankModal({ draft, editing, error, onPatch, onSave, onCancel }: 
         <div className="mt-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <Field label={ONBOARDING.bankName}>
-              <Input
-                value={draft.bankName}
-                onChange={(e) => onPatch({ bankName: e.target.value })}
+              <Dropdown
+                value={draft.bankName || null}
+                options={banks.map((b) => ({ value: b.name, label: b.name }))}
+                onChange={(value) => onPatch({ bankName: value })}
                 placeholder={ONBOARDING.bankNamePlaceholder}
-                autoFocus
+                searchable
+                allowCustom
+                label={draft.bankName || undefined}
               />
             </Field>
             <Field label={ONBOARDING.accountName}>

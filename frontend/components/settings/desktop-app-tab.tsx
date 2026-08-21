@@ -174,9 +174,14 @@ export function DesktopAppTab() {
       <div className="rounded-3xl bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Diagnostics / logs</p>
-          <Button variant="grey" size="sm" onClick={() => void window.fig?.logs?.get().then(setLogs)}>
-            {logs ? "Refresh logs" : "View logs"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="grey" size="sm" onClick={() => void window.fig?.data?.open()}>
+              Open data folder
+            </Button>
+            <Button variant="grey" size="sm" onClick={() => void window.fig?.logs?.get().then(setLogs)}>
+              {logs ? "Refresh logs" : "View logs"}
+            </Button>
+          </div>
         </div>
         {logs && (
           <pre className="max-h-64 overflow-auto rounded-2xl bg-ink-50 p-3 text-xs leading-relaxed text-ink-700">
@@ -184,8 +189,9 @@ export function DesktopAppTab() {
           </pre>
         )}
         <p className="mt-2 rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs text-ink-500">
-          If the app ever fails to start or closes, the log file explains why. Share its last lines
-          when reporting a problem.
+          The data folder holds your database, backups, and log files — it stays on this computer even if
+          you uninstall the app. If the app ever fails to start or closes, the log file explains why.
+          Share its last lines when reporting a problem.
         </p>
       </div>
     </div>

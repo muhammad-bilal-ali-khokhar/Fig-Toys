@@ -229,6 +229,15 @@ model City {
   @@map("cities")
 }
 
+model Bank {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("banks")
+}
+
 model Product {
   id               String   @id @default(cuid())
   brandId          String

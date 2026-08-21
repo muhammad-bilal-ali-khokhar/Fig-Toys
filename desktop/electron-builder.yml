@@ -19,7 +19,6 @@ files:
   - error.html
   - runtime.json
   - package.json
-  - dev-app-update.yml
 
 # Bundle the production builds (no source, no node_modules except the native
 # module bundled inside production/backend/native).
@@ -34,13 +33,6 @@ extraResources:
       - "**/*"
 
 npmRebuild: true
-
-# OTA updates via GitHub Releases. electron-builder generates latest.yml +
-# blockmap so installed apps can self-update without re-downloading.
-publish:
-  provider: github
-  owner: arsalanwahab
-  repo: Fig-POS
 
 # Windows is the only release target. macOS is not built or released.
 win:

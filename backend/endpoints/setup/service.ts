@@ -4,6 +4,7 @@ import { ApiError } from "../../core/middleware/error";
 import { env } from "../../core/config/env";
 import { COMPANY_ID } from "../../core/lib/company";
 import { ROLE_PERMISSIONS } from "../../core/lib/permissions";
+import { ensureBank } from "../bank/service";
 import type { Role } from "../../generated/prisma/enums";
 import type { SetupInput } from "./schemas";
 
@@ -75,6 +76,7 @@ export async function runSetup(input: SetupInput) {
 
   const bankAccounts = [];
   for (const [index, account] of (input.bankAccounts ?? []).entries()) {
+    await ensureBank(account.bankName);
     bankAccounts.push(
       await prisma.bankAccount.create({
         data: {

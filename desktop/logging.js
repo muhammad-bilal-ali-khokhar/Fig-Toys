@@ -4,11 +4,20 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 let logPath = null;
+let pendingDir = null;
 
 function init(dir) {
+  pendingDir = dir;
+  tryOpen();
+}
+
+// Retried on every write until it succeeds, so the logs folder is created
+// automatically even if init ran before Electron's userData was available.
+function tryOpen() {
+  if (logPath || !pendingDir) return;
   try {
-    fs.mkdirSync(dir, { recursive: true });
-    logPath = path.join(dir, "fig.log");
+    fs.mkdirSync(pendingDir, { recursive: true });
+    logPath = path.join(pendingDir, "fig.log");
     write("=== Fig Mobile POS started " + new Date().toISOString() + " ===");
   } catch (err) {
     logPath = null;
@@ -19,6 +28,7 @@ function init(dir) {
 function write(line) {
   const text = `[${new Date().toISOString()}] ${line}`;
   try { console.log(text); } catch {}
+  if (!logPath) tryOpen();
   if (!logPath) return;
   try { fs.appendFileSync(logPath, text + "\n"); } catch {}
 }

@@ -1,12 +1,11 @@
 {
   "name": "fig-pos-desktop",
-  "version": "0.1.56",
+  "version": "0.1.57",
   "private": true,
   "description": "Fig POS for Mobile Phones — the point of sale built for new and used phone shops",
   "author": "Fig POS",
   "main": "main.js",
   "dependencies": {
-    "electron-updater": "^6.6.2",
     "extract-zip": "^2.0.1",
     "got": "^11.8.6"
   },

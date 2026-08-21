@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
@@ -13,7 +13,7 @@ import { useTheme } from "@/lib/theme-context";
 import { PIN_LENGTH } from "@/lib/constants/users";
 import { setSoundPrefs } from "@/lib/sound";
 import { setUnsaved } from "@/lib/unsaved-guard";
-import type { BankAccount, CompanyProfile } from "@/lib/api-types";
+import type { Bank, BankAccount, CompanyProfile } from "@/lib/api-types";
 import {
   CheckIcon,
   PlusIcon,
@@ -32,6 +32,7 @@ import { FormWindow, FormField, FormInput } from "@/components/ui/form";
 import { OtpInput } from "@/components/auth/otp-input";
 import { ImagePicker } from "@/components/products/image-picker";
 import { UsersManager } from "@/components/users/users-manager";
+import { BankManageWindow } from "@/components/settings/bank-manage-window";
 import { SettingsSidebar, SETTINGS_TABS, type TabId } from "@/components/settings/settings-sidebar";
 import { ActivityLog } from "@/components/audit/activity-log";
 import { BackupTab } from "@/components/settings/backup-tab";
@@ -185,6 +186,8 @@ export default function SettingsPage() {
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProfileField, string>>>({});
   const [accountErrors, setAccountErrors] = useState<Partial<Record<AccountField, string>>>({});
   const [deletingAccount, setDeletingAccount] = useState<BankAccount | null>(null);
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [banksOpen, setBanksOpen] = useState(false);
   const [pinForm, setPinForm] = useState({ current: "", next: "" });
   const [changingPin, setChangingPin] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
@@ -247,6 +250,18 @@ export default function SettingsPage() {
       cancelled = true;
     };
   }, []);
+
+  const loadBanks = useCallback(async () => {
+    try {
+      setBanks(await apiRequest<Bank[]>("/bank"));
+    } catch {
+      setBanks([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBanks();
+  }, [loadBanks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -362,6 +377,7 @@ export default function SettingsPage() {
       setAccountForm(EMPTY_ACCOUNT);
       setEditingAccount(null);
       setAddingAccount(false);
+      void loadBanks();
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to save bank account", "error");
     } finally {
@@ -762,8 +778,29 @@ export default function SettingsPage() {
           onSave={() => void saveAccount()}
         >
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Bank name">
-              <FormInput value={accountForm.bankName} onChange={(e) => setAccountForm({ ...accountForm, bankName: e.target.value })} placeholder="e.g. Meezan" />
+            <FormField
+              label="Bank name"
+              action={
+                canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setBanksOpen(true)}
+                    className="text-xs font-medium text-brand-600 hover:underline"
+                  >
+                    Manage
+                  </button>
+                )
+              }
+            >
+              <Dropdown
+                value={accountForm.bankName || null}
+                options={banks.map((b) => ({ value: b.name, label: b.name }))}
+                onChange={(value) => setAccountForm({ ...accountForm, bankName: value })}
+                placeholder="Select bank"
+                searchable
+                allowCustom
+                label={accountForm.bankName || undefined}
+              />
             </FormField>
             <FormField label="Account name">
               <FormInput value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} placeholder="e.g. Business" />
@@ -960,6 +997,12 @@ export default function SettingsPage() {
           if (deletingAccount) void removeAccount(deletingAccount.id);
         }}
         onCancel={() => setDeletingAccount(null)}
+      />
+
+      <BankManageWindow
+        open={banksOpen}
+        onClose={() => setBanksOpen(false)}
+        onChanged={() => void loadBanks()}
       />
     </div>
   );

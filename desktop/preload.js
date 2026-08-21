@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld("fig", {
     get: () => ipcRenderer.invoke("logs:get"),
     open: () => ipcRenderer.invoke("logs:open"),
   },
+  data: {
+    open: () => ipcRenderer.invoke("data:open"),
+  },
   dialog: {
     pickDirectory: () => ipcRenderer.invoke("dialog:pick-directory"),
   },

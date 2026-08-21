@@ -252,6 +252,11 @@ export type City = {
   name: string;
 };
 
+export type Bank = {
+  id: string;
+  name: string;
+};
+
 export type InventoryData = {
   units: Unit[];
   products: InventoryProduct[];

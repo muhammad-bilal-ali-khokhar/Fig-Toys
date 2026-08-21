@@ -53,6 +53,9 @@ declare global {
         get: () => Promise<string[]>;
         open: () => Promise<boolean>;
       };
+      data?: {
+        open: () => Promise<boolean>;
+      };
       dialog?: {
         pickDirectory: () => Promise<string | null>;
       };
