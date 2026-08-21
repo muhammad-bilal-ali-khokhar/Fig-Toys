@@ -17,12 +17,16 @@
   the correct `-Mode` parameter.
 - **Bank name picker with all Pakistani banks** — when adding or editing a bank
   account (Settings → Bank accounts, and during onboarding), the "Bank name"
-  field is now a searchable dropdown pre-filled with 30 Pakistani banks and
+  field is now a searchable dropdown pre-filled with 46 Pakistani banks and
   wallets — Meezan Bank, HBL, UBL, MCB, Allied Bank, Bank Alfalah, Easypaisa,
-  JazzCash, NayaPay, SadaPay and more. Start typing to search; if your bank
-  isn't listed, choose **Use "…"** to keep what you typed and it's saved to the
-  bank list automatically for next time. A **Manage** button in the form opens
-  the bank list where you can add, rename, or remove banks.
+  JazzCash, NayaPay, SadaPay and more. The list also covers microfinance banks
+  (HBL Microfinance, FINCA, NRSP, U Microfinance Bank), UPaisa and Zindigi
+  wallets, agri/development banks like Zarai Taraqiati Bank, and China-facing
+  banks (ICBC, Bank of China) handy for import payments. Start typing to
+  search; if your bank isn't listed, choose **Use "…"** to keep what you typed
+  and it's saved to the bank list automatically for next time. A **Manage**
+  button in the form opens the bank list where you can add, rename, or remove
+  banks.
 
 ## v0.1.56
 
