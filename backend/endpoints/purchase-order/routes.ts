@@ -6,11 +6,12 @@ import { validate } from "../../core/middleware/validate";
 import {
   cancelHandler,
   createHandler,
+  fulfillHandler,
   getHandler,
   listHandler,
   receiveHandler,
 } from "./handlers";
-import { createPurchaseOrderSchema, receivePurchaseOrderSchema } from "./schemas";
+import { createPurchaseOrderSchema, fulfillPurchaseOrderSchema, receivePurchaseOrderSchema } from "./schemas";
 
 const router = Router();
 
@@ -20,6 +21,7 @@ router.get("/", requirePermission(PERMISSIONS.purchaseOrderView), asyncHandler(l
 router.get("/:id", requirePermission(PERMISSIONS.purchaseOrderView), asyncHandler(getHandler));
 router.post("/", requirePermission(PERMISSIONS.purchaseOrderCreate), validate(createPurchaseOrderSchema), asyncHandler(createHandler));
 router.post("/:id/receive", requirePermission(PERMISSIONS.purchaseOrderReceive), validate(receivePurchaseOrderSchema), asyncHandler(receiveHandler));
+router.post("/:id/fulfill", requirePermission(PERMISSIONS.purchaseOrderReceive), validate(fulfillPurchaseOrderSchema), asyncHandler(fulfillHandler));
 router.post("/:id/cancel", requirePermission(PERMISSIONS.purchaseOrderCancel), asyncHandler(cancelHandler));
 
 export default router;

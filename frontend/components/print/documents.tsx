@@ -42,6 +42,43 @@ function isReturn(type: string) {
   return type === "SALE_RETURN" || type === "PURCHASE_RETURN";
 }
 
+type TransactionItem = TransactionDetail["items"][number];
+
+type ItemGroup = {
+  key: string;
+  product: TransactionItem["product"];
+  quantity: number;
+  total: number;
+  unitPrice: number;
+  discount: number;
+  imeis: string[];
+};
+
+function groupItems(items: TransactionItem[]): ItemGroup[] {
+  const map = new Map<string, ItemGroup>();
+  for (const item of items) {
+    const effective = Number(item.unitPrice) - Number(item.discount);
+    const key = `${item.product.id}:${effective}`;
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        key,
+        product: item.product,
+        quantity: 0,
+        total: 0,
+        unitPrice: Number(item.unitPrice),
+        discount: Number(item.discount),
+        imeis: [],
+      };
+      map.set(key, g);
+    }
+    g.quantity += item.quantity;
+    g.total += Number(item.total);
+    if (item.unit?.imei) g.imeis.push(item.unit.imei);
+  }
+  return [...map.values()];
+}
+
 function hasShopInfo(profile: CompanyProfile | null): boolean {
   return Boolean(profile?.tagline || profile?.address || profile?.phone);
 }
@@ -191,36 +228,40 @@ function A4MetaRow({ label, value }: { label: string; value: string }) {
 }
 
 function ThermalItems({ detail, options }: { detail: TransactionDetail; options: PrintBooleanOptions }) {
+  const groups = useMemo(() => groupItems(detail.items), [detail.items]);
   return (
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-800">{RECEIPT_TEXT.items}</p>
       <div className="my-1 border-b-2 border-ink-900" />
-      {detail.items.map((item) => {
-        const specs = [item.product.storage, item.product.ram].filter(Boolean).join(" · ");
-        const unitPrice = Number(item.unitPrice) - Number(item.discount);
+      {groups.map((g) => {
+        const specs = [g.product.storage, g.product.ram].filter(Boolean).join(" · ");
+        const effectivePrice = g.unitPrice - g.discount;
         return (
-          <div key={item.id} className="border-b border-dashed border-ink-200 py-1.5">
+          <div key={g.key} className="border-b border-dashed border-ink-200 py-1.5">
             <div className="flex items-baseline justify-between gap-3">
               <p className="font-semibold text-ink-900">
-                {item.product.brand} {item.product.model}
+                {g.product.brand} {g.product.model}
+                {g.quantity > 1 && <span className="font-normal text-ink-800"> ×{g.quantity}</span>}
               </p>
               <p className="whitespace-nowrap text-right font-semibold text-ink-900">
-                {formatPKR(item.total)}
+                {formatPKR(g.total)}
               </p>
             </div>
             <p className="text-ink-800">
-              {specs ? <span>{specs}</span> : null}
-              {specs ? <span> · </span> : null}
+              {specs ? <span>{specs} · </span> : null}
               <span>
                 <span className="font-semibold text-ink-900">
-                  {item.quantity} {RECEIPT_TEXT.quantityUnits}
+                  {g.quantity} {RECEIPT_TEXT.quantityUnits}
                 </span>{" "}
-                × {formatPKR(unitPrice)}
+                × {formatPKR(effectivePrice)}
               </span>
             </p>
-            {options.imeis && item.unit?.imei ? (
-              <p className="font-normal text-[9px] text-ink-700">{RECEIPT_TEXT.imei}: {item.unit.imei}</p>
-            ) : null}
+            {options.imeis &&
+              g.imeis.map((imei) => (
+                <p key={imei} className="font-normal text-[9px] text-ink-700">
+                  {RECEIPT_TEXT.imei}: {imei}
+                </p>
+              ))}
           </div>
         );
       })}
@@ -351,47 +392,51 @@ export function ReceiptDocument({
     detail.payments.reduce((sum, p) => sum + Number(p.amount), 0) >= Number(detail.total);
 
   const A4_ROWS_PER_PAGE = 15;
+  const itemGroups = useMemo(() => groupItems(detail.items), [detail.items]);
   const a4Pages = useMemo(() => {
     if (!isA4) return [];
-    const pages: TransactionDetail["items"][] = [];
-    for (let i = 0; i < detail.items.length; i += A4_ROWS_PER_PAGE) {
-      pages.push(detail.items.slice(i, i + A4_ROWS_PER_PAGE));
+    const pages: ItemGroup[][] = [];
+    for (let i = 0; i < itemGroups.length; i += A4_ROWS_PER_PAGE) {
+      pages.push(itemGroups.slice(i, i + A4_ROWS_PER_PAGE));
     }
     if (pages.length === 0) pages.push([]);
     return pages;
-  }, [isA4, detail.items]);
+  }, [isA4, itemGroups]);
 
-  const renderRow = (item: TransactionDetail["items"][number], i: number) => {
-    const effectivePrice = Number(item.unitPrice) - Number(item.discount);
+  const renderRow = (g: ItemGroup, i: number) => {
+    const effectivePrice = g.unitPrice - g.discount;
     return (
-      <tr key={item.id} className={`border-b border-ink-100 ${i % 2 ? "bg-ink-50/60" : ""}`}>
+      <tr key={g.key} className={`border-b border-ink-100 ${i % 2 ? "bg-ink-50/60" : ""}`}>
         <td className="py-2.5 pl-3 pr-2 align-top text-ink-800">{i + 1}</td>
         <td className="py-2.5 pr-2 align-top">
           <span className="font-semibold text-ink-900">
-            {item.product.brand} {item.product.model} {item.product.storage ?? ""}
-            {item.product.ram ? ` · ${item.product.ram}` : ""}
+            {g.product.brand} {g.product.model} {g.product.storage ?? ""}
+            {g.product.ram ? ` · ${g.product.ram}` : ""}
           </span>
-          {item.quantity > 1 && (
+          {g.quantity > 1 && (
             <span className="ml-1 text-ink-800">
-              × <span className="font-semibold text-ink-900">{item.quantity} {RECEIPT_TEXT.quantityUnits}</span>
+              × <span className="font-semibold text-ink-900">{g.quantity} {RECEIPT_TEXT.quantityUnits}</span>
             </span>
           )}
-          {options.imeis && item.unit?.imei ? (
-            <span className="block font-normal text-[10px] text-ink-800">{RECEIPT_TEXT.imei}: {item.unit.imei}</span>
-          ) : null}
+          {options.imeis &&
+            g.imeis.map((imei) => (
+              <span key={imei} className="block font-normal text-[10px] text-ink-800">
+                {RECEIPT_TEXT.imei}: {imei}
+              </span>
+            ))}
         </td>
-        <td className="py-2.5 pr-2 text-right align-top tabular-nums text-ink-700">{item.quantity}</td>
+        <td className="py-2.5 pr-2 text-right align-top tabular-nums text-ink-700">{g.quantity}</td>
         <td className="py-2.5 pr-2 text-right align-top tabular-nums text-ink-700">
-          {Number(item.discount) > 0 ? (
+          {g.discount > 0 ? (
             <>
-              <s className="text-ink-700">{formatPKR(item.unitPrice)}</s>{" "}
+              <s className="text-ink-700">{formatPKR(g.unitPrice)}</s>{" "}
               <span className="font-semibold text-ink-900">{formatPKR(effectivePrice)}</span>
             </>
           ) : (
-            formatPKR(item.unitPrice)
+            formatPKR(g.unitPrice)
           )}
         </td>
-        <td className="py-2.5 pr-3 text-right align-top font-semibold tabular-nums text-ink-900">{formatPKR(item.total)}</td>
+        <td className="py-2.5 pr-3 text-right align-top font-semibold tabular-nums text-ink-900">{formatPKR(g.total)}</td>
       </tr>
     );
   };
@@ -536,7 +581,7 @@ export function ReceiptDocument({
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((item, i) => renderRow(item, pageIndex * A4_ROWS_PER_PAGE + i))}
+                {pageItems.map((g, i) => renderRow(g, pageIndex * A4_ROWS_PER_PAGE + i))}
                 {pageIndex === a4Pages.length - 1 && (
                   <tr>
                     <td colSpan={5} className="p-0 pt-4 align-top">

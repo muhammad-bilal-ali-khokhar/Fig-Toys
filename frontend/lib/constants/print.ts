@@ -218,7 +218,7 @@ export type InventoryPrintOptions = Record<InventoryPrintOptionKey, boolean>;
 export const INVENTORY_OPTION_LABELS: { key: InventoryPrintOptionKey; label: string; hint: string }[] = [
   { key: "header", label: "Shop name & title", hint: "Store name and “Inventory List” title" },
   { key: "shopInfo", label: "Shop tagline", hint: "One-line description below the shop name" },
-  { key: "product", label: "Product", hint: "Brand, model and storage of each unit" },
+  { key: "product", label: "Product", hint: "Brand, model and storage — identical models are grouped with IMEIs listed below" },
   { key: "imeis", label: "IMEI", hint: "Serial / IMEI of each unit" },
   { key: "color", label: "Color", hint: "Color of the device" },
   { key: "condition", label: "Condition", hint: "New or used" },
@@ -245,6 +245,8 @@ export const INVENTORY_TEXT = {
   stockValue: "Stock value (cost)",
   salesValue: "Stock value (sell)",
   no: "No.",
+  qty: "Qty",
+  mixed: "Mixed",
   unit: "unit",
   units: "units",
   signature: "Authorized Signature",

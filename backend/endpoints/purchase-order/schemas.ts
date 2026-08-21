@@ -26,5 +26,18 @@ export const receivePurchaseOrderSchema = z.object({
     .min(1, "Receive at least one item"),
 });
 
+export const fulfillPurchaseOrderSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        itemId: z.string().min(1, "itemId is required"),
+        quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
+      }),
+    )
+    .min(1, "Fulfill at least one item"),
+  transactionId: z.string().optional().nullable(),
+});
+
 export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
 export type ReceivePurchaseOrderInput = z.infer<typeof receivePurchaseOrderSchema>;
+export type FulfillPurchaseOrderInput = z.infer<typeof fulfillPurchaseOrderSchema>;

@@ -1080,10 +1080,10 @@ function openAboutWindow() {
 function createWindow(url) {
   if (!mainWindow) {
     mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1080,
-    minHeight: 640,
+    width: 1680,
+    height: 1020,
+    minWidth: 1280,
+    minHeight: 720,
     icon: APP_ICON,
     title: "Fig POS for Mobile Phones",
     backgroundColor: "#f6f5f2",

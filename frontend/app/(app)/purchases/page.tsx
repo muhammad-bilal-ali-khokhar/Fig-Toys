@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Color, Contact, ProductSummary, Transaction, TransactionDetail, BankAccount } from "@/lib/api-types";
+import type { Color, Contact, ProductSummary, PurchaseOrder, Transaction, TransactionDetail, BankAccount } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, CARRIER_OPTIONS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { PERMISSIONS } from "@/lib/constants/permissions";
@@ -103,6 +103,8 @@ export default function PurchasesPage() {
   const [modifyId, setModifyId] = useState<string | null>(null);
   const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
   const [receipt, setReceipt] = useState<TransactionDetail | null>(null);
+  const [po, setPo] = useState<PurchaseOrder | null>(null);
+  const poId = searchParams.get("poId");
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -118,6 +120,46 @@ export default function PurchasesPage() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    const id = searchParams.get("poId");
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const order = await apiRequest<PurchaseOrder>(`/purchase-order/${id}`);
+        if (cancelled) return;
+        setPo(order);
+        setContactId(order.contact.id);
+        if (order.note) setNote(`PO ${order.number}: ${order.note}`);
+        else setNote(`PO ${order.number}`);
+        const firstCat = order.items[0]?.product.category;
+        const isAccessory = firstCat?.type === "ACCESSORY";
+        const isUsed = firstCat?.name === "Used Phone";
+        if (isAccessory) {
+          setFlow("ACCESSORY");
+          setTab("NEW");
+        } else if (isUsed) {
+          setFlow("USED");
+          setTab("USED");
+        } else {
+          setFlow("NEW");
+          setTab("NEW");
+        }
+        const adv = parseFloat(order.advance) || 0;
+        if (adv > 0) {
+          if (order.advanceMethod === "CASH") setCash(String(adv));
+          else if (order.advanceMethod === "CREDIT") setCreditAmount(String(adv));
+          else if (order.advanceMethod === "BANK_TRANSFER" && order.advanceBankAccountId) {
+            setBankRows([{ id: crypto.randomUUID(), amount: String(adv), bankId: order.advanceBankAccountId }]);
+          } else if (adv > 0) setCreditAmount(String(adv));
+        }
+      } catch {
+        if (!cancelled) toast("Could not load purchase order", "error");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -458,6 +500,41 @@ export default function PurchasesPage() {
     setBatteryHealth("");
     setModifyId(null);
     purchaseClientRef.current = null;
+    setPo(null);
+  }
+
+  function promptPoImei(item: PurchaseOrder["items"][number]) {
+    const p = (products ?? []).find((x) => x.id === item.product.id);
+    const remaining = item.quantity - item.receivedQuantity;
+    if (remaining <= 0) return;
+    const label = `${item.product.brand?.name ?? p?.brand ?? ""} ${item.product.model} ${item.product.storage ?? p?.storage ?? ""} ${item.product.ram ?? p?.ram ?? ""}`.trim();
+    const cost = String(parseFloat(item.costPrice as unknown as string) || parseFloat(p?.costPrice ?? "0") || 0);
+    playPop();
+    setPopup({
+      productId: item.product.id,
+      productLabel: label || item.product.model,
+      qty: remaining,
+      price: cost,
+      colorId: null,
+      colorLabel: null,
+      carrier: "PTA",
+      batteryHealth: "",
+      grade: "A",
+    });
+    setPopupImeis(Array.from({ length: remaining }, () => ""));
+  }
+
+  function promptPoBarcode(item: PurchaseOrder["items"][number]) {
+    const p = (products ?? []).find((x) => x.id === item.product.id);
+    const remaining = item.quantity - item.receivedQuantity;
+    if (remaining <= 0) return;
+    const label = `${item.product.brand?.name ?? p?.brand ?? ""} ${item.product.model} ${item.product.storage ?? p?.storage ?? ""} ${item.product.ram ?? p?.ram ?? ""}`.trim();
+    const cost = String(parseFloat(item.costPrice as unknown as string) || parseFloat(p?.costPrice ?? "0") || 0);
+    playPop();
+    setBarcodePopup({ productId: item.product.id, productLabel: label || item.product.model, qty: remaining, price: cost });
+    setBarcodes(Array.from({ length: remaining }, () => ""));
+    setSingleBarcode("");
+    setSameBarcode(false);
   }
 
   function loadForModify(txn: TransactionDetail) {
@@ -586,6 +663,26 @@ export default function PurchasesPage() {
       });
       toast(modifyId ? `${txn.number} modified` : `${txn.number} recorded (${formatPKR(txn.total)})`, "success");
       purchaseClientRef.current = null;
+      if (poId && po) {
+        try {
+          const grouped = new Map<string, number>();
+          for (const r of rows) grouped.set(r.productId, (grouped.get(r.productId) ?? 0) + r.quantity);
+          const fulfillItems = po.items
+            .map((it) => {
+              const remaining = it.quantity - it.receivedQuantity;
+              const bought = grouped.get(it.product.id) ?? 0;
+              const qty = Math.min(remaining, bought);
+              return qty > 0 ? { itemId: it.id, quantity: qty } : null;
+            })
+            .filter(Boolean) as { itemId: string; quantity: number }[];
+          if (fulfillItems.length > 0) {
+            await apiRequest(`/purchase-order/${po.id}/fulfill`, { method: "POST", body: { items: fulfillItems, transactionId: txn.id } });
+          }
+        } catch (e) {
+          toast(e instanceof Error ? e.message : "Purchase saved but PO status not updated", "error");
+        }
+        setPo(null);
+      }
       if (modifyId) {
         clearAll();
       } else {
@@ -717,6 +814,39 @@ export default function PurchasesPage() {
           </Button>
         </div>
       </div>
+      {po && (
+        <div className="mt-3 rounded-2xl border border-brand-200 bg-brand-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-ink-900">
+              Receiving <span className="font-mono">{po.number}</span> · {po.contact.name}
+              {parseFloat(po.advance) > 0 && <span className="ml-2 text-xs font-normal text-ink-600">Advance {formatPKR(po.advance)} already paid</span>}
+            </p>
+            <Link href="/purchase-orders" className="text-xs text-brand-700 hover:underline">Back to orders</Link>
+          </div>
+          <p className="mt-1 text-xs text-ink-500">Pick each item to enter {flow === "ACCESSORY" ? "barcodes" : "IMEIs"} — it will be saved as a real purchase with stock.</p>
+          <div className="mt-3 grid gap-2">
+            {po.items.map((it) => {
+              const remaining = it.quantity - it.receivedQuantity;
+              if (remaining <= 0) return null;
+              const added = rows.filter((r) => r.productId === it.product.id).reduce((s, r) => s + r.quantity, 0);
+              const label = `${it.product.brand?.name ?? ""} ${it.product.model} ${it.product.storage ?? ""} ${it.product.ram ?? ""}`.trim() || it.product.model;
+              const isAcc = it.product.category?.type === "ACCESSORY";
+              const done = added >= remaining;
+              return (
+                <div key={it.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-ink-900">{label}</p>
+                    <p className="text-xs text-ink-500">Qty {remaining} · {formatPKR(it.costPrice)} each {added > 0 && `· Added ${added}/${remaining}`}</p>
+                  </div>
+                  <Button size="sm" variant={done ? "ghost" : "secondary"} disabled={done} onClick={() => (isAcc ? promptPoBarcode(it) : promptPoImei(it))}>
+                    {done ? "Added" : flow === "ACCESSORY" ? "Add barcodes" : "Add IMEIs"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
         <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">

@@ -36,7 +36,7 @@ export type PurchaseOrderItem = {
   quantity: number;
   receivedQuantity: number;
   costPrice: string;
-  product: { id: string; brand: { name: string } | null; model: string; storage: string | null; ram: string | null };
+  product: { id: string; brand: { name: string } | null; model: string; storage: string | null; ram: string | null; category?: { id: string; name: string; type: CategoryType } | null };
 };
 
 export type PurchaseOrder = {

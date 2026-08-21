@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
@@ -46,6 +47,7 @@ const STATUS_VARIANT: Record<string, "neutral" | "warning" | "success" | "danger
 };
 
 export default function PurchaseOrdersPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: contacts } = useApi<Contact[]>("/contact");
@@ -475,7 +477,11 @@ export default function PurchaseOrdersPage() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
                         {canReceive && (o.status === "PENDING" || o.status === "PARTIAL") && (
-                          <Button variant="secondary" size="sm" onClick={() => setReceiveOpen(o)}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => router.push(`/purchases?poId=${o.id}`)}
+                          >
                             Receive
                           </Button>
                         )}
@@ -500,15 +506,15 @@ export default function PurchaseOrdersPage() {
           </div>
         )}
 
-        <Sheet open={!!receiveOpen} title={`Receive ${receiveOpen?.number ?? ""}`} onClose={() => setReceiveOpen(null)}>
-          <div className="space-y-3">
+        <Sheet open={!!receiveOpen} title={`Receive ${receiveOpen?.number ?? ""}`} onClose={() => setReceiveOpen(null)} width="max-w-2xl">
+          <div className="max-h-[80vh] space-y-3 overflow-y-auto pr-1">
             {receiveOpen?.items.map((it) => {
               const remaining = it.quantity - it.receivedQuantity;
               return (
                 <div key={it.id} className="rounded-2xl bg-ink-50 p-3">
                   <div className="flex items-center justify-between">
                     <span className="truncate text-sm font-medium text-ink-900">
-                      {it.product.brand?.name} {it.product.model} {it.product.storage ?? ""} {it.product.ram ?? ""}
+                      {[it.product?.brand?.name, it.product?.model, it.product?.storage, it.product?.ram].filter(Boolean).join(" ") || "Unknown product"}
                     </span>
                     <span className="shrink-0 text-xs text-ink-500">{formatPKR(it.costPrice)}</span>
                   </div>

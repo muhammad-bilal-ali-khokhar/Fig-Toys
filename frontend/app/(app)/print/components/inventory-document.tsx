@@ -8,6 +8,31 @@ import type { CompanyProfile, Unit } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { PrintRow } from "@/components/print/documents";
 
+type ProductGroup = { key: string; units: Unit[] };
+type CategoryGroup = { key: string; products: ProductGroup[] };
+
+function productName(u: Unit): string {
+  return `${u.product.brand} ${u.product.model}${u.product.storage ? ` ${u.product.storage}` : ""}`;
+}
+
+function moneySum(units: Unit[], get: (u: Unit) => string | null | undefined): number {
+  return units.reduce((s, u) => s + (parseFloat(get(u) ?? "") || 0), 0);
+}
+
+function uniformText(units: Unit[], get: (u: Unit) => string | null | undefined): string {
+  const first = get(units[0]) ?? null;
+  const same = units.every((u) => (get(u) ?? null) === first);
+  return same ? first || "—" : INVENTORY_TEXT.mixed;
+}
+
+function gradeBattCell(u: Unit): string {
+  return (
+    [u.grade ? `G${u.grade}` : "", u.batteryHealth != null ? `${u.batteryHealth}%` : ""]
+      .filter(Boolean)
+      .join(" ") || "—"
+  );
+}
+
 export function InventoryDocument({
   units,
   options,
@@ -24,18 +49,26 @@ export function InventoryDocument({
   const { user } = useAuth();
   const isA4 = format === "a4";
 
-  const groups = useMemo(() => {
-    const map = new Map<string, { key: string; units: Unit[] }>();
+  const groups = useMemo<CategoryGroup[]>(() => {
+    const catMap = new Map<string, Map<string, Unit[]>>();
     for (const u of units) {
-      const key = u.product.category ?? "Other";
-      let g = map.get(key);
-      if (!g) {
-        g = { key, units: [] };
-        map.set(key, g);
+      const cat = u.product.category ?? "Other";
+      let prodMap = catMap.get(cat);
+      if (!prodMap) {
+        prodMap = new Map();
+        catMap.set(cat, prodMap);
       }
-      g.units.push(u);
+      const list = prodMap.get(u.product.id);
+      if (list) list.push(u);
+      else prodMap.set(u.product.id, [u]);
     }
-    const list = [...map.values()];
+    const list: CategoryGroup[] = [...catMap.entries()].map(([key, prodMap]) => ({
+      key,
+      products: [...prodMap.entries()].map(([pkey, us]) => ({
+        key: pkey,
+        units: [...us].sort((a, b) => a.imei.localeCompare(b.imei)),
+      })),
+    }));
     const prio = ["New Phone", "Used Phone", "Accessory"];
     list.sort((a, b) => {
       const ia = prio.indexOf(a.key);
@@ -47,21 +80,15 @@ export function InventoryDocument({
       return a.key.localeCompare(b.key);
     });
     for (const g of list) {
-      g.units.sort((a, b) => {
-        const na = `${a.product.brand} ${a.product.model}`.toLowerCase();
-        const nb = `${b.product.brand} ${b.product.model}`.toLowerCase();
-        if (na < nb) return -1;
-        if (na > nb) return 1;
-        return a.imei.localeCompare(b.imei);
-      });
+      g.products.sort((a, b) => productName(a.units[0]).localeCompare(productName(b.units[0])));
     }
     return list;
   }, [units]);
 
   const totalCount = units.length;
   const inStockCount = units.filter((u) => u.status === "IN_STOCK").length;
-  const costTotal = units.reduce((s, u) => s + (parseFloat(u.costPrice ?? "") || 0), 0);
-  const sellTotal = units.reduce((s, u) => s + (parseFloat(u.product.sellPrice ?? "") || 0), 0);
+  const costTotal = moneySum(units, (u) => u.costPrice);
+  const sellTotal = moneySum(units, (u) => u.product.sellPrice);
   const pad = isA4 ? "px-10 py-8" : "px-4 py-4";
   const base = isA4 ? "text-xs" : "font-mono text-[11px]";
 
@@ -104,38 +131,54 @@ export function InventoryDocument({
         <InventoryTable groups={groups} options={options} showCost={showCost} />
       ) : (
         <div className="mt-4">
-          {groups.map((g) => (
-            <div key={g.key} className="mb-3">
-              <p className="border-b-2 border-ink-900 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-900">
-                {g.key} <span className="font-normal text-ink-800">· {g.units.length}</span>
-              </p>
-              {g.units.map((u) => (
-                <div key={u.id} className="border-b border-dashed border-ink-200 py-1.5">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="font-semibold text-ink-900">
-                      {u.product.brand} {u.product.model} {u.product.storage ?? ""}
-                    </p>
-                    <p className="whitespace-nowrap font-semibold text-ink-900">
-                      {options.sell && u.product.sellPrice ? formatPKR(u.product.sellPrice) : ""}
-                    </p>
-                  </div>
-                  <p className="font-mono text-[10px] text-ink-700">{u.imei}</p>
-                  <p className="text-[10px] text-ink-800">
-                    {[
-                      u.product.color,
-                      u.condition,
-                      STATUS_LABELS[u.status] ?? u.status,
-                      CARRIER_LABELS[u.carrier] ?? u.carrier,
-                      u.grade ? `Grade ${u.grade}` : "",
-                      u.batteryHealth != null ? `${u.batteryHealth}% batt` : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ))}
+          {groups.map((g) => {
+            const count = g.products.reduce((s, p) => s + p.units.length, 0);
+            return (
+              <div key={g.key} className="mb-3">
+                <p className="border-b-2 border-ink-900 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-900">
+                  {g.key} <span className="font-normal text-ink-800">· {count}</span>
+                </p>
+                {g.products.map((p) => {
+                  const u0 = p.units[0];
+                  return (
+                    <div key={p.key} className="border-b border-dashed border-ink-200 py-1.5">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="font-semibold text-ink-900">
+                          {productName(u0)}
+                          {p.units.length > 1 && (
+                            <span className="font-normal text-ink-800"> ×{p.units.length}</span>
+                          )}
+                        </p>
+                        <p className="whitespace-nowrap font-semibold text-ink-900">
+                          {options.sell && u0.product.sellPrice
+                            ? formatPKR(moneySum(p.units, (u) => u.product.sellPrice))
+                            : ""}
+                        </p>
+                      </div>
+                      {p.units.map((u) => {
+                        const details = [
+                          options.color ? u.product.color : "",
+                          options.condition ? u.condition : "",
+                          options.status ? STATUS_LABELS[u.status] ?? u.status : "",
+                          options.carrier ? CARRIER_LABELS[u.carrier] ?? u.carrier : "",
+                          options.grade && u.grade ? `Grade ${u.grade}` : "",
+                          options.battery && u.batteryHealth != null ? `${u.batteryHealth}% batt` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ");
+                        return (
+                          <div key={u.id}>
+                            {options.imeis && <p className="font-mono text-[10px] text-ink-700">{u.imei}</p>}
+                            {details && <p className="text-[10px] text-ink-800">{details}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -170,7 +213,7 @@ function InventoryTable({
   options,
   showCost,
 }: {
-  groups: { key: string; units: Unit[] }[];
+  groups: CategoryGroup[];
   options: InventoryPrintOptions;
   showCost: boolean;
 }) {
@@ -201,68 +244,93 @@ function InventoryTable({
         </tr>
       </thead>
       <tbody>
-        {groups.map((g) => (
-          <Fragment key={g.key}>
-            <tr>
-              <td
-                colSpan={cols.length + 1}
-                className="bg-ink-50/70 px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-900"
-              >
-                {g.key} · {g.units.length} {g.units.length === 1 ? INVENTORY_TEXT.unit : INVENTORY_TEXT.units}
-              </td>
-            </tr>
-            {g.units.map((u, i) => (
-              <tr key={u.id} className="border-b border-ink-100">
-                <td className="py-1 pr-1 align-top text-[9px] text-ink-800">{i + 1}</td>
-                {options.imeis && (
-                  <td className="py-1 pr-1 align-top font-mono text-[9px] text-ink-700">{u.imei}</td>
-                )}
-                {options.product && (
-                  <td className="py-1 pr-1 align-top">
-                    <span className="font-semibold text-ink-900">
-                      {u.product.brand} {u.product.model}
-                    </span>
-                    {u.product.storage && <span className="text-ink-800"> {u.product.storage}</span>}
-                  </td>
-                )}
-                {options.color && <td className="py-1 pr-1 align-top text-ink-700">{u.product.color ?? "—"}</td>}
-                {options.condition && <td className="py-1 pr-1 align-top text-ink-700">{u.condition}</td>}
-                {options.status && (
-                  <td className="py-1 pr-1 align-top text-ink-700">{STATUS_LABELS[u.status] ?? u.status}</td>
-                )}
-                {options.carrier && (
-                  <td className="py-1 pr-1 align-top text-ink-700">{CARRIER_LABELS[u.carrier] ?? u.carrier}</td>
-                )}
-                {(options.grade || options.battery) && (
-                  <td className="py-1 pr-1 align-top text-ink-700">
-                    {[u.grade ? `G${u.grade}` : "", u.batteryHealth != null ? `${u.batteryHealth}%` : ""]
-                      .filter(Boolean)
-                      .join(" ") || "—"}
-                  </td>
-                )}
-                {options.vendor && (
-                  <td className="py-1 pr-1 align-top text-ink-700">{u.purchase?.vendor ?? "—"}</td>
-                )}
-                {options.purchased && (
-                  <td className="py-1 pr-1 align-top text-ink-700">
-                    {u.purchase ? new Date(u.purchase.date).toLocaleDateString() : "—"}
-                  </td>
-                )}
-                {options.sell && (
-                  <td className="py-1 pr-1 text-right align-top text-ink-900">
-                    {u.product.sellPrice ? formatPKR(u.product.sellPrice) : "—"}
-                  </td>
-                )}
-                {options.retail && (
-                  <td className="py-1 pr-1 text-right align-top text-ink-700">
-                    {u.product.retailPrice ? formatPKR(u.product.retailPrice) : "—"}
-                  </td>
-                )}
-                {showCost && <td className="py-1 text-right align-top text-ink-700">{formatPKR(u.costPrice)}</td>}
+        {groups.map((g) => {
+          const count = g.products.reduce((s, p) => s + p.units.length, 0);
+          return (
+            <Fragment key={g.key}>
+              <tr>
+                <td
+                  colSpan={cols.length + 1}
+                  className="bg-ink-50/70 px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-900"
+                >
+                  {g.key} · {count} {count === 1 ? INVENTORY_TEXT.unit : INVENTORY_TEXT.units}
+                </td>
               </tr>
-            ))}
-          </Fragment>
-        ))}
+              {g.products.map((p, i) => (
+                <tr key={p.key} className="border-b border-ink-100 align-top">
+                  <td className="py-1 pr-1 align-top text-[9px] text-ink-800">{i + 1}</td>
+                  {options.imeis && (
+                    <td className="py-1 pr-1 align-top font-mono text-[9px] text-ink-700">
+                      {p.units.map((u) => (
+                        <div key={u.id}>{u.imei}</div>
+                      ))}
+                    </td>
+                  )}
+                  {options.product && (
+                    <td className="py-1 pr-1 align-top">
+                      <span className="font-semibold text-ink-900">{productName(p.units[0])}</span>
+                      {p.units.length > 1 && <span className="text-ink-800"> ×{p.units.length}</span>}
+                    </td>
+                  )}
+                  {options.color && (
+                    <td className="py-1 pr-1 align-top text-ink-700">
+                      {uniformText(p.units, (u) => u.product.color)}
+                    </td>
+                  )}
+                  {options.condition && (
+                    <td className="py-1 pr-1 align-top text-ink-700">
+                      {uniformText(p.units, (u) => u.condition)}
+                    </td>
+                  )}
+                  {options.status && (
+                    <td className="py-1 pr-1 align-top text-ink-700">
+                      {uniformText(p.units, (u) => STATUS_LABELS[u.status] ?? u.status)}
+                    </td>
+                  )}
+                  {options.carrier && (
+                    <td className="py-1 pr-1 align-top text-ink-700">
+                      {uniformText(p.units, (u) => CARRIER_LABELS[u.carrier] ?? u.carrier)}
+                    </td>
+                  )}
+                  {(options.grade || options.battery) && (
+                    <td className="py-1 pr-1 align-top text-ink-700">{uniformText(p.units, gradeBattCell)}</td>
+                  )}
+                  {options.vendor && (
+                    <td className="py-1 pr-1 align-top text-ink-700">
+                      {uniformText(p.units, (u) => u.purchase?.vendor)}
+                    </td>
+                  )}
+                  {options.purchased && (
+                    <td className="py-1 pr-1 align-top text-ink-700">
+                      {uniformText(p.units, (u) =>
+                        u.purchase ? new Date(u.purchase.date).toLocaleDateString() : null
+                      )}
+                    </td>
+                  )}
+                  {options.sell && (
+                    <td className="py-1 pr-1 text-right align-top text-ink-900">
+                      {p.units[0].product.sellPrice
+                        ? formatPKR(moneySum(p.units, (u) => u.product.sellPrice))
+                        : "—"}
+                    </td>
+                  )}
+                  {options.retail && (
+                    <td className="py-1 pr-1 text-right align-top text-ink-700">
+                      {p.units[0].product.retailPrice
+                        ? formatPKR(moneySum(p.units, (u) => u.product.retailPrice))
+                        : "—"}
+                    </td>
+                  )}
+                  {showCost && (
+                    <td className="py-1 text-right align-top text-ink-700">
+                      {formatPKR(moneySum(p.units, (u) => u.costPrice))}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </Fragment>
+          );
+        })}
       </tbody>
     </table>
   );

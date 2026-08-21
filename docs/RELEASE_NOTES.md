@@ -1,5 +1,32 @@
 ## Unreleased
 
+- **Purchase order receiving now opens the Purchase page** — pressing **Receive** on a purchase order no longer bumps stock by quantity only. It takes you to the normal **Purchase** page with the order's vendor, items, prices and advance pre-filled, so you enter IMEIs (or barcodes for accessories) exactly like a real purchase. The purchase creates proper stock units, and the order is marked Partial/Received automatically. The receive popup is also larger and scrollable.
+- **Desktop window is larger** — the packaged app now opens at 1680×1020 (was 1440×900) with a larger minimum size, so purchase/purchase-order screens no longer feel cramped.
+- **Sale & purchase receipts group identical models** — Sales Receipts, Purchase
+  Invoices, and their returns now print one line per model instead of one line
+  per phone: selling or buying 3 pieces of the same model shows
+  "Apple iPhone 13 ×3 — 3 Unit(s) × Rs 245,000" with all three IMEIs listed
+  underneath. Works in thermal 58mm, 80mm, and A4 layouts, including the
+  direct-print button on transaction screens. Pieces of the same model sold at
+  different prices stay on separate lines so amounts remain correct.
+- **Inventory print groups identical models** — Print Studio's Inventory List no
+  longer prints one separate row per phone. Units of the same model collapse
+  into a single row (e.g. "Apple iPhone 13 128GB ×3") with all their IMEIs
+  listed underneath, in both thermal and A4 layouts. Details that differ
+  between pieces of the same model (color, condition, status, carrier, grade,
+  battery health, vendor, purchase date) show "Mixed" on the A4 sheet, and
+  price columns show the combined value of the group so rows still add up to
+  the stock-value totals at the bottom.
+- **Fixed Purchase Orders crashing when receiving** — pressing **Receive** on an
+  order in the Purchase Orders list crashed the page with a blank screen. The
+  list view doesn't load product details, but the receive sheet expected them.
+  The app now loads the full order when you press Receive, and if a product was
+  deleted it shows "Unknown product" instead of breaking.
+- **Removed the Local/Hosted choice from Desktop settings** — Settings → Desktop
+  app no longer shows the "Where the app runs from" selector (local server vs
+  hosted website URL) or its Save & restart button. The desktop app now always
+  runs everything on this computer, and the tab focuses on crash reporting,
+  logs, and the data folder.
 - **"Open data folder" button in Settings** — Settings → Desktop app now has an
   **Open data folder** button that opens the folder holding your database,
   backups, and logs straight in File Explorer, so you can back it up or share

@@ -35,6 +35,7 @@ const include = {
           model: true,
           storage: true,
           ram: true,
+          category: { select: { id: true, name: true, type: true } },
         },
       },
     },
@@ -172,6 +173,50 @@ export async function receivePurchaseOrder(id: string, input: ReceivePurchaseOrd
     entity: "PurchaseOrder",
     entityId: id,
     details: JSON.stringify({ number: order.number, received: subtotal, transactionId: transaction.id }),
+  });
+
+  return getPurchaseOrder(id);
+}
+
+export async function fulfillPurchaseOrder(id: string, input: import("./schemas").FulfillPurchaseOrderInput, userId: string) {
+  const order = await prisma.purchaseOrder.findUnique({ where: { id }, include: { items: true } });
+  if (!order) throw new ApiError(404, "purchase_order.not_found", "Purchase order not found");
+  if (order.status === "CANCELLED" || order.status === "RECEIVED") {
+    throw new ApiError(400, "purchase_order.not_receivable", "This order can no longer be received");
+  }
+
+  const itemById = new Map(order.items.map((i) => [i.id, i]));
+  for (const r of input.items) {
+    const line = itemById.get(r.itemId);
+    if (!line) throw new ApiError(400, "purchase_order.item_not_found", "Order item not found");
+    const remaining = line.quantity - line.receivedQuantity;
+    if (r.quantity > remaining) {
+      throw new ApiError(400, "purchase_order.over_receive", `Only ${remaining} more can be received for this item`);
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const r of input.items) {
+      const line = itemById.get(r.itemId)!;
+      await tx.purchaseOrderItem.update({
+        where: { id: line.id },
+        data: { receivedQuantity: line.receivedQuantity + r.quantity },
+      });
+    }
+    const updatedItems = await tx.purchaseOrderItem.findMany({ where: { orderId: order.id } });
+    const status = orderStatus(updatedItems);
+    await tx.purchaseOrder.update({
+      where: { id },
+      data: { status, ...(status === "RECEIVED" ? { receivedAt: new Date() } : {}) },
+    });
+  });
+
+  await writeAudit({
+    userId,
+    action: "PURCHASE_ORDER.FULFILL",
+    entity: "PurchaseOrder",
+    entityId: id,
+    details: JSON.stringify({ number: order.number, items: input.items, transactionId: input.transactionId ?? null }),
   });
 
   return getPurchaseOrder(id);
