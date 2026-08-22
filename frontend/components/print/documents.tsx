@@ -10,10 +10,12 @@ import {
   EXPENSE_CATEGORY_LABELS,
   EXPENSE_PRINT_TEXT,
   PRINT,
+  PRINT_DEFAULT_CONFIG,
   RECEIPT_TEXT,
   VOUCHER_METHOD_LABELS,
   VOUCHER_TYPE_LABELS,
   type PrintBooleanOptions,
+  type PrintConfig,
   type PrintFormatId,
   type QrTarget,
 } from "@/lib/constants";
@@ -89,15 +91,19 @@ function ThermalHeader({
   profile,
   qrUrl,
   qrType,
+  config,
 }: {
   detail: TransactionDetail;
   options: PrintBooleanOptions;
   profile: CompanyProfile | null;
   qrUrl: string | null;
   qrType: QrTarget;
+  config: PrintConfig;
 }) {
   if (!options.header) return null;
-  const logo = profile?.logoUrl ?? "/icon.png";
+  const logo = config.showLogo ? profile?.logoUrl ?? "/icon.png" : null;
+  const qrSize = config.qrSize;
+  const titleSize = Math.round(18 * config.headerScale);
   return (
     <div>
       <div className="flex items-start justify-between gap-3">
@@ -105,24 +111,24 @@ function ThermalHeader({
           {logo && (
             <img src={logo} alt="" className="mb-2 max-h-14 w-auto object-contain grayscale contrast-125" />
           )}
-          <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
+          <p style={{ fontSize: titleSize }} className="break-words font-black uppercase tracking-wide text-black">
             {profile?.name ?? APP.nameFull}
           </p>
           {options.shopInfo && hasShopInfo(profile) && (
-            <div className="mt-1 space-y-0.5 text-ink-800">
+            <div className="mt-1.5 space-y-0.5 text-[12px] font-bold leading-tight text-black">
               {profile?.tagline && <p>{profile.tagline}</p>}
               {profile?.address && <p>{profile.address}</p>}
-              {profile?.phone && <p className="font-medium text-ink-700">☎ Contact: {profile.phone}</p>}
+              {profile?.phone && <p className="font-black">☎ Contact: {profile.phone}</p>}
             </div>
           )}
         </div>
         <div className="flex shrink-0 flex-col items-center">
           {qrUrl && (
-            <img src={qrUrl} alt={`${qrType} QR`} width={72} height={72} className="mb-1" />
+            <img src={qrUrl} alt={`${qrType} QR`} width={qrSize} height={qrSize} className="mb-1" />
           )}
         </div>
       </div>
-      <p className="mt-3 text-center text-base font-bold uppercase tracking-widest text-ink-900">
+      <p style={{ fontSize: titleSize }} className="mt-3 text-center font-black uppercase tracking-widest text-black">
         {TYPE_TITLE[detail.type] ?? RECEIPT_TEXT.document.fallback}
       </p>
     </div>
@@ -139,13 +145,13 @@ function ThermalMeta({ detail, options }: { detail: TransactionDetail; options: 
   if (rows.length === 0) return null;
 
   return (
-    <div>
+    <div className="space-y-1">
       {rows.map((row) => (
-        <div key={row.label} className="flex items-baseline justify-between gap-4">
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-ink-700">
+        <div key={row.label} className="flex items-baseline justify-between gap-3">
+          <span className="text-[11px] font-black uppercase tracking-wider text-black">
             {row.label}
           </span>
-          <span className="text-right font-semibold text-ink-900">{row.value}</span>
+          <span className="text-right text-[13px] font-black leading-tight text-black">{row.value}</span>
         </div>
       ))}
     </div>
@@ -154,17 +160,17 @@ function ThermalMeta({ detail, options }: { detail: TransactionDetail; options: 
 
 function ThermalTotals({ detail }: { detail: TransactionDetail }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5 text-[13px]">
       <PrintRow label={RECEIPT_TEXT.subtotal} value={formatPKR(detail.subtotal)} />
       {Number(detail.discount) > 0 && (
         <PrintRow label={RECEIPT_TEXT.discount} value={`-${formatPKR(detail.discount)}`} />
       )}
       {Number(detail.tax) > 0 && <PrintRow label={RECEIPT_TEXT.tax} value={formatPKR(detail.tax)} />}
       {Number(detail.cardFee) > 0 && <PrintRow label={RECEIPT_TEXT.cardFee} value={formatPKR(detail.cardFee)} />}
-      <div className="my-1.5 border-t-2 border-dashed border-ink-300" />
+      <div className="my-1.5 border-t-2 border-dashed border-black" />
       <div className="flex items-baseline justify-between gap-4">
-        <span className="text-sm font-bold uppercase tracking-wide text-ink-900">{RECEIPT_TEXT.grandTotal}</span>
-        <span className="text-base font-bold text-ink-900">{formatPKR(detail.total)}</span>
+        <span className="text-[14px] font-black uppercase tracking-wide text-black">{RECEIPT_TEXT.grandTotal}</span>
+        <span className="text-[17px] font-black text-black">{formatPKR(detail.total)}</span>
       </div>
     </div>
   );
@@ -231,26 +237,26 @@ function ThermalItems({ detail, options }: { detail: TransactionDetail; options:
   const groups = useMemo(() => groupItems(detail.items), [detail.items]);
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-800">{RECEIPT_TEXT.items}</p>
-      <div className="my-1 border-b-2 border-ink-900" />
+      <p className="text-[11px] font-black uppercase tracking-wider text-black">{RECEIPT_TEXT.items}</p>
+      <div className="my-1 border-b-2 border-black" />
       {groups.map((g) => {
         const specs = [g.product.storage, g.product.ram].filter(Boolean).join(" · ");
         const effectivePrice = g.unitPrice - g.discount;
         return (
-          <div key={g.key} className="border-b border-dashed border-ink-200 py-1.5">
+          <div key={g.key} className="border-b border-dashed border-black py-2">
             <div className="flex items-baseline justify-between gap-3">
-              <p className="font-semibold text-ink-900">
+              <p className="text-[13px] font-black leading-tight text-black">
                 {g.product.brand} {g.product.model}
-                {g.quantity > 1 && <span className="font-normal text-ink-800"> ×{g.quantity}</span>}
+                {g.quantity > 1 && <span className="font-bold"> ×{g.quantity}</span>}
               </p>
-              <p className="whitespace-nowrap text-right font-semibold text-ink-900">
+              <p className="whitespace-nowrap text-right text-[13px] font-black text-black">
                 {formatPKR(g.total)}
               </p>
             </div>
-            <p className="text-ink-800">
+            <p className="mt-0.5 text-[12px] font-bold leading-tight text-black">
               {specs ? <span>{specs} · </span> : null}
               <span>
-                <span className="font-semibold text-ink-900">
+                <span className="font-black">
                   {g.quantity} {RECEIPT_TEXT.quantityUnits}
                 </span>{" "}
                 × {formatPKR(effectivePrice)}
@@ -258,7 +264,7 @@ function ThermalItems({ detail, options }: { detail: TransactionDetail; options:
             </p>
             {options.imeis &&
               g.imeis.map((imei) => (
-                <p key={imei} className="font-normal text-[9px] text-ink-700">
+                <p key={imei} className="font-mono text-[11px] font-bold leading-tight text-black">
                   {RECEIPT_TEXT.imei}: {imei}
                 </p>
               ))}
@@ -291,19 +297,19 @@ function A4Totals({ detail }: { detail: TransactionDetail }) {
 function BankAccountsBlock({ accounts, isA4 }: { accounts: BankAccount[]; isA4: boolean }) {
   return (
     <div className={isA4 ? "mt-8" : "mt-4"}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-800">
+      <p className="text-[11px] font-black uppercase tracking-wider text-black">
         {PRINT.bankAccountsTitle}
       </p>
-      <div className={isA4 ? "mt-2 grid grid-cols-2 gap-x-8 gap-y-4" : "mt-1.5 divide-y divide-dashed divide-ink-200"}>
+      <div className={isA4 ? "mt-2 grid grid-cols-2 gap-x-8 gap-y-4" : "mt-1.5 divide-y divide-dashed divide-black"}>
         {accounts.map((account) => (
           <div key={account.id} className={isA4 ? "" : "py-1.5 first:pt-0"}>
-            <p className="font-bold text-ink-900">Bank: {account.bankName}</p>
-            <p className="mt-0.5 text-[11px] text-ink-800">Account No: {account.accountNo}</p>
+            <p className="text-[13px] font-black text-black">Bank: {account.bankName}</p>
+            <p className="mt-0.5 text-[12px] font-bold text-black">Account No: {account.accountNo}</p>
             {account.iban && (
-              <p className="break-all text-[10px] text-ink-800">IBAN: {account.iban}</p>
+              <p className="break-all text-[11px] font-bold text-black">IBAN: {account.iban}</p>
             )}
             {account.holderName && (
-              <p className="text-[10px] text-ink-800">Account Holder: {account.holderName}</p>
+              <p className="text-[11px] font-bold text-black">Account Holder: {account.holderName}</p>
             )}
           </div>
         ))}
@@ -312,7 +318,7 @@ function BankAccountsBlock({ accounts, isA4 }: { accounts: BankAccount[]; isA4: 
   );
 }
 
-function ReceiptBarcode({ value, format }: { value: string; format: PrintFormatId }) {
+function ReceiptBarcode({ value, format, config }: { value: string; format: PrintFormatId; config?: PrintConfig }) {
   const ref = useRef<SVGSVGElement>(null);
 
   const sizes = {
@@ -320,6 +326,7 @@ function ReceiptBarcode({ value, format }: { value: string; format: PrintFormatI
     "80": { svgWidth: 336, barWidth: 2, height: 48 },
     a4: { svgWidth: 360, barWidth: 1.6, height: 60 },
   }[format];
+  const h = config?.barcodeHeight ?? sizes.height;
 
   useEffect(() => {
     if (!ref.current) return;
@@ -328,16 +335,16 @@ function ReceiptBarcode({ value, format }: { value: string; format: PrintFormatI
     JsBarcode(node, value, {
       format: "CODE128",
       width: sizes.barWidth,
-      height: sizes.height,
+      height: h,
       displayValue: false,
       margin: 0,
     });
-  }, [value, sizes.barWidth, sizes.height]);
+  }, [value, sizes.barWidth, h]);
 
   return (
     <svg
       ref={ref}
-      style={{ width: sizes.svgWidth, height: sizes.height }}
+      style={{ width: sizes.svgWidth, height: h }}
       className="block"
     />
   );
@@ -355,9 +362,9 @@ export function PrintRow({
   large?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4">
-      <span className={`${bold ? "font-semibold" : ""} text-ink-800`}>{label}</span>
-      <span className={`text-right ${bold ? "font-semibold" : ""} ${large ? "text-base" : ""} text-ink-900`}>
+    <div className="flex items-baseline justify-between gap-3 font-mono">
+      <span className={`${bold ? "font-black" : "font-bold"} text-[12px] uppercase tracking-wide text-black`}>{label}</span>
+      <span className={`text-right ${bold ? "font-black" : "font-bold"} ${large ? "text-[14px]" : "text-[13px]"} leading-tight text-black`}>
         {value}
       </span>
     </div>
@@ -372,6 +379,7 @@ export function ReceiptDocument({
   qrType,
   profile,
   bankAccounts,
+  config: configProp,
 }: {
   detail: TransactionDetail;
   options: PrintBooleanOptions;
@@ -380,11 +388,13 @@ export function ReceiptDocument({
   qrType: QrTarget;
   profile: CompanyProfile | null;
   bankAccounts: BankAccount[];
+  config?: PrintConfig;
 }) {
   const isA4 = format === "a4";
-  const pad = isA4 ? "px-12 py-10" : "px-3 py-3";
-  const base = isA4 ? "text-sm" : "font-mono text-[11px]";
-  const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-ink-200";
+  const config = configProp ?? PRINT_DEFAULT_CONFIG;
+  const pad = isA4 ? "px-12 py-10" : "";
+  const base = isA4 ? "text-sm" : "font-mono font-bold text-black antialiased";
+  const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-black";
   const showAccounts = options.bankAccounts && bankAccounts.length > 0;
   const paidFullyInCash =
     detail.payments.length > 0 &&
@@ -444,8 +454,8 @@ export function ReceiptDocument({
   const tail = (
     <>
       {options.payments && detail.payments.length > 0 && (
-        <div className={`${isA4 ? "mt-6" : "mt-3"} space-y-1`}>
-          <p className="text-[10px] uppercase tracking-wider text-ink-800">{RECEIPT_TEXT.payments}</p>
+        <div className={`${isA4 ? "mt-6" : "mt-4"} space-y-1.5`}>
+          <p className="text-[11px] font-black uppercase tracking-wider text-black">{RECEIPT_TEXT.payments}</p>
           {detail.payments.map((p) => (
             <PrintRow
               key={p.id}
@@ -461,9 +471,9 @@ export function ReceiptDocument({
       )}
 
       {isReturn(detail.type) && detail.payments.length > 0 && (
-        <div className={`avoid-break ${isA4 ? "mt-6" : "mt-3"} rounded-xl bg-ink-50 px-3 py-2`}>
-          <p className="text-[10px] uppercase tracking-wider text-ink-800">{RECEIPT_TEXT.terms}</p>
-          <p className="mt-0.5 text-sm font-semibold text-ink-900">
+        <div className={`avoid-break ${isA4 ? "mt-6" : "mt-4"} rounded-xl border-2 border-black bg-white px-3 py-2`}>
+          <p className="text-[11px] font-black uppercase tracking-wider text-black">{RECEIPT_TEXT.terms}</p>
+          <p className="mt-1 text-[13px] font-black leading-tight text-black">
             {detail.payments.some((p) => p.method === "CREDIT")
               ? detail.payments.some((p) => p.method === "CASH")
                 ? RECEIPT_TEXT.refundPartial
@@ -474,21 +484,21 @@ export function ReceiptDocument({
       )}
 
       {paidFullyInCash && (
-        <div className={`avoid-break flex justify-center ${isA4 ? "mt-6" : "mt-3"}`}>
+        <div className={`avoid-break flex justify-center ${isA4 ? "mt-6" : "mt-4"}`}>
           <span
             className={`-rotate-6 inline-flex flex-col items-center rounded-md border-[3px] ${
-              isA4 ? "border-success text-success" : "border-ink-900 text-ink-900"
-            } ${isA4 ? "px-10 py-3" : "px-6 py-1.5"}`}
+              isA4 ? "border-success text-success" : "border-black text-black"
+            } ${isA4 ? "px-10 py-3" : "px-6 py-2"}`}
             style={{
               boxShadow: isA4
                 ? "inset 0 0 0 2px #fff, inset 0 0 0 4px rgba(5,150,105,0.5)"
-                : "inset 0 0 0 2px #fff, inset 0 0 0 4px rgba(0,0,0,0.25)",
+                : "inset 0 0 0 2px #fff, inset 0 0 0 4px #000",
             }}
           >
-            <span className={`font-black uppercase tracking-[0.18em] ${isA4 ? "text-4xl" : "text-base"}`}>
+            <span className={`font-black uppercase tracking-[0.18em] ${isA4 ? "text-4xl" : "text-lg"}`}>
               {RECEIPT_TEXT.paid}
             </span>
-            <span className={`font-medium uppercase tracking-[0.2em] ${isA4 ? "mt-1.5 text-sm text-success/80" : "mt-0.5 text-[11px] text-ink-700"}`}>
+            <span className={`font-black uppercase tracking-[0.2em] ${isA4 ? "mt-1.5 text-sm text-success/80" : "mt-1 text-[11px] text-black"}`}>
               {new Date(detail.createdAt).toLocaleDateString()}
             </span>
           </span>
@@ -497,12 +507,12 @@ export function ReceiptDocument({
 
       {options.note && (
         <div className="mt-4">
-          <p className="text-[10px] uppercase tracking-wider text-ink-800">{RECEIPT_TEXT.note}</p>
+          <p className="text-[11px] font-black uppercase tracking-wider text-black">{RECEIPT_TEXT.note}</p>
           <p
-            className={`mt-1 ${
+            className={`mt-1 font-mono text-[12px] font-bold leading-tight ${
               detail.note
-                ? "rounded-xl bg-ink-50 px-3 py-2 text-ink-900"
-                : "border border-dashed border-ink-200 px-3 py-2 text-ink-700"
+                ? "rounded-xl border border-black bg-white px-3 py-2 text-black"
+                : "border border-dashed border-black px-3 py-2 text-black"
             }`}
           >
             {detail.note || RECEIPT_TEXT.noNotes}
@@ -524,10 +534,10 @@ export function ReceiptDocument({
                   Barcode
                 </p>
               )}
-              <ReceiptBarcode value={detail.number} format={format} />
+              <ReceiptBarcode value={detail.number} format={format} config={config} />
               <p
-                className={`mt-2 font-normal tracking-widest ${
-                  isA4 ? "text-xs font-semibold text-ink-700" : "text-[9px] text-ink-800"
+                className={`mt-2 font-mono tracking-widest ${
+                  isA4 ? "text-xs font-semibold text-ink-700" : "text-[11px] font-black text-black"
                 }`}
               >
                 {detail.number}
@@ -539,7 +549,7 @@ export function ReceiptDocument({
 
       {options.signature && (
         <div className={`avoid-break ${isA4 ? "mt-14 flex justify-between gap-10" : "mt-8"}`}>
-          <div className={`${isA4 ? "w-64" : ""} border-t border-ink-700 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-700`}>
+          <div className={`${isA4 ? "w-64" : "border-t-2 border-black pt-2"} text-center text-[11px] font-black uppercase tracking-widest text-black`}>
             {RECEIPT_TEXT.signature}
           </div>
           {isA4 && (
@@ -552,7 +562,7 @@ export function ReceiptDocument({
 
       {options.thanks && (
         <div className={`${divider} ${isA4 ? "mt-8" : "mt-6"} pt-4`}>
-          <p className="text-center text-[10px] uppercase tracking-widest text-ink-700">
+          <p className="text-center font-mono text-[11px] font-black uppercase tracking-widest text-black">
             {profile?.footerText ?? RECEIPT_TEXT.footerFallback}
           </p>
         </div>
@@ -560,8 +570,10 @@ export function ReceiptDocument({
     </>
   );
 
+  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: `${config.paddingMm}mm`, margin: `${config.marginMm}mm` } as const;
+  const densityClass = config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
   return (
-    <div className={`${isA4 ? "space-y-6 print:space-y-0" : "bg-white"} ${isA4 ? "" : pad} ${base} text-ink-900`}>
+    <div style={thermalStyle} className={`${isA4 ? "space-y-6 print:space-y-0" : "bg-white"} ${isA4 ? "" : ""} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
       {isA4 ? (
         a4Pages.map((pageItems, pageIndex) => (
           <div
@@ -598,13 +610,14 @@ export function ReceiptDocument({
           </div>
         ))
       ) : (
-        <div className={pad}>
+        <div style={{ padding: `${config.paddingMm}mm` }}>
           <ThermalHeader
             detail={detail}
             options={options}
             profile={profile}
             qrUrl={qrUrl}
             qrType={qrType}
+            config={config}
           />
           <div className={`my-4 ${divider}`} />
           <ThermalMeta detail={detail} options={options} />
@@ -626,6 +639,7 @@ export function VoucherDocument({
   profile,
   qrUrl,
   qrType = "whatsapp",
+  config: configProp,
 }: {
   voucher: Voucher;
   options: PrintBooleanOptions;
@@ -633,11 +647,15 @@ export function VoucherDocument({
   profile: CompanyProfile | null;
   qrUrl?: string | null;
   qrType?: QrTarget;
+  config?: PrintConfig;
 }) {
   const isA4 = format === "a4";
-  const pad = isA4 ? "px-12 py-10" : "px-3 py-3";
-  const base = isA4 ? "text-sm" : "font-mono text-[11px]";
-  const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-ink-200";
+  const config = configProp ?? PRINT_DEFAULT_CONFIG;
+  const pad = isA4 ? "px-12 py-10" : "";
+  const base = isA4 ? "text-sm" : "font-mono font-bold text-black";
+  const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-black";
+  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: `${config.paddingMm}mm` } as const;
+  const densityClass = isA4 ? "" : config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
   const receiving = voucher.type === "RECEIVING";
   const amount = parseFloat(voucher.amount);
 
@@ -653,23 +671,23 @@ export function VoucherDocument({
   }
 
   return (
-    <div className={`bg-white ${pad} ${base} text-ink-900`}>
+    <div style={thermalStyle} className={`bg-white ${pad} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
       <div>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {options.header && (
             <>
-              {(profile?.logoUrl ?? "/icon.png") && (
+              {config.showLogo && (profile?.logoUrl ?? "/icon.png") && (
                 <img src={profile?.logoUrl ?? "/icon.png"} alt="" className={`mb-2 max-h-16 w-auto object-contain ${isA4 ? "" : "grayscale contrast-125"}`} />
               )}
-              <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
+              <p style={isA4 ? {} : { fontSize: Math.round(18 * config.headerScale) }} className="break-words font-black uppercase tracking-wide text-black">
                 {profile?.name ?? APP.nameFull}
               </p>
               {options.shopInfo && hasShopInfo(profile) && (
-                <div className="mt-1 space-y-0.5 text-ink-800">
+                <div className="mt-1.5 space-y-0.5 text-[12px] font-bold leading-tight text-black">
                   {profile?.tagline && <p>{profile.tagline}</p>}
                   {profile?.address && <p>{profile.address}</p>}
-                  {profile?.phone && <p className="font-medium text-ink-700">☎ Contact: {profile.phone}</p>}
+                  {profile?.phone && <p className="font-black">☎ Contact: {profile.phone}</p>}
                 </div>
               )}
             </>
@@ -677,7 +695,7 @@ export function VoucherDocument({
         </div>
         <div className="shrink-0 text-right">
           <p
-            className={`inline-block whitespace-nowrap rounded-lg border-2 px-3 py-1 font-bold uppercase tracking-widest text-ink-900 ${
+            className={`inline-block whitespace-nowrap rounded-lg border-2 px-3 py-1 font-black uppercase tracking-widest ${
               receiving
                 ? "border-success bg-success/5 text-success"
                 : "border-error bg-error/5 text-error"
@@ -685,11 +703,11 @@ export function VoucherDocument({
           >
             {VOUCHER_TYPE_LABELS[voucher.type]}
           </p>
-          <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-ink-700">Voucher</p>
+          <p className="mt-1 text-[11px] font-black uppercase tracking-widest text-black">Voucher</p>
         </div>
       </div>
       {!isA4 && (
-        <p className="mt-3 text-center text-base font-bold uppercase tracking-widest text-ink-900">
+        <p style={{ fontSize: Math.round(18 * config.headerScale) }} className="mt-3 text-center font-black uppercase tracking-widest text-black">
           {VOUCHER_TYPE_LABELS[voucher.type]} Voucher
         </p>
       )}
@@ -698,7 +716,7 @@ export function VoucherDocument({
       <div className={`my-4 ${divider}`} />
 
       {details.length > 0 && (
-        <div className={isA4 ? "grid grid-cols-2 gap-x-10 gap-y-1" : "space-y-1"}>
+        <div className={isA4 ? "grid grid-cols-2 gap-x-10 gap-y-1" : "space-y-1.5"}>
           {details.map((row) => (
             <PrintRow key={row.label} label={row.label} value={row.value} bold={row.label === "Voucher No."} />
           ))}
@@ -708,18 +726,17 @@ export function VoucherDocument({
       <div className={`my-4 ${divider}`} />
 
       <div
-        className={`avoid-break flex flex-col items-center rounded-2xl border-2 border-ink-900 px-6 py-5 ${
-          receiving ? "bg-success/5" : "bg-error/5"
+        className={`avoid-break flex flex-col items-center rounded-2xl border-2 border-black px-6 py-5 ${
+          receiving ? "bg-white" : "bg-white"
         }`}
       >
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-800">
+        <p className="text-[11px] font-black uppercase tracking-widest text-black">
           {receiving ? "Amount received" : "Amount paid"}
         </p>
-        <p className={`mt-1 font-black tracking-tight text-ink-900 ${isA4 ? "text-5xl" : "text-3xl"}`}>
-          {receiving ? "+" : "-"}
+        <p className={`mt-1 font-black tracking-tight text-black ${isA4 ? "text-5xl" : "text-[28px]"}`}>
           {formatPKR(amount)}
         </p>
-        <p className={`mt-2 text-center font-medium text-ink-800 ${isA4 ? "text-xs" : "text-[10px]"}`}>
+        <p className={`mt-2 text-center font-bold leading-tight text-black ${isA4 ? "text-xs" : "text-[11px]"}`}>
           {amountInWords(amount)}
         </p>
       </div>
@@ -728,12 +745,12 @@ export function VoucherDocument({
 
       {options.note && (
         <div className="avoid-break">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-800">Narration</p>
+          <p className="text-[11px] font-black uppercase tracking-wider text-black">Narration</p>
           <p
-            className={`mt-1 ${
+            className={`mt-1 font-mono text-[12px] font-bold leading-tight ${
               voucher.narration
-                ? "rounded-xl bg-ink-50 px-3 py-2 text-ink-900"
-                : "border border-dashed border-ink-200 px-3 py-2 text-ink-700"
+                ? "rounded-xl border border-black bg-white px-3 py-2 text-black"
+                : "border border-dashed border-black px-3 py-2 text-black"
             }`}
           >
             {voucher.narration || "No narration"}
@@ -742,13 +759,13 @@ export function VoucherDocument({
       )}
 
       {voucher.status === "REVERSED" && (
-        <div className="avoid-break mt-4 rounded-xl bg-ink-50 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-800">Voucher reversed</p>
-          <p className="mt-0.5 text-sm font-semibold text-ink-900">
+        <div className="avoid-break mt-4 rounded-xl border-2 border-black bg-white px-3 py-2">
+          <p className="text-[11px] font-black uppercase tracking-wider text-black">Voucher reversed</p>
+          <p className="mt-1 text-[12px] font-black leading-tight text-black">
             {voucher.reversedBy?.name ? `By ${voucher.reversedBy.name}` : "Reversed"}
             {voucher.reversedAt ? ` · ${formatDateTime(voucher.reversedAt)}` : ""}
           </p>
-          {voucher.reversalNote && <p className="mt-0.5 text-xs text-ink-900">{voucher.reversalNote}</p>}
+          {voucher.reversalNote && <p className="mt-1 text-[12px] font-bold text-black">{voucher.reversalNote}</p>}
         </div>
       )}
 
@@ -759,17 +776,17 @@ export function VoucherDocument({
           }`}
         >
           {qrUrl && (
-            <img src={qrUrl} alt={`${qrType} QR`} width={isA4 ? 110 : 84} height={isA4 ? 110 : 84} className="mx-auto" />
+            <img src={qrUrl} alt={`${qrType} QR`} width={isA4 ? 110 : config.qrSize} height={isA4 ? 110 : config.qrSize} className="mx-auto" />
           )}
           {options.barcode && (
             <div className="flex flex-col items-center">
               {isA4 && (
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-ink-700">Barcode</p>
               )}
-              <ReceiptBarcode value={voucher.number} format={format} />
+              <ReceiptBarcode value={voucher.number} format={format} config={config} />
               <p
-                className={`mt-2 font-normal tracking-widest ${
-                  isA4 ? "text-xs font-semibold text-ink-700" : "text-[9px] text-ink-800"
+                className={`mt-2 font-mono tracking-widest ${
+                  isA4 ? "text-xs font-semibold text-ink-700" : "text-[11px] font-black text-black"
                 }`}
               >
                 {voucher.number}
@@ -781,7 +798,7 @@ export function VoucherDocument({
 
       {options.signature && (
         <div className="avoid-break mt-8">
-          <div className="w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-700">
+          <div className="w-full border-t-2 border-black pt-2 text-center text-[11px] font-black uppercase tracking-widest text-black">
             Authorized signature
           </div>
         </div>
@@ -789,7 +806,7 @@ export function VoucherDocument({
 
       {options.thanks && profile?.footerText && (
         <div className={`${divider} mt-6 pt-4`}>
-          <p className="text-center text-[10px] uppercase tracking-widest text-ink-700">{profile.footerText}</p>
+          <p className="text-center font-mono text-[11px] font-black uppercase tracking-widest text-black">{profile.footerText}</p>
         </div>
       )}
     </div>
@@ -801,35 +818,40 @@ export function ExpenseVoucherDocument({
   options,
   format,
   profile,
+  config: configProp,
 }: {
   expense: Expense;
   options: PrintBooleanOptions;
   format: PrintFormatId;
   profile: CompanyProfile | null;
+  config?: PrintConfig;
 }) {
   const isA4 = format === "a4";
-  const pad = isA4 ? "px-12 py-10" : "px-3 py-3";
-  const base = isA4 ? "text-sm" : "font-mono text-[11px]";
-  const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-ink-200";
+  const config = configProp ?? PRINT_DEFAULT_CONFIG;
+  const pad = isA4 ? "px-12 py-10" : "";
+  const base = isA4 ? "text-sm" : "font-mono font-bold text-black";
+  const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-black";
+  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: `${config.paddingMm}mm` } as const;
+  const densityClass = isA4 ? "" : config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
 
   return (
-    <div className={`bg-white ${pad} ${base} text-ink-900`}>
+    <div style={thermalStyle} className={`bg-white ${pad} ${base} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${densityClass} ${isA4 ? "text-ink-900" : "text-black"}`}>
       <div>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {options.header && (
             <>
-              {(profile?.logoUrl ?? "/icon.png") && (
+              {config.showLogo && (profile?.logoUrl ?? "/icon.png") && (
                 <img src={profile?.logoUrl ?? "/icon.png"} alt="" className={`mb-2 max-h-16 w-auto object-contain ${isA4 ? "" : "grayscale contrast-125"}`} />
               )}
-              <p className="break-words text-base font-bold uppercase tracking-wide text-ink-900">
+              <p style={isA4 ? {} : { fontSize: Math.round(18 * config.headerScale) }} className="break-words font-black uppercase tracking-wide text-black">
                 {profile?.name ?? APP.nameFull}
               </p>
               {options.shopInfo && hasShopInfo(profile) && (
-                <div className="mt-1 space-y-0.5 text-ink-800">
+                <div className="mt-1.5 space-y-0.5 text-[12px] font-bold leading-tight text-black">
                   {profile?.tagline && <p>{profile.tagline}</p>}
                   {profile?.address && <p>{profile.address}</p>}
-                  {profile?.phone && <p className="font-medium text-ink-700">☎ Contact: {profile.phone}</p>}
+                  {profile?.phone && <p className="font-black">☎ Contact: {profile.phone}</p>}
                 </div>
               )}
             </>
@@ -844,7 +866,7 @@ export function ExpenseVoucherDocument({
         </div>
       </div>
       {!isA4 && (
-        <p className="mt-3 text-center text-base font-bold uppercase tracking-widest text-ink-900">
+        <p style={{ fontSize: Math.round(18 * config.headerScale) }} className="mt-3 text-center font-black uppercase tracking-widest text-black">
           {EXPENSE_PRINT_TEXT.voucherTitle}
         </p>
       )}
@@ -852,7 +874,7 @@ export function ExpenseVoucherDocument({
 
       <div className={`my-4 ${divider}`} />
 
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         <PrintRow label={EXPENSE_PRINT_TEXT.voucherNo} value={expense.number} />
         <PrintRow label={EXPENSE_PRINT_TEXT.date} value={formatDateTime(expense.date)} />
         <PrintRow label={EXPENSE_PRINT_TEXT.category} value={EXPENSE_CATEGORY_LABELS[expense.category] ?? expense.category} />
@@ -862,11 +884,11 @@ export function ExpenseVoucherDocument({
 
       <div className={`my-4 ${divider}`} />
 
-      <div className="flex flex-col items-center">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-700">
+      <div className="flex flex-col items-center rounded-2xl border-2 border-black bg-white px-6 py-4">
+        <p className="text-[11px] font-black uppercase tracking-widest text-black">
           {EXPENSE_PRINT_TEXT.amountPaid}
         </p>
-        <p className={`mt-1 font-black text-ink-900 ${isA4 ? "text-4xl" : "text-2xl"}`}>
+        <p className={`mt-1 font-black text-black ${isA4 ? "text-4xl" : "text-[26px]"}`}>
           -{formatPKR(parseFloat(expense.amount))}
         </p>
       </div>
@@ -874,12 +896,12 @@ export function ExpenseVoucherDocument({
       <div className={`my-4 ${divider}`} />
 
       <div className="avoid-break">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-800">{EXPENSE_PRINT_TEXT.note}</p>
+        <p className="text-[11px] font-black uppercase tracking-wider text-black">{EXPENSE_PRINT_TEXT.note}</p>
         <p
-          className={`mt-1 ${
+          className={`mt-1 font-mono text-[12px] font-bold leading-tight ${
             expense.note
-              ? "rounded-xl bg-ink-50 px-3 py-2 text-ink-900"
-              : "border border-dashed border-ink-200 px-3 py-2 text-ink-700"
+              ? "rounded-xl border border-black bg-white px-3 py-2 text-black"
+              : "border border-dashed border-black px-3 py-2 text-black"
           }`}
         >
           {expense.note || EXPENSE_PRINT_TEXT.noNote}
@@ -888,7 +910,7 @@ export function ExpenseVoucherDocument({
 
       {options.signature && (
         <div className="avoid-break mt-8">
-          <div className="w-64 border-t border-ink-300 pt-1 text-center text-[10px] uppercase tracking-widest text-ink-700">
+          <div className="w-full border-t-2 border-black pt-2 text-center text-[11px] font-black uppercase tracking-widest text-black">
             {EXPENSE_PRINT_TEXT.signature}
           </div>
         </div>
@@ -896,7 +918,7 @@ export function ExpenseVoucherDocument({
 
       {options.thanks && profile?.footerText && (
         <div className={`${divider} mt-6 pt-4`}>
-          <p className="text-center text-[10px] uppercase tracking-widest text-ink-700">{profile.footerText}</p>
+          <p className="text-center font-mono text-[11px] font-black uppercase tracking-widest text-black">{profile.footerText}</p>
         </div>
       )}
     </div>
