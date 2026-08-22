@@ -15,7 +15,8 @@
 param(
   [string]$Version = "",
   [switch]$SkipBuild,
-  [switch]$SkipTests
+  [switch]$SkipTests,
+  [switch]$SkipPublish
 )
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
@@ -147,18 +148,23 @@ gh release view "v$Version" 2>$null | Out-Null; if ($LASTEXITCODE -eq 0) { Write
 gh release create "v$Version" --title "v$Version" --notes-file "$Root\.release-notes.md" $files
 Write-Host "Created https://github.com/arsalanwahab/Fig-POS/releases/tag/v$Version" -ForegroundColor Green
 
-# 5. R2 publish (like release.yml Publish to R2)
-Step "Publish to R2 (download.myko.pk)"
-$required = @("R2_ACCOUNT_ID","R2_ACCESS_KEY_ID","R2_SECRET_ACCESS_KEY","R2_BUCKET","R2_PUBLIC_URL")
-$missing = $required | Where-Object { -not (Test-Path env:$_) -or -not (Get-Item env:$_).Value }
-if ($missing) {
-  Write-Host "Missing R2 env: $($missing -join ', ') — set them in .r2.env or env vars, then run:" -ForegroundColor Yellow
-  Write-Host "  `$env:R2_VERSION='$Version'; `$env:R2_SOURCE_DIR='desktop/release'; `$env:R2_CONTENT_DIR='production'; node scripts/publish-to-r2.mjs" -ForegroundColor Yellow
+# 5. R2 publish (like release.yml Publish to R2) — skip if using GitHub for publish
+if ($SkipPublish) {
+  Write-Host "`nSkipPublish — GitHub will publish to R2 via publish-r2.yml on release" -ForegroundColor Yellow
+  Write-Host "  Trigger: release published v$Version → .github/workflows/publish-r2.yml" -ForegroundColor Yellow
 } else {
-  $env:R2_VERSION = $Version
-  $env:R2_SOURCE_DIR = "desktop/release"
-  $env:R2_CONTENT_DIR = "production"
-  node scripts/publish-to-r2.mjs
+  Step "Publish to R2 (download.myko.pk)"
+  $required = @("R2_ACCOUNT_ID","R2_ACCESS_KEY_ID","R2_SECRET_ACCESS_KEY","R2_BUCKET","R2_PUBLIC_URL")
+  $missing = $required | Where-Object { -not (Test-Path env:$_) -or -not (Get-Item env:$_).Value }
+  if ($missing) {
+    Write-Host "Missing R2 env: $($missing -join ', ') — set them in .r2.env or env vars, then run:" -ForegroundColor Yellow
+    Write-Host "  `$env:R2_VERSION='$Version'; `$env:R2_SOURCE_DIR='desktop/release'; `$env:R2_CONTENT_DIR='production'; node scripts/publish-to-r2.mjs" -ForegroundColor Yellow
+  } else {
+    $env:R2_VERSION = $Version
+    $env:R2_SOURCE_DIR = "desktop/release"
+    $env:R2_CONTENT_DIR = "production"
+    node scripts/publish-to-r2.mjs
+  }
 }
 
 Write-Host "`nDone. Check:" -ForegroundColor Green

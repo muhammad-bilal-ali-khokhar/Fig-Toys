@@ -1,0 +1,72 @@
+name: Publish to R2
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. v0.1.91). Leave empty for latest release"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci && npx prisma generate
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build production bundles (for content.json)
+        run: |
+          npm run build --workspace=frontend --if-present || (cd frontend && npm run build)
+          npm run build:production --workspace=frontend --if-present || (cd frontend && npm run build:production)
+          npm run build:production --workspace=backend --if-present || (cd backend && npm run build:production)
+          ls -lh production/ || echo "no production dir"
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -n "${{ inputs.tag }}" ]; then TAG="${{ inputs.tag }}"; fi
+          if [ -z "$TAG" ]; then TAG=$(gh release view --json tagName --jq .tagName); fi
+          echo "Downloading $TAG..."
+          mkdir -p desktop/release
+          gh release download "$TAG" --dir desktop/release --clobber
+          ls -lh desktop/release/
+
+      - name: Publish to Cloudflare R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+          R2_SOURCE_DIR: desktop/release
+          R2_CONTENT_DIR: production
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          VERSION="${TAG#v}"
+          echo "Publishing $VERSION from $TAG..."
+          R2_VERSION="$VERSION" R2_SOURCE_DIR="desktop/release" R2_CONTENT_DIR="production" node scripts/publish-to-r2.mjs
