@@ -4,7 +4,16 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.91
+## v0.1.92
+
+- Released on: 2026-08-22
+
+- fix: ci failures (typecheck + overpayment test)
+- fix: typecheck audit-catalog script (unknown -> any[])
+- ci: retrigger after cleanup
+- ci: trim release artifact to avoid quota
+- feat: hybrid release — local build + GitHub R2 publish
+- feat: add Windows local release script (no artifact quota)
 
 - Released on: 2026-08-22
 
