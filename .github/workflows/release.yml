@@ -173,10 +173,8 @@ jobs:
           path: |
             desktop/release/*.exe
             desktop/release/latest.yml
-            desktop/release/*.exe.blockmap
-            desktop/release/*-no-install.zip
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 1
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
