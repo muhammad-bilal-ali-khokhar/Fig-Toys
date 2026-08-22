@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.1.93
+
 - **Single download — full installer only** — removed the separate frontend/backend delta updates. `Settings → Update` now shows one **App** row only (`frontend/components/settings/update-tab.tsx:30`, `frontend/lib/electron.d.ts:4`, `frontend/lib/constants/app.ts:12`). The desktop app no longer checks or downloads `content.json`/`frontend-*.zip`/`backend-*.zip` on the loading screen or via `window.fig.content` (`desktop/main.js:26`, `desktop/preload.js:31`). Updates are **manual-only** via `Check for updates → Download → Install & restart` (`desktop/main.js:237`); the silent startup `checkForUpdates()` and auto-download on `available` are gone. Stale `userData/content` is purged once on next launch.
 - **Release / R2 publish simplified** — `scripts/publish-to-r2.mjs:1` now uploads only the Windows installer (`Fig-POS-Setup-${version}.exe` + `latest.yml/.blockmap`) and `latest.json`/`versions.json`. Removed `R2_CONTENT_DIR` / `content.json` bundling. `.github/workflows/release.yml:192` and `.github/workflows/publish-r2.yml:59` no longer pass `R2_CONTENT_DIR` or build content zips; `scripts/release-local.ps1:161` updated to match.
 - **Low-stock sheet redesign + search & filters** — Inventory `Low stock` sheet (`frontend/app/(app)/inventory/page.tsx:1084`) is now `max-w-2xl` with a warning banner (count + copy), a searchable `Search brand, model…` field and `All / Out / Low` filter pills plus `Clear`. Fixes overflow on long lists.

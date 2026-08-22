@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.92
+## v0.1.93
+
+- Released on: 2026-08-22
+
+- feat: single installer-only updates, low-stock redesign, sheet scroll, native print
+- fix: publish-to-r2 fs is not defined (existsSync)
 
 - Released on: 2026-08-22
 
