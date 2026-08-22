@@ -250,18 +250,39 @@ async function downloadUpdate(manifest) {
   updateState.progress = 0;
   pushUpdateState();
 
+  let dest = "";
   try {
     const tmpDir = path.join(app.getPath("temp"), "fig-pos-update");
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-    const setupName = manifest.url.setup.split("/").pop();
-    const dest = path.join(tmpDir, setupName);
+    const setupName = (manifest.url.setup.split("/").pop() || `Fig-POS-Setup-${manifest.version}.exe`).split("?")[0];
+    dest = path.join(tmpDir, setupName);
 
     const res = await fetch(manifest.url.setup, { signal: AbortSignal.timeout(300000) });
-    if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`);
+    if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status}`);
 
-    const total = Number(res.headers.get("content-length")) || 0;
-    const body = await res.arrayBuffer();
-    fs.writeFileSync(dest, Buffer.from(body));
+    const total = Number(res.headers.get("content-length") || 0);
+    let received = 0;
+    const file = fs.createWriteStream(dest);
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      file.write(Buffer.from(value));
+      if (total) {
+        const pct = Math.round((received / total) * 100);
+        if (pct !== updateState.progress) {
+          updateState.progress = pct;
+          pushUpdateState();
+        }
+      } else {
+        const mb = (received / (1024 * 1024)).toFixed(1);
+        if (received % (2 * 1024 * 1024) < 65536) {
+          logging.write(`OTA: downloading… ${mb} MB`);
+        }
+      }
+    }
+    await new Promise((resolve, reject) => file.end((err) => (err ? reject(err) : resolve())));
 
     updateState.installerPath = dest;
     updateState.downloading = false;
@@ -289,6 +310,7 @@ async function downloadUpdate(manifest) {
     updateState.downloading = false;
     updateState.error = err && err.message ? err.message : String(err);
     logging.error("OTA: download failed: " + updateState.error);
+    try { if (dest && fs.existsSync(dest)) fs.rmSync(dest, { force: true }); } catch {}
     pushUpdateState();
   }
 }
@@ -296,6 +318,30 @@ async function downloadUpdate(manifest) {
 function installUpdate() {
   if (!updateState.installerPath || !fs.existsSync(updateState.installerPath)) return;
   const { exec } = require("node:child_process");
+  try {
+    const win = new BrowserWindow({
+      width: 420,
+      height: 200,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      frame: false,
+      transparent: true,
+      hasShadow: false,
+      alwaysOnTop: true,
+      backgroundColor: "#00000000",
+      webPreferences: { contextIsolation: true, sandbox: true },
+    });
+    win.loadURL(
+      `data:text/html,${encodeURIComponent(`<html><head><meta charset="UTF-8"><style>html,body{margin:0;height:100%;background:transparent;font-family:Montserrat,system-ui,sans-serif} .card{margin:20px;background:#fff;border-radius:20px;padding:24px;box-shadow:0 20px 40px rgba(0,0,0,0.15);text-align:center} .spinner{width:28px;height:28px;border:3px solid #f3efe7;border-top-color:#9b3f68;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px} @keyframes spin{to{transform:rotate(360deg)}} h1{margin:0;font-size:15px;color:#1c1916} p{margin:6px 0 0;font-size:12px;color:#7d7467}</style></head><body><div class="card"><div class="spinner"></div><h1>Installing update v${updateState.version || ""}…</h1><p>The app will restart automatically. Please wait.</p></div></body></html>`)}`,
+    );
+    win.show();
+    setTimeout(() => {
+      exec(`"${updateState.installerPath}" /S`, () => {});
+      setTimeout(() => app.quit(), 600);
+    }, 900);
+    return;
+  } catch {}
   exec(`"${updateState.installerPath}" /S`, () => {});
   app.quit();
 }

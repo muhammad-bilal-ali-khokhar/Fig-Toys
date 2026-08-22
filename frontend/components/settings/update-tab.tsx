@@ -102,9 +102,17 @@ export function UpdateTab() {
             error={state?.error ?? ""}
           />
         </p>
-        {state?.downloading && (state.progress ?? 0) > 0 && (
-          <div className="mb-3 h-2 w-full overflow-hidden rounded-full bg-ink-100">
-            <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${state.progress}%` }} />
+        {state?.downloading && (
+          <div className="mb-3 space-y-1">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
+              <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${state.progress ?? 0}%` }} />
+            </div>
+            <p className="text-xs text-ink-400">{state.progress ?? 0}% — {UPDATE.downloading}</p>
+          </div>
+        )}
+        {state?.available && state.releaseNotes && (
+          <div className="mb-3 max-h-48 overflow-auto rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-wrap text-ink-600">
+            {state.releaseNotes}
           </div>
         )}
         <div className="flex flex-wrap gap-2">
