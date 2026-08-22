@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.1.94
+
 - **CRITICAL FIX: database no longer wiped on update** — data was stored at `C:\Wavlon Studio\Fig POS\data\fig.db` (`desktop/main.js:420` `APP_DATA_DIR`), the same folder the NSIS installer deletes on every OTA `installUpdate():299` `/S` and manual reinstall (`desktop/build/installer.nsh:6`). Now `userDataDir()` is `app.getPath("userData")` (`%APPDATA%\Fig POS for Mobile Phones`) which `electron-builder.yml:54` `deleteAppDataOnUninstall: false` preserves. Added one-time `migrateLegacyDataDir()` at `app.whenReady():1200` to copy `data/logs/fig-runtime.json/fig-secret.txt/backups` from the old location if present. Future updates keep your DB; if already wiped, restore from `*.pre-migrate-*.bak` in `data/`.
 
 ## v0.1.93

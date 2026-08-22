@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.93
+## v0.1.94
+
+- Released on: 2026-08-22
+
+- docs: note critical DB wipe fix for next release
+- fix: keep database outside install dir so installer updates do not wipe it
 
 - Released on: 2026-08-22
 
