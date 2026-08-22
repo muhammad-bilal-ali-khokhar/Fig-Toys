@@ -417,14 +417,39 @@ process.on("unhandledRejection", (reason) => {
 // Runtime config (local server vs hosted URL), stored in the user data dir so
 // it can be switched at runtime from Settings.
 // ---------------------------------------------------------------------------
-const COMPANY_ROOT = "C:\\Wavlon Studio";
-const APP_DATA_DIR = path.join(COMPANY_ROOT, "Fig POS");
+const LEGACY_APP_DATA_DIR = path.join("C:\\Wavlon Studio", "Fig POS");
 
 function userDataDir() {
-  if (process.platform === "win32") {
-    return APP_DATA_DIR;
-  }
   return app.getPath("userData");
+}
+
+function migrateLegacyDataDir() {
+  if (process.platform !== "win32") return;
+  const legacy = LEGACY_APP_DATA_DIR;
+  const next = userDataDir();
+  if (legacy === next) return;
+  if (!fs.existsSync(legacy)) return;
+  const hasNewData = fs.existsSync(path.join(next, "data", "fig.db")) || fs.existsSync(path.join(next, "fig-runtime.json"));
+  if (hasNewData) return;
+  try {
+    fs.mkdirSync(next, { recursive: true });
+    const entries = fs.readdirSync(legacy);
+    for (const name of entries) {
+      if (name === "data" || name === "logs" || name === "fig-runtime.json" || name === "fig-secret.txt" || name === "backups") {
+        const src = path.join(legacy, name);
+        const dest = path.join(next, name);
+        if (fs.existsSync(dest)) continue;
+        try {
+          fs.cpSync(src, dest, { recursive: true, force: false });
+          logging.write(`Migrated legacy ${name} from ${src} to ${dest}`);
+        } catch (e) {
+          logging.error(`Legacy migrate ${name} failed: ${e.message}`);
+        }
+      }
+    }
+  } catch (e) {
+    logging.error(`Legacy data migration failed: ${e.message}`);
+  }
 }
 
 function runtimeFile() {
@@ -1172,6 +1197,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    try { migrateLegacyDataDir(); } catch {}
     logging.init(path.join(userDataDir(), "logs"));
     if (process.platform === "darwin" && app.dock) {
       app.dock.setIcon(APP_ICON);
