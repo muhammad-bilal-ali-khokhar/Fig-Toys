@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.90
+## v0.1.91
+
+- Released on: 2026-08-22
+
+- ci: allow release to continue even if artifact quota hit
+- ci: keep release artifacts for 3 days to avoid quota
 
 - Released on: 2026-08-22
 
