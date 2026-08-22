@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.1.95
+
 - **Update now shows progress, changelog and installing screen** — `desktop/main.js:242` OTA download was `res.arrayBuffer()` (no progress until 100%); now streams `res.body.getReader()` → `createWriteStream` with `bytes/total*100` + `pushUpdateState()` each chunk (like `electron-updater download-progress` / OpenCode `autoUpdater`). `frontend/components/settings/update-tab.tsx:95` now shows live `%` + bar during download and renders `releaseNotes` (`latest.json description` from `docs/RELEASE_NOTES.md`) in a scrollable box; `about.html:627` already did. `installUpdate():296` was silent `/S` + immediate `app.quit()` with no feedback; now shows a frameless `Installing update vX… app will restart` card `900ms` before `exec /S` then quit, so the NSIS progress is visible.
 
 ## v0.1.94
