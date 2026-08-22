@@ -49,6 +49,7 @@ import { jsPDF } from "jspdf";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { DownloadIcon, FilterIcon, InventoryIcon, PrinterIcon, SendIcon, SettingsIcon } from "@/components/icons";
+import { doPrint } from "@/lib/print";
 import { InventoryDocument } from "./components/inventory-document";
 import { ContactsDocument } from "./components/contacts-document";
 import { ExpenseSheetDocument } from "./components/expense-sheet-document";
@@ -971,7 +972,7 @@ function PrintStudioContent() {
         </Button>
         <Button
           className="px-4 py-2 text-xs"
-          onClick={() => window.print()}
+          onClick={() => void doPrint()}
           disabled={!canPrint}
         >
           <PrinterIcon className="h-4 w-4" />

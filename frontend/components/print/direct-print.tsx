@@ -9,6 +9,7 @@ import { whatsappLink } from "@/lib/whatsapp";
 import { PRINT_DEFAULT_CONFIG, PRINT_DEFAULT_OPTIONS, PRINT_FORMATS, type PrintBooleanOptions, type PrintConfig, type PrintDocType, type PrintFormatId, type QrTarget, type PrintSetting } from "@/lib/constants";
 import { ExpenseVoucherDocument, ReceiptDocument, VoucherDocument, type BankAccount } from "@/components/print/documents";
 import { useToast } from "@/components/ui/toast";
+import { doPrint } from "@/lib/print";
 
 export type DirectDocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE";
 
@@ -130,7 +131,7 @@ export function DirectPrint({
     if (!ready || !doc || printedRef.current) return;
     printedRef.current = true;
     const t = setTimeout(() => {
-      window.print();
+      void doPrint();
     }, 80);
     return () => clearTimeout(t);
   }, [ready, doc]);

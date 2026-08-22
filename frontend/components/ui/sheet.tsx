@@ -31,8 +31,8 @@ export function Sheet({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
-      <div className={`w-full ${width} rounded-2xl bg-white p-3`}>
-        <div className="flex items-center justify-between">
+      <div className={`flex w-full ${width} max-h-[min(88vh,640px)] flex-col overflow-hidden rounded-2xl bg-white p-4`}>
+        <div className="flex shrink-0 items-center justify-between gap-3">
           <h3 className="text-lg font-bold text-ink-900">{title}</h3>
           {showClose && (
             <Button variant="ghost" onClick={onClose}>
@@ -40,7 +40,7 @@ export function Sheet({
             </Button>
           )}
         </div>
-        <div className="mt-4">{children}</div>
+        <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-none pr-1">{children}</div>
       </div>
     </div>
   );

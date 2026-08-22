@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { apiRequest } from "@/lib/apiClient";
 import type { CompanyProfile } from "@/lib/api-types";
+import { doPrint } from "@/lib/print";
 
 export function ReportPrint({
   trigger,
@@ -37,7 +38,7 @@ export function ReportPrint({
     if (!ready || printedRef.current) return;
     printedRef.current = true;
     const t = setTimeout(() => {
-      window.print();
+      void doPrint();
     }, 100);
     return () => clearTimeout(t);
   }, [ready]);

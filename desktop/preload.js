@@ -40,22 +40,16 @@ contextBridge.exposeInMainWorld("fig", {
       return () => ipcRenderer.removeListener("update:status", handler);
     },
   },
-  content: {
-    status: () => ipcRenderer.invoke("content:status"),
-    check: () => ipcRenderer.invoke("content:check"),
-    apply: () => ipcRenderer.invoke("content:apply"),
-    onStatus: (cb) => {
-      const handler = (_event, state) => cb(state);
-      ipcRenderer.on("content:status", handler);
-      return () => ipcRenderer.removeListener("content:status", handler);
-    },
-  },
   error: {
     get: () => ipcRenderer.invoke("error:get"),
     copy: (text) => ipcRenderer.invoke("error:copy", text),
   },
   share: {
     pdf: (dataUrl, name) => ipcRenderer.invoke("share:pdf", dataUrl, name),
+  },
+  print: {
+    silent: () => ipcRenderer.invoke("print:silent"),
+    dialog: () => ipcRenderer.invoke("print:dialog"),
   },
   loading: {
     onStatus: (cb) => ipcRenderer.on("loading:status", (_event, text) => cb(text)),

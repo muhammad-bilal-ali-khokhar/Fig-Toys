@@ -13,21 +13,6 @@ declare global {
     error: string;
   };
 
-  type ContentPartState = {
-    status: "idle" | "downloading" | "done" | "error";
-    version: string;
-    available: string;
-    progress: number;
-    error: string;
-  };
-
-  type ContentState = {
-    base: string;
-    checking: boolean;
-    backend: ContentPartState;
-    frontend: ContentPartState;
-  };
-
   interface Window {
     fig?: {
       isElectron?: boolean;
@@ -71,11 +56,15 @@ declare global {
         get: () => Promise<string>;
         copy: (text: string) => Promise<boolean>;
       };
-      content?: {
-        status: () => Promise<ContentState>;
-        check: () => Promise<ContentState>;
-        apply: () => Promise<ContentState>;
-        onStatus: (cb: (state: ContentState) => void) => () => void;
+      share?: {
+        pdf: (dataUrl: string, name?: string) => Promise<boolean>;
+      };
+      print?: {
+        silent: () => Promise<boolean>;
+        dialog: () => Promise<boolean>;
+      };
+      loading?: {
+        onStatus: (cb: (text: string) => void) => unknown;
       };
       about?: {
         open: () => Promise<unknown>;

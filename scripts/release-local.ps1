@@ -158,11 +158,10 @@ if ($SkipPublish) {
   $missing = $required | Where-Object { -not (Test-Path env:$_) -or -not (Get-Item env:$_).Value }
   if ($missing) {
     Write-Host "Missing R2 env: $($missing -join ', ') — set them in .r2.env or env vars, then run:" -ForegroundColor Yellow
-    Write-Host "  `$env:R2_VERSION='$Version'; `$env:R2_SOURCE_DIR='desktop/release'; `$env:R2_CONTENT_DIR='production'; node scripts/publish-to-r2.mjs" -ForegroundColor Yellow
+    Write-Host "  `$env:R2_VERSION='$Version'; `$env:R2_SOURCE_DIR='desktop/release'; node scripts/publish-to-r2.mjs" -ForegroundColor Yellow
   } else {
     $env:R2_VERSION = $Version
     $env:R2_SOURCE_DIR = "desktop/release"
-    $env:R2_CONTENT_DIR = "production"
     node scripts/publish-to-r2.mjs
   }
 }

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import type { BadgeVariant } from "@/components/ui/badge";
 import { DirectPrint, type DirectDocType } from "@/components/print/direct-print";
 import { PrinterIcon, PlusIcon } from "@/components/icons";
+import { doPrint } from "@/lib/print";
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   PAID: "success",
@@ -370,7 +371,7 @@ export function ReservationReceipt({
       </div>
 
       <div className="mt-4 flex flex-wrap justify-center gap-2">
-        <Button variant="secondary" onClick={() => window.print()}>
+        <Button variant="secondary" onClick={() => void doPrint()}>
           <PrinterIcon className="h-4 w-4" />
           Print
         </Button>

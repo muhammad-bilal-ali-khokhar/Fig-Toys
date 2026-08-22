@@ -25,12 +25,6 @@ export const UPDATE = {
   notElectron: "Updates are handled by the desktop app. In a browser, just download the latest installer from the website.",
   error: "Could not check for updates",
   app: "App",
-  frontend: "Frontend",
-  backend: "Backend",
-  restartToApply: "Restart to apply",
-  noUpdate: "Up to date",
-  checkingContent: "Checking…",
-  updateAll: "Update all now",
 } as const;
 
 export const DEFAULT_LOCALE = "en-PK";

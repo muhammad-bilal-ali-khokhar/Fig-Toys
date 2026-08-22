@@ -34,6 +34,7 @@ import { ManageWindow } from "@/components/products/manage-window";
 import { TransactionDetailModal } from "@/components/transactions/transaction-detail";
 import { ScannerButton } from "@/components/scanner/scanner-button";
 import { AlertIcon, DownloadIcon, FilterIcon, PlusIcon, PrinterIcon, RefundIcon, SettingsIcon, TrashIcon, UploadIcon } from "@/components/icons";
+import { ScrollView } from "@/components/ui/scroll-view";
 
 type SortKey = "imei" | "category" | "status" | "carrier" | "vendor" | "purchased" | "sellPrice" | "retailPrice" | "costPrice";
 
@@ -117,6 +118,8 @@ export default function InventoryPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [lowStockOpen, setLowStockOpen] = useState(false);
+  const [lowStockQ, setLowStockQ] = useState("");
+  const [lowStockStatus, setLowStockStatus] = useState<"all" | "out" | "low">("all");
   const [selectedTxnId, setSelectedTxnId] = useState<string | null>(null);
   const [view, setView] = useState<InventoryViewSettings>(DEFAULT_INVENTORY_VIEW);
 
@@ -482,6 +485,17 @@ export default function InventoryPage() {
   const totalItems = filteredUnits.length + filteredProducts.length;
 
   const lowStockIds = useMemo(() => new Set(data?.lowStock.map((l) => l.id) ?? []), [data]);
+
+  const filteredLowStock = useMemo(() => {
+    const list = data?.lowStock ?? [];
+    const q = lowStockQ.trim().toLowerCase();
+    return list.filter((l) => {
+      if (lowStockStatus === "out" && l.inStock !== 0) return false;
+      if (lowStockStatus === "low" && l.inStock === 0) return false;
+      if (!q) return true;
+      return `${l.brand} ${l.model} ${l.storage ?? ""}`.toLowerCase().includes(q);
+    });
+  }, [data, lowStockQ, lowStockStatus]);
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -1084,31 +1098,132 @@ export default function InventoryPage() {
 
       <Sheet
         open={lowStockOpen}
-        title="Low stock products"
+        title="Low stock"
         onClose={() => setLowStockOpen(false)}
-        width="max-w-lg"
+        width="max-w-2xl"
       >
-        <div className="space-y-3">
-          <p className="text-sm text-ink-500">
-            Products at or below their restock threshold.
-          </p>
-          {(data?.lowStock ?? []).map((l) => (
-            <div key={l.id} className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-3.5 py-2">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-ink-900">
-                  {l.brand} {l.model}
-                </p>
-                <p className="truncate text-xs text-ink-500">{l.storage ?? "—"}</p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className={`text-sm font-bold ${l.inStock <= l.threshold ? "text-warning" : "text-ink-900"}`}>
-                  {l.inStock} left
-                </p>
-                <p className="text-xs text-ink-400">threshold {l.threshold}</p>
-              </div>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3 rounded-2xl border border-warning/20 bg-warning/10 px-4 py-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning text-white">
+              <AlertIcon className="h-4 w-4" />
             </div>
-          ))}
-          <div className="flex justify-end pt-1">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold leading-none text-ink-900">
+                {(data?.lowStock.length ?? 0)} product{(data?.lowStock.length ?? 0) === 1 ? "" : "s"} need restock
+              </p>
+              <p className="mt-1 text-xs leading-none text-ink-600">At or below threshold — reorder before you run out.</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-warning">
+              {(data?.lowStock.length ?? 0)}
+            </span>
+          </div>
+
+          {(data?.lowStock.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <SearchInput
+                value={lowStockQ}
+                onChange={setLowStockQ}
+                placeholder="Search brand, model…"
+                wrapperClassName="min-w-[180px] flex-1"
+              />
+              <div className="flex items-center gap-1 rounded-full bg-ink-50 p-1">
+                {[
+                  { value: "all", label: "All" },
+                  { value: "out", label: "Out" },
+                  { value: "low", label: "Low" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setLowStockStatus(opt.value as typeof lowStockStatus)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      lowStockStatus === opt.value ? "bg-white text-ink-900" : "text-ink-500 hover:text-ink-700"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {(lowStockQ || lowStockStatus !== "all") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLowStockQ("");
+                    setLowStockStatus("all");
+                  }}
+                  className="text-xs font-semibold text-ink-500 hover:text-ink-900"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+
+          {(data?.lowStock.length ?? 0) === 0 ? (
+            <div className="rounded-2xl border border-dashed border-ink-200 bg-ink-50 px-6 py-10 text-center">
+              <p className="text-sm font-semibold text-ink-700">All stocked up</p>
+              <p className="mt-1 text-xs text-ink-500">No products are below their threshold right now.</p>
+            </div>
+          ) : filteredLowStock.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-ink-200 bg-ink-50 px-6 py-8 text-center">
+              <p className="text-sm font-semibold text-ink-700">No matches</p>
+              <p className="mt-1 text-xs text-ink-500">Try a different search or filter.</p>
+            </div>
+          ) : (
+            <ScrollView maxHeight="max-h-[52vh]" className="pr-1">
+              <div className="grid grid-cols-2 gap-2">
+                {filteredLowStock.map((l) => {
+                  const isOut = l.inStock === 0;
+                  const isCritical = l.inStock <= Math.max(1, Math.floor(l.threshold / 2));
+                  return (
+                    <div
+                      key={l.id}
+                      className="group flex items-center gap-3 rounded-2xl border border-ink-100 bg-white px-3.5 py-3 transition hover:border-ink-200"
+                    >
+                      <div
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                          isOut ? "bg-error/10 text-error" : isCritical ? "bg-error/10 text-error" : "bg-warning/10 text-warning"
+                        }`}
+                      >
+                        <AlertIcon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold leading-none text-ink-900">
+                          {l.brand} {l.model}
+                        </p>
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <span className="max-w-[110px] truncate rounded-md bg-ink-50 px-1.5 py-0.5 text-[11px] font-medium text-ink-600">
+                            {l.storage ?? "—"}
+                          </span>
+                          <span className="hidden text-ink-300 sm:inline">·</span>
+                          <span className="truncate text-xs text-ink-500">{l.inStock} in stock</span>
+                        </div>
+                        <div className="mt-2 h-1.5 w-full max-w-[160px] overflow-hidden rounded-full bg-ink-100">
+                          <div
+                            className={`h-full rounded-full transition-all ${isOut ? "bg-error" : isCritical ? "bg-error" : "bg-warning"}`}
+                            style={{ width: `${l.threshold === 0 ? 100 : Math.min(100, Math.max(8, (l.inStock / l.threshold) * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className={`text-sm font-bold leading-none ${isOut ? "text-error" : isCritical ? "text-error" : "text-warning"}`}>
+                          {isOut ? "Out of stock" : `${l.inStock} left`}
+                        </p>
+                        <p className="mt-1 text-[11px] font-medium text-ink-400">min {l.threshold}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollView>
+          )}
+
+          <div className="flex items-center justify-between border-t border-ink-100 pt-3">
+            <p className="text-xs text-ink-500">
+              {filteredLowStock.length !== (data?.lowStock.length ?? 0)
+                ? `${filteredLowStock.length} of ${data?.lowStock.length ?? 0} shown`
+                : `${data?.lowStock.length ?? 0} item${(data?.lowStock.length ?? 0) === 1 ? "" : "s"} below threshold`}
+            </p>
             <Button variant="grey" onClick={() => setLowStockOpen(false)}>
               Close
             </Button>

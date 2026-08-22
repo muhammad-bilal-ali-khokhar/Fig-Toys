@@ -37,7 +37,7 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build production bundles (for content.json)
+      - name: Build production bundles
         run: |
           npm run build --workspace=frontend --if-present || (cd frontend && npm run build)
           npm run build:production --workspace=frontend --if-present || (cd frontend && npm run build:production)
@@ -64,9 +64,8 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
           R2_SOURCE_DIR: desktop/release
-          R2_CONTENT_DIR: production
         run: |
           TAG="${{ github.event.release.tag_name || inputs.tag }}"
           VERSION="${TAG#v}"
           echo "Publishing $VERSION from $TAG..."
-          R2_VERSION="$VERSION" R2_SOURCE_DIR="desktop/release" R2_CONTENT_DIR="production" node scripts/publish-to-r2.mjs
+          R2_VERSION="$VERSION" R2_SOURCE_DIR="desktop/release" node scripts/publish-to-r2.mjs

@@ -23,37 +23,15 @@ const PROD_FRONTEND = path.join(PROD_DIR, "frontend");
 const SRC_BACKEND = path.join(ROOT, "backend");
 const SRC_FRONTEND = path.join(ROOT, "frontend");
 
-// Production bundles live in <repo>/production (or <resources>/production in a
-// packaged app). A frontend/backend content update may have placed a newer copy
-// in the user-data dir, which is preferred when present. Fall back to the source
-// tree for development.
-function contentBackendDir() {
-  return path.join(userDataDir(), "content", "backend");
-}
-function contentFrontendDir() {
-  return path.join(userDataDir(), "content", "frontend");
-}
 function backendDir() {
-  if (fs.existsSync(path.join(contentBackendDir(), "server.cjs"))) return contentBackendDir();
-  return fs.existsSync(path.join(PROD_BACKEND, "server.cjs"))
-    ? PROD_BACKEND
-    : SRC_BACKEND;
+  return fs.existsSync(path.join(PROD_BACKEND, "server.cjs")) ? PROD_BACKEND : SRC_BACKEND;
 }
 function frontendDir() {
-  if (fs.existsSync(path.join(contentFrontendDir(), "server.js"))) return contentFrontendDir();
-  return fs.existsSync(path.join(PROD_FRONTEND, "server.js"))
-    ? PROD_FRONTEND
-    : SRC_FRONTEND;
+  return fs.existsSync(path.join(PROD_FRONTEND, "server.js")) ? PROD_FRONTEND : SRC_FRONTEND;
 }
 function bundleBackendDir() {
-  if (fs.existsSync(path.join(contentBackendDir(), "server.cjs"))) return contentBackendDir();
   return PROD_BACKEND;
 }
-// Native better-sqlite3 sits next to the *bundled* backend (prod: native/,
-// source: none — dev resolves it from backend/node_modules). It is compiled
-// for Electron's ABI and only ships with the installer, so it is never part of
-// a content update — always resolve it from the bundled production dir even
-// when a content update has swapped the backend into the user-data dir.
 function nativeDir() {
   return path.join(PROD_BACKEND, "native");
 }
@@ -251,9 +229,7 @@ function checkForUpdates() {
     updateState.available = true;
     updateState.version = manifest.version;
     updateState.releaseNotes = manifest.description || "";
-    logging.write(`OTA: update available (${manifest.version}).`);
-    // Auto-download for packaged builds.
-    if (app.isPackaged) downloadUpdate(manifest);
+    logging.write(`OTA: update available (${manifest.version}). Manual download required via Settings → Update.`);
   }).catch((err) => {
     updateState.error = err && err.message ? err.message : String(err);
     logging.error(`OTA: check failed: ${updateState.error}`);
@@ -325,178 +301,7 @@ function installUpdate() {
 }
 
 // ---------------------------------------------------------------------------
-// Frontend/backend content updates. The full installer (electron-updater) is
-// large; most fixes touch only the frontend or only the backend. So we also
-// publish small, separately-versioned frontend-<ver>.zip and backend-<ver>.zip
-// bundles + a content.json manifest. On startup the app downloads only what
-// changed, verifies the sha256, and extracts it into the user-data dir, which
-// backendDir()/frontendDir() then prefer, so the new code is used from that
-// same launch. A manual download from Settings applies on the next restart.
-// ---------------------------------------------------------------------------
-const CONTENT_BASE = (process.env.FIG_CONTENT_URL || URLS.downloadBase).replace(/\/+$/, "");
-const CONTENT_MANIFEST = `${CONTENT_BASE}/content.json`;
-const TIMEOUT_MS = 60_000;
-
-const contentState = {
-  checking: false,
-  backend: { status: "idle", version: "", available: "", progress: 0, error: "" },
-  frontend: { status: "idle", version: "", available: "", progress: 0, error: "" },
-};
-
-function contentSnapshot() {
-  return {
-    base: CONTENT_BASE,
-    checking: contentState.checking,
-    backend: { ...contentState.backend },
-    frontend: { ...contentState.frontend },
-  };
-}
-
-function pushContentState() {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send("content:status", contentSnapshot());
-  }
-}
-
-function contentVersions() {
-  const rt = loadRuntime();
-  return {
-    backend: rt.content && rt.content.backendVersion ? rt.content.backendVersion : app.getVersion(),
-    frontend: rt.content && rt.content.frontendVersion ? rt.content.frontendVersion : app.getVersion(),
-  };
-}
-
-// Returns true when <a> is strictly newer than <b> (dotted numeric compare).
-function isNewer(a, b) {
-  if (!a || !b) return Boolean(a && !b);
-  const pa = String(a).split(".").map((n) => Number(n) || 0);
-  const pb = String(b).split(".").map((n) => Number(n) || 0);
-  const len = Math.max(pa.length, pb.length);
-  for (let i = 0; i < len; i++) {
-    const va = pa[i] || 0;
-    const vb = pb[i] || 0;
-    if (va !== vb) return va > vb;
-  }
-  return false;
-}
-
-async function fetchWithTimeout(url, options, timeout = TIMEOUT_MS) {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeout);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function downloadToFile(url, dest, onProgress) {
-  const res = await fetchWithTimeout(url);
-  if (!res.ok || !res.body) throw new Error(`download failed (${res.status})`);
-  const total = Number(res.headers.get("content-length") || 0);
-  let received = 0;
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  const ws = fs.createWriteStream(dest);
-  const reader = res.body.getReader();
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    received += value.byteLength;
-    ws.write(Buffer.from(value));
-    if (total && onProgress) onProgress(Math.round((received / total) * 100));
-  }
-  await new Promise((resolve, reject) => ws.end((err) => (err ? reject(err) : resolve())));
-}
-
-function sha256File(file) {
-  const { createHash } = require("node:crypto");
-  const hash = createHash("sha256");
-  hash.update(fs.readFileSync(file));
-  return hash.digest("hex");
-}
-
-async function extractZip(zip, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  const { execFile } = require("node:child_process");
-  await new Promise((resolve, reject) => {
-    execFile("tar", ["-xf", zip, "-C", dest], (err) => (err ? reject(err) : resolve()));
-  });
-}
-
-// Download + verify + extract one content bundle into its content dir, then
-// record the applied version in runtime.json. Returns the new version string.
-async function applyContent(kind, entry, appliedVersion) {
-  const key = kind === "backend" ? "backendVersion" : "frontendVersion";
-  if (!entry || !entry.version || !isNewer(entry.version, appliedVersion)) return null;
-  contentState[kind] = { ...contentState[kind], status: "downloading", available: entry.version, progress: 0, error: "" };
-  pushContentState();
-  const tmp = path.join(userDataDir(), "content", `${kind}-${entry.version}.zip.tmp`);
-  const target = path.join(userDataDir(), "content", kind);
-  try {
-    await downloadToFile(entry.url, tmp, (p) => {
-      contentState[kind] = { ...contentState[kind], progress: p };
-      pushContentState();
-    });
-    if (entry.sha256 && sha256File(tmp).toLowerCase() !== String(entry.sha256).toLowerCase()) {
-      throw new Error("checksum mismatch — download rejected");
-    }
-    fs.rmSync(target, { recursive: true, force: true });
-    await extractZip(tmp, target);
-    fs.rmSync(tmp, { force: true });
-    const rt = loadRuntime();
-    saveRuntime({ ...rt, content: { ...(rt.content || {}), [key]: entry.version } });
-    contentState[kind] = { ...contentState[kind], status: "done", version: entry.version, available: entry.version, progress: 100 };
-  } catch (err) {
-    fs.rmSync(tmp, { force: true });
-    contentState[kind] = {
-      ...contentState[kind],
-      status: "error",
-      error: err && err.message ? err.message : String(err),
-    };
-    logging.error(`Content ${kind} update failed: ${contentState[kind].error}`);
-    throw err;
-  } finally {
-    pushContentState();
-  }
-  return entry.version;
-}
-
-async function fetchManifest() {
-  const res = await fetchWithTimeout(CONTENT_MANIFEST, {}, 15_000);
-  if (!res.ok) throw new Error(`manifest fetch failed (${res.status})`);
-  return await res.json();
-}
-
-// Check the manifest and download/extract any newer frontend/backend bundle.
-async function checkAndApplyContent() {
-  if (contentState.checking) return;
-  contentState.checking = true;
-  const versions = contentVersions();
-  contentState.backend = { ...contentState.backend, version: versions.backend };
-  contentState.frontend = { ...contentState.frontend, version: versions.frontend };
-  pushContentState();
-  try {
-    const manifest = await fetchManifest();
-    await applyContent("backend", manifest.backend, versions.backend);
-    await applyContent("frontend", manifest.frontend, versions.frontend);
-  } catch (err) {
-    logging.write(`Content: ${err && err.message ? err.message : err}`);
-  } finally {
-    contentState.checking = false;
-    pushContentState();
-  }
-}
-
-// A freshly-downloaded bundle is applied on the next launch (the servers spawn
-// from backendDir()/frontendDir() at startup). Extract now, then relaunch.
-async function applyContentNow() {
-  const versions = contentVersions();
-  const manifest = await fetchManifest();
-  let changed = false;
-  if (await applyContent("backend", manifest.backend, versions.backend)) changed = true;
-  if (await applyContent("frontend", manifest.frontend, versions.frontend)) changed = true;
-  return { applied: changed, snapshot: contentSnapshot() };
-}
+// Single update channel: full installer only (no frontend/backend delta zips).
 
 // ---------------------------------------------------------------------------
 // Logging + crash surfacing. Everything is written to a log file in the
@@ -1272,26 +1077,6 @@ if (!app.requestSingleInstanceLock()) {
     return true;
   });
 
-  // Frontend/backend content updates.
-  ipcMain.handle("content:status", () => {
-    const versions = contentVersions();
-    contentState.backend = { ...contentState.backend, version: versions.backend };
-    contentState.frontend = { ...contentState.frontend, version: versions.frontend };
-    return contentSnapshot();
-  });
-  ipcMain.handle("content:check", async () => {
-    await checkAndApplyContent();
-    return contentSnapshot();
-  });
-  ipcMain.handle("content:apply", async () => {
-    const result = await applyContentNow();
-    if (result.applied) {
-      app.relaunch();
-      app.exit(0);
-    }
-    return result.snapshot;
-  });
-
   ipcMain.handle("about:open", () => openAboutWindow());
 
   ipcMain.handle("about:close", () => {
@@ -1336,6 +1121,45 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
+  ipcMain.handle("print:silent", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) throw new Error("No window to print from");
+    const contents = win.webContents;
+    const silent = await new Promise((resolve, reject) => {
+      try {
+        const maybePromise = contents.print({ silent: true, printBackground: true }, (success, failureReason) => {
+          if (success) resolve(true);
+          else reject(new Error(failureReason || "Print failed"));
+        });
+        if (maybePromise && typeof maybePromise.then === "function") {
+          maybePromise.then(() => resolve(true)).catch(reject);
+        }
+      } catch (err) {
+        reject(err);
+      }
+    });
+    return silent;
+  });
+
+  ipcMain.handle("print:dialog", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) throw new Error("No window to print from");
+    const contents = win.webContents;
+    return new Promise((resolve, reject) => {
+      try {
+        const maybePromise = contents.print({ silent: false, printBackground: true }, (success, failureReason) => {
+          if (success) resolve(true);
+          else reject(new Error(failureReason || "Print cancelled"));
+        });
+        if (maybePromise && typeof maybePromise.then === "function") {
+          maybePromise.then(() => resolve(true)).catch(reject);
+        }
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+
   ipcMain.handle("runtime:set", (_event, cfg) => {
     const next = {
       mode: cfg && cfg.mode === "hosted" ? "hosted" : "local",
@@ -1368,15 +1192,15 @@ if (!app.requestSingleInstanceLock()) {
 
     logging.write(`Version ${app.getVersion()} | Electron ${process.versions.electron} | Node ${process.versions.node}`);
 
-    // A shell (installer/OTA) update rebundles the latest frontend + backend,
-    // so discard any older user-data content copies when the app version changes.
     {
       const rt = loadRuntime();
-      if (rt.lastAppVersion && rt.lastAppVersion !== app.getVersion()) {
-        fs.rmSync(path.join(userDataDir(), "content"), { recursive: true, force: true });
-        saveRuntime({ ...rt, lastAppVersion: app.getVersion(), content: {} });
-      } else if (!rt.lastAppVersion) {
-        saveRuntime({ ...rt, lastAppVersion: app.getVersion() });
+      const staleContent = path.join(userDataDir(), "content");
+      if (fs.existsSync(staleContent)) {
+        try { fs.rmSync(staleContent, { recursive: true, force: true }); } catch {}
+      }
+      if (rt.lastAppVersion !== app.getVersion() || rt.content) {
+        const { content: _content, ...rest } = rt;
+        saveRuntime({ ...rest, lastAppVersion: app.getVersion() });
       }
     }
 
@@ -1393,11 +1217,6 @@ if (!app.requestSingleInstanceLock()) {
       }
       url = cfg.hostedUrl;
     } else {
-      // Download any newer frontend/backend before preparing the DB so the new
-      // backend's migrations run on this same launch.
-      setStatus("Checking for frontend/backend updates…");
-      await checkAndApplyContent();
-
       setStatus("Preparing app data folder…");
       try {
         await ensureDatabase(setStatus);
@@ -1479,11 +1298,8 @@ if (!app.requestSingleInstanceLock()) {
       });
     }
 
-    // OTA: silently check for a newer release and auto-install on quit.
-    // The no-install/win-unpacked bundle has no NSIS installer to self-update,
-    // so skip that case; every other build (packaged or dev) checks.
-    const unpackedTest = process.execPath.includes("win-unpacked");
-    if (!DEV_ATTACH && !unpackedTest) checkForUpdates();
+    // OTA is manual-only via frontend Settings → Update (window.fig.update.check/download/install).
+    // No silent startup check — user must trigger Check for updates explicitly.
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0 && url) createWindow(url);
