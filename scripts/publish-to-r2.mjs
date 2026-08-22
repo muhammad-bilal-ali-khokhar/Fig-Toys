@@ -215,7 +215,7 @@ async function main() {
   // and frontend bundles, publish each under content/, and write a content.json
   // manifest the desktop app uses to download just what changed.
   const contentDir = path.resolve(process.env.R2_CONTENT_DIR || "");
-  if (contentDir && fs.existsSync(contentDir)) {
+  if (contentDir && existsSync(contentDir)) {
     const { execSync } = await import("node:child_process");
     const makeZip = (name, sub) => {
       const zip = path.join(os.tmpdir(), `${name}-${version}.zip`);
