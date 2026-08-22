@@ -6,7 +6,7 @@ import QRCode from "qrcode";
 import { apiRequest } from "@/lib/apiClient";
 import type { CompanyProfile, Expense, TransactionDetail, Voucher } from "@/lib/api-types";
 import { whatsappLink } from "@/lib/whatsapp";
-import { PRINT_DEFAULT_OPTIONS, PRINT_FORMATS, type PrintBooleanOptions, type PrintDocType, type PrintFormatId, type QrTarget, type PrintSetting } from "@/lib/constants";
+import { PRINT_DEFAULT_CONFIG, PRINT_DEFAULT_OPTIONS, PRINT_FORMATS, type PrintBooleanOptions, type PrintConfig, type PrintDocType, type PrintFormatId, type QrTarget, type PrintSetting } from "@/lib/constants";
 import { ExpenseVoucherDocument, ReceiptDocument, VoucherDocument, type BankAccount } from "@/components/print/documents";
 import { useToast } from "@/components/ui/toast";
 
@@ -21,12 +21,13 @@ const DOC_TYPE_TO_PRINT_DOC_TYPE: Record<DirectDocType, PrintDocType> = {
   EXPENSE: "EXPENSE",
 };
 
-function applySetting(setting: PrintSetting | undefined, options: PrintBooleanOptions, format: PrintFormatId, qrType: QrTarget): [PrintBooleanOptions, PrintFormatId, QrTarget] {
-  if (!setting) return [options, format, qrType];
+function applySetting(setting: PrintSetting | undefined, options: PrintBooleanOptions, format: PrintFormatId, qrType: QrTarget, config: PrintConfig): [PrintBooleanOptions, PrintFormatId, QrTarget, PrintConfig] {
+  if (!setting) return [options, format, qrType, config];
   return [
     { ...options, ...(setting.options ?? {}) },
     PRINT_FORMATS.some((f) => f.id === setting.format) ? setting.format : format,
     setting.qrType ?? qrType,
+    setting.config ? { ...config, ...setting.config } : config,
   ];
 }
 
@@ -45,6 +46,7 @@ export function DirectPrint({
   const [format, setFormat] = useState<PrintFormatId>("80");
   const [options, setOptions] = useState<PrintBooleanOptions>({ ...PRINT_DEFAULT_OPTIONS });
   const [qrType, setQrType] = useState<QrTarget>("whatsapp");
+  const [config, setConfig] = useState<PrintConfig>({ ...PRINT_DEFAULT_CONFIG });
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -67,15 +69,17 @@ export function DirectPrint({
       setProfile(p);
       setBankAccounts((banks ?? []).filter((a) => a.active));
       const printSetting = (settingsRes ?? []).find((s) => s.docType === DOC_TYPE_TO_PRINT_DOC_TYPE[type]);
-      const [nextOptions, nextFormat, nextQrType] = applySetting(
+      const [nextOptions, nextFormat, nextQrType, nextConfig] = applySetting(
         printSetting,
         { ...PRINT_DEFAULT_OPTIONS },
         "80",
         "whatsapp",
+        { ...PRINT_DEFAULT_CONFIG },
       );
       setFormat(nextFormat);
       setOptions(nextOptions);
       setQrType(nextQrType);
+      setConfig(nextConfig);
 
       if (type === "VOUCHER") {
         setVoucher(await apiRequest<Voucher>(`/voucher/${id}`));
@@ -103,11 +107,11 @@ export function DirectPrint({
   const doc =
     type === "VOUCHER" ? (
       voucher ? (
-        <VoucherDocument voucher={voucher} options={options} format={format} qrUrl={qrUrl} qrType={qrType} profile={profile} />
+        <VoucherDocument voucher={voucher} options={options} format={format} qrUrl={qrUrl} qrType={qrType} profile={profile} config={config} />
       ) : null
     ) : type === "EXPENSE" ? (
       expense ? (
-        <ExpenseVoucherDocument expense={expense} options={options} format={format} profile={profile} />
+        <ExpenseVoucherDocument expense={expense} options={options} format={format} profile={profile} config={config} />
       ) : null
     ) : detail ? (
       <ReceiptDocument
@@ -118,6 +122,7 @@ export function DirectPrint({
         qrType={qrType}
         profile={profile}
         bankAccounts={bankAccounts}
+        config={config}
       />
     ) : null;
 
@@ -132,7 +137,7 @@ export function DirectPrint({
 
   const printCss = `
     #direct-print-portal { display: none; }
-    @page { size: ${fmt.pageSize}; margin: ${fmt.pageMargin}; }
+    @page { size: ${fmt.pageSize}; margin: ${config.marginMm}mm; }
     @media print {
       body { background: #fff !important; }
       body > *:not(#direct-print-portal) { display: none !important; }

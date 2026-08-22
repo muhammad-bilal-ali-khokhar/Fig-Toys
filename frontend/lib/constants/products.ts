@@ -5,13 +5,6 @@ export const CATEGORY_TYPE_LABELS: Record<CategoryType, string> = {
   ACCESSORY: "Accessory",
 };
 
-export const CONDITION_FILTER_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "All conditions" },
-  { value: "NEW", label: "New" },
-  { value: "USED", label: "Used" },
-  { value: "ACCESSORY", label: "Accessory" },
-];
-
 export const STORAGE_OPTIONS = [
   "8GB",
   "16GB",
@@ -37,6 +30,17 @@ export const RAM_OPTIONS = [
 ] as const;
 
 export const SCREEN_SIZE_OPTIONS = [
+  '0.44"',
+  '1.77"',
+  '1.8"',
+  '2.0"',
+  '2.4"',
+  '2.8"',
+  '3.0"',
+  '3.2"',
+  '3.4"',
+  '3.5"',
+  '3.8"',
   '4.0"',
   '4.5"',
   '4.7"',

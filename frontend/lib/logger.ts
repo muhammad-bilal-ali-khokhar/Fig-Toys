@@ -30,7 +30,7 @@ function send(level: LogLevel, type: string, message: string, detail?: unknown) 
   if (!shouldSend(level, type, message)) return;
   const payload = { source: "frontend", level, type, message };
   try {
-    void fetch(`${API_BASE}/api/events`, {
+    void fetch(`${API_BASE}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...payload, detail }),

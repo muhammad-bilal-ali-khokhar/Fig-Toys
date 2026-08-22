@@ -47,7 +47,13 @@ export function KpisWidget({ data, viewCosts, fmt }: KpiWidgetProps) {
         <KpiCard
           label="Units In Stock"
           value={!data ? "…" : String(data.stock.total)}
-          sub={!data ? undefined : `${data.stock.NEW} new · ${data.stock.USED} used`}
+          sub={
+            !data
+              ? undefined
+              : (data.stock.accessories ?? 0) > 0
+                ? `${data.stock.phones ?? data.stock.NEW + data.stock.USED} phones · ${data.stock.accessories} accessories`
+                : `${data.stock.NEW} new · ${data.stock.USED} used`
+          }
           icon={InventoryIcon}
         />
         <KpiCard
@@ -87,7 +93,13 @@ export function Kpis2Widget({ data, fmt }: KpiWidgetProps) {
         <KpiCard
           label="Cash on Hand"
           value={!data ? "…" : fmt(data.cashOnHand)}
-          sub={!data ? undefined : "register balance"}
+          sub={
+            !data
+              ? undefined
+              : data.money
+                ? `${fmt(data.money.totalBankBalance)} in bank${data.money.pendingCard > 0 ? ` · ${fmt(data.money.pendingCard)} card pending` : ""}`
+                : "register balance"
+          }
           tone={!data || data.cashOnHand >= 0 ? "text-success" : "text-error"}
           icon={RefundIcon}
         />

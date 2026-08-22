@@ -98,9 +98,13 @@ function formatAmount(amount?: string): string {
 function GlobalSearchField({
   value,
   onChange,
+  onFocus,
+  onBlur,
 }: {
   value: string;
   onChange: (value: string) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }) {
   return (
     <span className="flex h-9 items-center gap-2 rounded-2xl bg-ink-100 pl-3 pr-6">
@@ -108,6 +112,8 @@ function GlobalSearchField({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={onFocus}
+        onBlur={onBlur}
         placeholder="Search IMEI, sale / purchase / voucher number…"
         className="h-full min-w-0 flex-1 bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
       />
@@ -121,6 +127,7 @@ export function GlobalSearch() {
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeResult, setActiveResult] = useState<SearchResult | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     const term = query.trim();
@@ -191,9 +198,16 @@ export function GlobalSearch() {
         options={options}
         onChange={handleSelect}
         placeholder="Search…"
+        open={isFocused}
+        onOpenChange={setIsFocused}
         trigger={(open) => (
           <span className="block" onClickCapture={open ? (e) => e.stopPropagation() : undefined}>
-            <GlobalSearchField value={query} onChange={setQuery} />
+            <GlobalSearchField
+              value={query}
+              onChange={setQuery}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+            />
           </span>
         )}
       />

@@ -1,5 +1,7 @@
 "use client";
 
+import type { PrintConfig } from "@/lib/constants";
+
 import type { BalancesReport, CompanyProfile } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import {
@@ -11,14 +13,16 @@ import {
 
 export function PayablesT80({
   profile,
+  config,
   data,
 }: {
   profile: CompanyProfile | null;
+  config?: PrintConfig;
   data: BalancesReport;
 }) {
   const total = data.payableTotal;
   return (
-    <ReportDocShell profile={profile} title="Payables" period="Current balances" format="80">
+    <ReportDocShell profile={profile} config={config} title="Payables" period="Current balances" format="80">
       <KpiStrip
         format="80"
         items={[

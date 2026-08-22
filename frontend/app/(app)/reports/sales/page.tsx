@@ -85,10 +85,10 @@ export default function SalesReportPage() {
 
           {data.bySubCategory.length > 0 && (
             <TopList
-              title="By subcategory (accessories)"
+              title="By leaf category"
               rows={data.bySubCategory.map((sc) => ({
                 id: `${sc.parentName}-${sc.name}`,
-                label: `${sc.parentName} > ${sc.name}`,
+                label: `${sc.parentName} › ${sc.name}`,
                 sub: `${pluralize(sc.count, "line")}`,
                 value: sc.revenue,
               }))}

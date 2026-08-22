@@ -35,6 +35,10 @@ export async function apiRequest<T>(
       signal,
     });
   } catch (err) {
+    const isAbort =
+      (err instanceof DOMException && err.name === "AbortError") ||
+      (err instanceof Error && err.name === "AbortError");
+    if (isAbort) throw err;
     const isWrite = method !== "GET";
     if (isWrite) {
       enqueueQueuedRequest({ path, method: method as "POST" | "PUT" | "PATCH" | "DELETE", body });

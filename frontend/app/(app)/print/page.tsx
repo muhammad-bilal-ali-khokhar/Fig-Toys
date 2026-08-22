@@ -6,22 +6,25 @@ import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { BalancesReport, CompanyProfile, Contact, Expense, ExpenseReport, ProfitReport, PurchaseReport, ReportRange, SalesReport, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
+import type { BalancesReport, Brand, Category, Color, CompanyProfile, Contact, Expense, ExpenseReport, InventoryData, InventoryProduct, ProfitReport, PurchaseReport, ReportRange, SalesReport, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { whatsappLink } from "@/lib/whatsapp";
 import { canViewCosts } from "@/lib/roles";
+import { CARRIER_LABELS, CONDITION_LABELS, STATUS_LABELS } from "@/lib/constants/units";
 import {
   CONTACTS_TEXT,
   EXPENSE_CATEGORY_LABELS,
   EXPENSE_PRINT_TEXT,
   INVENTORY_TEXT,
+  PRINT_DEFAULT_CONFIG,
   PRINT_DEFAULT_OPTIONS,
   PRINT_FORMATS,
   type ContactsPrintOptions,
   type ExpenseSheetOptions,
   type InventoryPrintOptions,
   type PrintBooleanOptions,
+  type PrintConfig,
   type PrintDocType,
   type PrintFormatId,
   type PrintLayoutType,
@@ -43,7 +46,9 @@ import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
-import { DownloadIcon, InventoryIcon, PrinterIcon, SendIcon, SettingsIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
+import { SearchInput } from "@/components/ui/search-input";
+import { DownloadIcon, FilterIcon, InventoryIcon, PrinterIcon, SendIcon, SettingsIcon } from "@/components/icons";
 import { InventoryDocument } from "./components/inventory-document";
 import { ContactsDocument } from "./components/contacts-document";
 import { ExpenseSheetDocument } from "./components/expense-sheet-document";
@@ -74,6 +79,8 @@ const TYPE_DOT: Record<string, string> = {
   EXPENSES_REPORT: "bg-error",
   PAYABLES: "bg-warning",
   RECEIVABLES: "bg-brand-600",
+  SALES_LIST: "bg-brand-500",
+  SALE_RETURNS: "bg-brand-300",
   PURCHASE_LIST: "bg-ink-500",
   PURCHASE_RETURNS: "bg-ink-300",
 };
@@ -85,6 +92,8 @@ type ReportDocType =
   | "EXPENSES_REPORT"
   | "PAYABLES"
   | "RECEIVABLES"
+  | "SALES_LIST"
+  | "SALE_RETURNS"
   | "PURCHASE_LIST"
   | "PURCHASE_RETURNS";
 
@@ -95,6 +104,8 @@ const REPORT_DOC_TYPES: { value: ReportDocType; label: string; hint: string }[] 
   { value: "EXPENSES_REPORT", label: "Expenses report", hint: "Spending by category" },
   { value: "PAYABLES", label: "Payables", hint: "Vendors you still owe" },
   { value: "RECEIVABLES", label: "Receivables", hint: "Customers who still owe you" },
+  { value: "SALES_LIST", label: "Sale list", hint: "Every sale in the period" },
+  { value: "SALE_RETURNS", label: "Sale returns", hint: "Items returned by customers" },
   { value: "PURCHASE_LIST", label: "Purchase list", hint: "Every purchase in the period" },
   { value: "PURCHASE_RETURNS", label: "Purchase returns", hint: "Items returned to suppliers" },
 ];
@@ -123,6 +134,44 @@ function docToLayoutType(d: PrintDocType): PrintLayoutType {
   return "document";
 }
 
+function findCategory(cats: Category[], id: string): Category | null {
+  for (const c of cats) {
+    if (c.id === id) return c;
+    if (c.children?.length) {
+      const f = findCategory(c.children, id);
+      if (f) return f;
+    }
+  }
+  return null;
+}
+function collectSubtreeIds(node: Category): Set<string> {
+  const ids = new Set<string>([node.id]);
+  for (const ch of node.children ?? []) for (const id of collectSubtreeIds(ch)) ids.add(id);
+  return ids;
+}
+function flattenSubcategoryOptions(cats: Category[], prefix = ""): { value: string; label: string }[] {
+  const out: { value: string; label: string }[] = [];
+  for (const c of cats) {
+    if (!c.active) continue;
+    const label = prefix ? `${prefix} › ${c.name}` : c.name;
+    out.push({ value: c.id, label });
+    if (c.children?.length) out.push(...flattenSubcategoryOptions(c.children, label));
+  }
+  return out;
+}
+const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "All statuses" },
+  ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+];
+const CARRIER_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "All carriers" },
+  ...Object.entries(CARRIER_LABELS).map(([value, label]) => ({ value, label })),
+];
+const CONDITION_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "All conditions" },
+  ...Object.entries(CONDITION_LABELS).map(([value, label]) => ({ value, label })),
+];
+
 function PrintStudioContent() {
   const params = useSearchParams();
   const { user } = useAuth();
@@ -133,6 +182,7 @@ function PrintStudioContent() {
   const [format, setFormat] = useState<PrintFormatId>("80");
   const [options, setOptions] = useState<Record<string, boolean>>({ ...PRINT_DEFAULT_OPTIONS });
   const [qrType, setQrType] = useState<QrTarget>("whatsapp");
+  const [config, setConfig] = useState<PrintConfig>({ ...PRINT_DEFAULT_CONFIG });
   const [printDocType, setPrintDocType] = useState<PrintDocType>(() => {
     if (deepLinkType === "inventory") return "INVENTORY";
     if (deepLinkType === "expense") return "EXPENSE_SHEET";
@@ -162,8 +212,22 @@ function PrintStudioContent() {
   const [selectedId, setSelectedId] = useState<string | null>(deepLinkId);
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(false);
-  const [units, setUnits] = useState<Unit[]>([]);
+  const [rawUnits, setRawUnits] = useState<Unit[]>([]);
+  const [rawProducts, setRawProducts] = useState<InventoryProduct[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [colors, setColors] = useState<Color[]>([]);
+  const [q, setQ] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [subcategoryId, setSubcategoryId] = useState("");
+  const [brandId, setBrandId] = useState("");
+  const [colorId, setColorId] = useState("");
+  const [status, setStatus] = useState("");
+  const [carrier, setCarrier] = useState("");
+  const [condition, setCondition] = useState("");
+  const [vendor, setVendor] = useState("");
+  const [invFiltersOpen, setInvFiltersOpen] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
@@ -179,18 +243,59 @@ function PrintStudioContent() {
   const [purchaseList, setPurchaseList] = useState<Transaction[] | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
 
-  const activeFormat: PrintFormatId =
-    layoutType === "report"
-      ? format
-      : layoutType !== "document" && format === "58"
-        ? "80"
-        : format;
+  const activeFormat: PrintFormatId = format;
   const fmt = PRINT_FORMATS.find((f) => f.id === activeFormat) ?? PRINT_FORMATS[1];
   const selectedDoc = documents.find((d) => d.id === selectedId) ?? null;
   const selectedVoucher = vouchers.find((v) => v.id === selectedId) ?? null;
   const selectedExpense = expenses.find((e) => e.id === selectedId) ?? null;
   const showCost = canViewCosts(user) && options.cost === true;
-  const inStockCount = units.filter((u) => u.status === "IN_STOCK").length;
+  const activeCategories = categories.filter((c) => c.active);
+  const activeBrands = brands.filter((b) => b.active);
+  const parentCategories = activeCategories.filter((c) => !c.parentId);
+  const vendorOptions = [...new Set([...rawUnits.map((u) => u.purchase?.vendor).filter((v): v is string => !!v), ...rawProducts.map((p) => p.lastVendor).filter((v): v is string => !!v)])].sort();
+  const allowedCategoryIds = useMemo(() => {
+    if (!categoryId && !subcategoryId) return null;
+    const target = findCategory(activeCategories, subcategoryId || categoryId);
+    return target ? collectSubtreeIds(target) : null;
+  }, [activeCategories, categoryId, subcategoryId]);
+  const filteredUnits = useMemo(() => {
+    return rawUnits.filter((u) => {
+      if (allowedCategoryIds && !allowedCategoryIds.has(u.product.categoryId)) return false;
+      if (brandId && u.product.brandId !== brandId) return false;
+      if (colorId && u.product.colorId !== colorId) return false;
+      if (status && u.status !== status) return false;
+      if (carrier && u.carrier !== carrier) return false;
+      if (condition && u.condition !== condition) return false;
+      if (vendor && u.purchase?.vendor !== vendor) return false;
+      const query = q.trim().toLowerCase();
+      if (!query) return true;
+      return [u.imei, u.product.brand, u.product.model, u.product.storage ?? "", u.product.color ?? "", u.product.category ?? ""].join(" ").toLowerCase().includes(query);
+    });
+  }, [rawUnits, q, allowedCategoryIds, brandId, colorId, status, carrier, condition, vendor]);
+  const filteredProducts = useMemo(() => {
+    return rawProducts.filter((p) => {
+      if (allowedCategoryIds && !allowedCategoryIds.has(p.categoryId)) return false;
+      if (brandId && p.brandId !== brandId) return false;
+      if (colorId && p.colorId !== colorId) return false;
+      if (status && status !== "IN_STOCK") return false;
+      if (carrier || condition) return false;
+      if (vendor && p.lastVendor !== vendor) return false;
+      const query = q.trim().toLowerCase();
+      if (!query) return true;
+      return [p.barcode ?? "", p.brand, p.model, p.storage ?? "", p.color ?? "", p.category ?? ""].join(" ").toLowerCase().includes(query);
+    });
+  }, [rawProducts, q, allowedCategoryIds, brandId, colorId, status, carrier, condition, vendor]);
+  const units = filteredUnits;
+  const products = filteredProducts;
+  const totalFilteredCount = filteredUnits.length + filteredProducts.reduce((s, p) => s + p.qty, 0);
+  const inStockCount = filteredUnits.filter((u) => u.status === "IN_STOCK").length + filteredProducts.reduce((s, p) => s + p.qty, 0);
+  const rawTotalCount = rawUnits.length + rawProducts.reduce((s, p) => s + p.qty, 0);
+  const activeFilterCount = [q.trim(), categoryId, subcategoryId, brandId, colorId, status, carrier, condition, vendor].filter(Boolean).length;
+  const selectedCategory = subcategoryId || categoryId ? findCategory(activeCategories, subcategoryId || categoryId) : null;
+  const subcategoryOptions = selectedCategory
+    ? [{ value: "", label: "All subcategories" }, ...flattenSubcategoryOptions(selectedCategory.children ?? [])]
+    : [{ value: "", label: "Select a category first" }];
+  const activeColors = colors.filter((c) => c.active);
   const contactsReceivable = contacts.reduce((sum, c) => sum + (parseFloat(c.receivable) || 0), 0);
   const contactsPayable = contacts.reduce((sum, c) => sum + (parseFloat(c.payable) || 0), 0);
   const reportReady =
@@ -204,7 +309,7 @@ function PrintStudioContent() {
             ? expensesReport !== null
             : reportType === "PAYABLES" || reportType === "RECEIVABLES"
               ? balancesReport !== null
-              : reportType === "PURCHASE_LIST" || reportType === "PURCHASE_RETURNS"
+              : reportType === "SALES_LIST" || reportType === "SALE_RETURNS" || reportType === "PURCHASE_LIST" || reportType === "PURCHASE_RETURNS"
                 ? (purchaseList ?? []).length > 0
                 : false;
   const canPrint =
@@ -212,7 +317,7 @@ function PrintStudioContent() {
       ? reportReady
       : layoutType === "inventory" || layoutType === "expense" || layoutType === "contacts"
         ? layoutType === "inventory"
-          ? units.length > 0
+          ? totalFilteredCount > 0
           : layoutType === "expense"
             ? expenses.length > 0
             : contacts.length > 0
@@ -263,6 +368,7 @@ function PrintStudioContent() {
     setFormat(s.format);
     setQrType(s.qrType);
     setOptions({ ...defaultOptionsFor(docToLayoutType(s.docType)), ...s.options });
+    setConfig(s.config ? { ...PRINT_DEFAULT_CONFIG, ...s.config } : { ...PRINT_DEFAULT_CONFIG });
   }
 
   useEffect(() => {
@@ -291,13 +397,14 @@ function PrintStudioContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [printDocType]);
 
-  async function saveSetting(overrides?: { format?: PrintFormatId; options?: Record<string, boolean>; qrType?: QrTarget }) {
+  async function saveSetting(overrides?: { format?: PrintFormatId; options?: Record<string, boolean>; qrType?: QrTarget; config?: PrintConfig }) {
     if (!settings) return;
     const body = {
       docType: printDocType,
       format: overrides?.format ?? format,
       options: overrides?.options ?? options,
       qrType: overrides?.qrType ?? qrType,
+      config: overrides?.config ?? config,
     };
     try {
       await apiRequest<PrintSetting>("/print-setting", { method: "PUT", body });
@@ -310,6 +417,11 @@ function PrintStudioContent() {
   function updateOptions(next: Record<string, boolean>) {
     setOptions(next);
     void saveSetting({ options: next });
+  }
+
+  function updateConfig(next: PrintConfig) {
+    setConfig(next);
+    void saveSetting({ config: next });
   }
 
   useEffect(() => {
@@ -404,8 +516,21 @@ function PrintStudioContent() {
     (async () => {
       setLoadingUnits(true);
       try {
-        const list = await apiRequest<Unit[]>("/unit");
-        if (!cancelled) setUnits(list ?? []);
+        const data = await apiRequest<InventoryData>("/inventory");
+        if (!cancelled && data) {
+          setRawUnits(data.units ?? []);
+          setRawProducts((data.products ?? []).filter((p) => p.qty > 0));
+        }
+        const [cats, brs, cols] = await Promise.all([
+          apiRequest<Category[]>("/category").catch(() => [] as Category[]),
+          apiRequest<Brand[]>("/brand").catch(() => [] as Brand[]),
+          apiRequest<Color[]>("/color").catch(() => [] as Color[]),
+        ]);
+        if (!cancelled) {
+          if (cats) setCategories(cats);
+          if (brs) setBrands(brs);
+          if (cols) setColors(cols);
+        }
       } catch (err) {
         if (!cancelled) toast(err instanceof Error ? err.message : "Failed to load inventory", "error");
       } finally {
@@ -484,7 +609,14 @@ function PrintStudioContent() {
           const d = await apiRequest<BalancesReport>("/report/balances");
           if (!cancelled) setBalancesReport(d ?? null);
         } else {
-          const t = reportType === "PURCHASE_LIST" ? "PURCHASE" : "PURCHASE_RETURN";
+          const t =
+            reportType === "SALES_LIST"
+              ? "SALE"
+              : reportType === "SALE_RETURNS"
+                ? "SALE_RETURN"
+                : reportType === "PURCHASE_LIST"
+                  ? "PURCHASE"
+                  : "PURCHASE_RETURN";
           const tq = new URLSearchParams({ type: t, limit: "100" });
           if (reportRange.from) tq.set("from", reportRange.from);
           if (reportRange.to) tq.set("to", reportRange.to);
@@ -505,21 +637,25 @@ function PrintStudioContent() {
   const renderReportDoc = () => {
     switch (reportType) {
       case "SALES_REPORT":
-        return salesReport ? <ReportDoc format={activeFormat} kind="SALES_REPORT" profile={profile} data={salesReport} range={reportRange} /> : null;
+        return salesReport ? <ReportDoc format={activeFormat} kind="SALES_REPORT" profile={profile} data={salesReport} range={reportRange} config={config} /> : null;
       case "PURCHASES_REPORT":
-        return purchasesReport ? <ReportDoc format={activeFormat} kind="PURCHASES_REPORT" profile={profile} data={purchasesReport} range={reportRange} /> : null;
+        return purchasesReport ? <ReportDoc format={activeFormat} kind="PURCHASES_REPORT" profile={profile} data={purchasesReport} range={reportRange} config={config} /> : null;
       case "PROFIT_REPORT":
-        return profitReport ? <ReportDoc format={activeFormat} kind="PROFIT_REPORT" profile={profile} data={profitReport} range={reportRange} /> : null;
+        return profitReport ? <ReportDoc format={activeFormat} kind="PROFIT_REPORT" profile={profile} data={profitReport} range={reportRange} config={config} /> : null;
       case "EXPENSES_REPORT":
-        return expensesReport ? <ReportDoc format={activeFormat} kind="EXPENSES_REPORT" profile={profile} data={expensesReport} range={reportRange} /> : null;
+        return expensesReport ? <ReportDoc format={activeFormat} kind="EXPENSES_REPORT" profile={profile} data={expensesReport} range={reportRange} config={config} /> : null;
       case "PAYABLES":
-        return balancesReport ? <ReportDoc format={activeFormat} kind="PAYABLES" profile={profile} data={balancesReport} /> : null;
+        return balancesReport ? <ReportDoc format={activeFormat} kind="PAYABLES" profile={profile} data={balancesReport} config={config} /> : null;
       case "RECEIVABLES":
-        return balancesReport ? <ReportDoc format={activeFormat} kind="RECEIVABLES" profile={profile} data={balancesReport} /> : null;
+        return balancesReport ? <ReportDoc format={activeFormat} kind="RECEIVABLES" profile={profile} data={balancesReport} config={config} /> : null;
+      case "SALES_LIST":
+        return (purchaseList ?? []).length > 0 ? <ReportDoc format={activeFormat} kind="SALES_LIST" profile={profile} rows={purchaseList ?? []} config={config} /> : null;
+      case "SALE_RETURNS":
+        return (purchaseList ?? []).length > 0 ? <ReportDoc format={activeFormat} kind="SALE_RETURNS" profile={profile} rows={purchaseList ?? []} config={config} /> : null;
       case "PURCHASE_LIST":
-        return (purchaseList ?? []).length > 0 ? <ReportDoc format={activeFormat} kind="PURCHASE_LIST" profile={profile} rows={purchaseList ?? []} /> : null;
+        return (purchaseList ?? []).length > 0 ? <ReportDoc format={activeFormat} kind="PURCHASE_LIST" profile={profile} rows={purchaseList ?? []} config={config} /> : null;
       case "PURCHASE_RETURNS":
-        return (purchaseList ?? []).length > 0 ? <ReportDoc format={activeFormat} kind="PURCHASE_RETURNS" profile={profile} rows={purchaseList ?? []} /> : null;
+        return (purchaseList ?? []).length > 0 ? <ReportDoc format={activeFormat} kind="PURCHASE_RETURNS" profile={profile} rows={purchaseList ?? []} config={config} /> : null;
       default:
         return null;
     }
@@ -547,7 +683,7 @@ function PrintStudioContent() {
   const printCss = useMemo(
     () => `
       #print-portal { display: none; }
-      @page { size: ${fmt.pageSize}; margin: ${fmt.pageMargin}; }
+      @page { size: ${fmt.pageSize}; margin: ${config.marginMm}mm; }
       @media print {
         body { background: #fff !important; }
         body > *:not(#print-portal) { display: none !important; }
@@ -560,7 +696,7 @@ function PrintStudioContent() {
         #print-portal .a4-page:not(:first-child) { page-break-before: always; }
       }
     `,
-    [fmt],
+    [fmt, config.marginMm],
   );
 
   async function buildPdfBlob(): Promise<Blob | null> {
@@ -568,16 +704,33 @@ function PrintStudioContent() {
     if (!area) return null;
     const pageEls = Array.from(area.querySelectorAll<HTMLElement>(".a4-page"));
     const elements = pageEls.length > 0 ? pageEls : [area];
+    const isThermal = fmt.id === "58" || fmt.id === "80";
+    const scale = Math.max(3, Math.ceil((window.devicePixelRatio || 1) * 2));
+    if (isThermal) {
+      const pageW = fmt.printWidthMm;
+      const firstCanvas = await html2canvas(elements[0], { scale, backgroundColor: "#ffffff", useCORS: true });
+      const ratio0 = pageW / firstCanvas.width;
+      const firstH = firstCanvas.height * ratio0;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [pageW, Math.max(firstH, 80)] });
+      pdf.addImage(firstCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, firstH, undefined, "FAST");
+      for (let i = 1; i < elements.length; i++) {
+        const canvas = await html2canvas(elements[i], { scale, backgroundColor: "#ffffff", useCORS: true });
+        const h = canvas.height * (pageW / canvas.width);
+        pdf.addPage([pageW, Math.max(h, 80)], "portrait");
+        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageW, h, undefined, "FAST");
+      }
+      return pdf.output("blob");
+    }
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageW = 210;
     const pageH = 297;
     for (let i = 0; i < elements.length; i++) {
-      const canvas = await html2canvas(elements[i], { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+      const canvas = await html2canvas(elements[i], { scale, backgroundColor: "#ffffff", useCORS: true });
       const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
       const w = canvas.width * ratio;
       const h = canvas.height * ratio;
       if (i > 0) pdf.addPage("a4", "portrait");
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h);
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h, undefined, "FAST");
     }
     return pdf.output("blob");
   }
@@ -738,18 +891,23 @@ function PrintStudioContent() {
           <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm shadow-sm">
             <InventoryIcon className="h-4 w-4 text-ink-400" />
             <span className="text-ink-900">
-              <span className="font-semibold">{units.length}</span> unit(s)
+              <span className="font-semibold">{totalFilteredCount}</span> pcs
+              {rawTotalCount !== totalFilteredCount && <span className="font-normal text-ink-400"> / {rawTotalCount}</span>}
             </span>
             <span className="text-ink-500">·</span>
             <span className="text-ink-500">
               <span className="font-semibold text-success">{inStockCount}</span> in stock
             </span>
+            {rawProducts.length > 0 && (
+              <>
+                <span className="text-ink-500">·</span>
+                <span className="text-ink-500">{filteredProducts.length} accessory product(s)</span>
+              </>
+            )}
           </div>
         )}
         <SegmentedControl
-          options={PRINT_FORMATS.filter((f) =>
-            layoutType === "document" || layoutType === "report" ? true : f.id !== "58",
-          ).map((f) => ({ value: f.id, label: f.label }))}
+          options={PRINT_FORMATS.map((f) => ({ value: f.id, label: f.label }))}
           value={activeFormat}
           onChange={(v: string) => {
             const nf = v as PrintFormatId;
@@ -757,6 +915,13 @@ function PrintStudioContent() {
             void saveSetting({ format: nf });
           }}
         />
+        {layoutType === "inventory" && (
+          <Button variant="secondary" className="px-4 py-2 text-xs" onClick={() => setInvFiltersOpen(true)}>
+            <FilterIcon className="h-4 w-4" />
+            Filters
+            {activeFilterCount > 0 && <Badge variant="brandSolid">{activeFilterCount}</Badge>}
+          </Button>
+        )}
         <Button
           variant="secondary"
           className="px-4 py-2 text-xs"
@@ -819,6 +984,17 @@ function PrintStudioContent() {
           <PeriodPicker value={reportRange} onChange={setReportRange} />
         </div>
       )}
+      {layoutType === "inventory" && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <SearchInput value={q} onChange={setQ} placeholder="Search by IMEI, brand or model… (brand-wise, keyword)" variant="white" wrapperClassName="min-w-[220px] flex-1" />
+          <span className="text-xs text-ink-500">{totalFilteredCount} of {rawTotalCount} pcs · {filteredUnits.length} phones + {filteredProducts.reduce((s,p)=>s+p.qty,0)} accessories</span>
+          {activeFilterCount > 0 && (
+            <Button variant="grey" className="px-3 py-1.5 text-xs" onClick={() => { setQ(""); setCategoryId(""); setSubcategoryId(""); setBrandId(""); setColorId(""); setStatus(""); setCarrier(""); setCondition(""); setVendor(""); }}>
+              Reset
+            </Button>
+          )}
+        </div>
+      )}
 
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-ink-900/5">
         <div className="flex flex-1 justify-center overflow-auto overscroll-none p-4">
@@ -846,7 +1022,7 @@ function PrintStudioContent() {
           ) : layoutType === "inventory" ? (
             loadingUnits ? (
               <p className="py-10 text-sm text-ink-400">Loading inventory…</p>
-            ) : units.length > 0 ? (
+            ) : totalFilteredCount > 0 ? (
               <div
                 id="print-area"
                 style={{ width: fmt.previewWidth }}
@@ -854,16 +1030,18 @@ function PrintStudioContent() {
               >
                 <InventoryDocument
                   units={units}
+                  products={products}
                   options={options as unknown as InventoryPrintOptions}
                   format={fmt.id}
                   profile={profile}
                   showCost={showCost}
+                  config={config}
                 />
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
                 <PrinterIcon className="h-8 w-8 text-ink-300" />
-                <p className="text-sm text-ink-400">{INVENTORY_TEXT.noData}</p>
+                <p className="text-sm text-ink-400">{rawTotalCount === 0 ? INVENTORY_TEXT.noData : "No items match filters. Try changing brand/keyword."}</p>
               </div>
             )
           ) : layoutType === "expense" ? (
@@ -880,6 +1058,7 @@ function PrintStudioContent() {
                   options={options as unknown as ExpenseSheetOptions}
                   format={fmt.id}
                   profile={profile}
+                  config={config}
                 />
               </div>
             ) : (
@@ -902,6 +1081,7 @@ function PrintStudioContent() {
                   options={options as unknown as ContactsPrintOptions}
                   format={fmt.id}
                   profile={profile}
+                  config={config}
                 />
               </div>
             ) : (
@@ -926,6 +1106,7 @@ function PrintStudioContent() {
                   qrUrl={qrUrl}
                   qrType={qrType}
                   profile={profile}
+                  config={config}
                 />
               </div>
             ) : (
@@ -950,6 +1131,7 @@ function PrintStudioContent() {
                   options={options as unknown as PrintBooleanOptions}
                   format={format}
                   profile={profile}
+                  config={config}
                 />
               </div>
             ) : (
@@ -974,6 +1156,7 @@ function PrintStudioContent() {
                   qrType={qrType}
                   profile={profile}
                   bankAccounts={bankAccounts}
+                  config={config}
                 />
               </div>
             ) : loadingDoc ? (
@@ -1102,6 +1285,56 @@ function PrintStudioContent() {
         />
       </Sheet>
 
+      <Sheet open={invFiltersOpen} title="Inventory filters" onClose={() => setInvFiltersOpen(false)} width="max-w-md">
+        <div className="space-y-4">
+          <div>
+            <SearchInput value={q} onChange={setQ} placeholder="Keyword: IMEI, brand, model, color…" variant="white" wrapperClassName="w-full" />
+            <p className="mt-1 text-xs text-ink-400">Shows phones + accessories matching keyword</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
+            <Dropdown value={categoryId} onChange={(v) => { setCategoryId(v); setSubcategoryId(""); }} searchable placeholder="All categories" options={[{ value: "", label: "All categories" }, ...parentCategories.map((c) => ({ value: c.id, label: c.name }))]} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Subcategory</label>
+            <Dropdown value={subcategoryId} onChange={setSubcategoryId} searchable placeholder={categoryId ? "All subcategories" : "Select a category first"} options={subcategoryOptions} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Brand</label>
+            <Dropdown value={brandId} onChange={setBrandId} searchable placeholder="All brands" options={[{ value: "", label: "All brands" }, ...activeBrands.map((b) => ({ value: b.id, label: b.name }))]} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Color</label>
+            <Dropdown value={colorId} onChange={setColorId} searchable placeholder="All colors" options={[{ value: "", label: "All colors" }, ...activeColors.map((c) => ({ value: c.id, label: c.name }))]} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Status</label>
+            <Dropdown value={status} onChange={setStatus} options={STATUS_FILTER_OPTIONS} placeholder="All statuses" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Carrier</label>
+            <Dropdown value={carrier} onChange={setCarrier} options={CARRIER_FILTER_OPTIONS} placeholder="All carriers" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Condition</label>
+            <Dropdown value={condition} onChange={setCondition} options={CONDITION_FILTER_OPTIONS} placeholder="All conditions" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Vendor</label>
+            <Dropdown value={vendor} onChange={setVendor} searchable placeholder="All vendors" options={[{ value: "", label: "All vendors" }, ...vendorOptions.map((v) => ({ value: v, label: v }))]} />
+          </div>
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-sm text-ink-500">{totalFilteredCount} of {rawTotalCount} pcs</p>
+            <div className="flex items-center gap-2">
+              <Button variant="grey" onClick={() => { setQ(""); setCategoryId(""); setSubcategoryId(""); setBrandId(""); setColorId(""); setStatus(""); setCarrier(""); setCondition(""); setVendor(""); }}>
+                Reset
+              </Button>
+              <Button onClick={() => setInvFiltersOpen(false)}>Show {totalFilteredCount} pcs</Button>
+            </div>
+          </div>
+        </div>
+      </Sheet>
+
       {typeof document !== "undefined" &&
         createPortal(
           <>
@@ -1110,10 +1343,11 @@ function PrintStudioContent() {
               {layoutType === "report" ? (
                 renderReportDoc() && <div className="print-doc">{renderReportDoc()}</div>
               ) : layoutType === "inventory" ? (
-                units.length > 0 && (
+                totalFilteredCount > 0 && (
                   <div className="print-doc">
                     <InventoryDocument
                       units={units}
+                      products={products}
                       options={options as unknown as InventoryPrintOptions}
                       format={fmt.id}
                       profile={profile}
@@ -1129,6 +1363,7 @@ function PrintStudioContent() {
                       options={options as unknown as ExpenseSheetOptions}
                       format={fmt.id}
                       profile={profile}
+                      config={config}
                     />
                   </div>
                 )
@@ -1140,6 +1375,7 @@ function PrintStudioContent() {
                       options={options as unknown as ContactsPrintOptions}
                       format={fmt.id}
                       profile={profile}
+                      config={config}
                     />
                   </div>
                 )
@@ -1151,6 +1387,7 @@ function PrintStudioContent() {
                       options={options as unknown as PrintBooleanOptions}
                       format={format}
                       profile={profile}
+                      config={config}
                     />
                   </div>
                 )
@@ -1165,6 +1402,7 @@ function PrintStudioContent() {
                       qrType={qrType}
                       profile={profile}
                       bankAccounts={bankAccounts}
+                      config={config}
                     />
                   </div>
                 )

@@ -10,6 +10,7 @@ import categoryRouter from "./endpoints/category/routes";
 import cityRouter from "./endpoints/city/routes";
 import bankRouter from "./endpoints/bank/routes";
 import colorRouter from "./endpoints/color/routes";
+import screenSizeRouter from "./endpoints/screen-size/routes";
 import contactRouter from "./endpoints/contact/routes";
 import productRouter from "./endpoints/product/routes";
 import unitRouter from "./endpoints/unit/routes";
@@ -59,13 +60,13 @@ export function createApp() {
     res.json({ data: { status: "ok" } });
   });
 
+  app.use("/api/events", eventsRouter);
+
   app.use("/api/license", licenseRouter);
 
   // Everything else requires an active license, except auth and setup which
   // must be reachable before activation and during onboarding.
   app.use("/api", requireLicense());
-
-  app.use("/api/events", eventsRouter);
 
   app.use("/api/auth", authRouter);
   app.use("/api/brand", brandRouter);
@@ -73,6 +74,7 @@ export function createApp() {
   app.use("/api/city", cityRouter);
   app.use("/api/bank", bankRouter);
   app.use("/api/color", colorRouter);
+  app.use("/api/screen-size", screenSizeRouter);
   app.use("/api/contact", contactRouter);
   app.use("/api/product", productRouter);
   app.use("/api/unit", unitRouter);

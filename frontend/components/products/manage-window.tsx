@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import type { Brand, Category, CategoryType, Color } from "@/lib/api-types";
+import type { Brand, Category, CategoryType, Color, ScreenSize } from "@/lib/api-types";
 import {
   INVENTORY_COLUMNS,
   DEFAULT_INVENTORY_VIEW,
@@ -21,22 +21,24 @@ import { ScrollView } from "@/components/ui/scroll-view";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/toast";
 
-type ManageTab = "view" | "category" | "brand" | "color";
+type ManageTab = "view" | "category" | "brand" | "color" | "size";
 
 export function ManageWindow({
   categories,
   brands,
   colors,
+  screenSizes,
   initialTab,
   onClose,
   onChanged,
   view,
   onViewChange,
-  title = "Manage categories, brands & colors",
+  title = "Manage categories, brands, colors & sizes",
 }: {
   categories?: Category[];
   brands?: Brand[];
   colors?: Color[];
+  screenSizes?: ScreenSize[];
   initialTab?: ManageTab;
   onClose: () => void;
   onChanged?: () => void;
@@ -48,6 +50,7 @@ export function ManageWindow({
   const [catKey, setCatKey] = useState(0);
   const [brandKey, setBrandKey] = useState(0);
   const [colorKey, setColorKey] = useState(0);
+  const [sizeKey, setSizeKey] = useState(0);
   const hasView = view !== undefined && onViewChange !== undefined;
 
   if (hasView) {
@@ -67,6 +70,7 @@ export function ManageWindow({
           { value: "category", label: "Categories" },
           { value: "brand", label: "Brands" },
           { value: "color", label: "Colors" },
+          { value: "size", label: "Screen sizes" },
         ]}
         onChange={(value) => setTab(value as ManageTab)}
       />
@@ -92,7 +96,7 @@ export function ManageWindow({
           noun="brand"
           placeholder="e.g. Samsung"
         />
-      ) : (
+      ) : tab === "color" ? (
         <EntityList
           key={colorKey}
           items={colors ?? []}
@@ -104,11 +108,109 @@ export function ManageWindow({
           noun="color"
           placeholder="e.g. Midnight"
         />
+      ) : (
+        <EntityList
+          key={sizeKey}
+          items={screenSizes ?? []}
+          onChanged={() => {
+            setSizeKey((k) => k + 1);
+            onChanged?.();
+          }}
+          path="/screen-size"
+          noun="screen size"
+          placeholder={'e.g. 6.1"'}
+        />
       )}
     </Sheet>
   );
 }
 
+function flattenForSelect(cats: Category[], prefix = ""): { value: string; label: string }[] {
+  const out: { value: string; label: string }[] = [];
+  for (const c of cats) {
+    const label = prefix ? `${prefix} › ${c.name}` : c.name;
+    out.push({ value: c.id, label });
+    if (c.children?.length) out.push(...flattenForSelect(c.children, label));
+  }
+  return out;
+}
+function findCategoryById(cats: Category[], id: string): Category | null {
+  for (const c of cats) {
+    if (c.id === id) return c;
+    if (c.children?.length) {
+      const found = findCategoryById(c.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+function countRecursive(cat: Category): number {
+  let total = cat._count?.products ?? 0;
+  for (const ch of cat.children ?? []) total += countRecursive(ch);
+  return total;
+}
+function countDirectChildren(cat: Category): number {
+  let n = cat.children?.length ?? 0;
+  for (const ch of cat.children ?? []) n += countDirectChildren(ch);
+  return n;
+}
+function CategoryNode({
+  cat,
+  depth,
+  expanded,
+  onToggle,
+  onRename,
+  onDelete,
+  onToggleActive,
+}: {
+  cat: Category;
+  depth: number;
+  expanded: Set<string>;
+  onToggle: (id: string) => void;
+  onRename: (c: Category, n: string) => void;
+  onDelete: (c: Category) => void;
+  onToggleActive: (c: Category) => void;
+}) {
+  const hasChildren = (cat.children?.length ?? 0) > 0;
+  const isExpanded = expanded.has(cat.id);
+  const isRoot = depth === 0;
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${isRoot ? (cat.active ? "bg-ink-50" : "bg-ink-50 opacity-50") : cat.active ? "bg-white border border-ink-100" : "bg-white border border-ink-100 opacity-50"}`}
+        style={{ marginLeft: depth > 1 ? depth * 12 : undefined }}
+      >
+        {hasChildren ? (
+          <button type="button" onClick={() => onToggle(cat.id)} className="shrink-0 text-xs text-ink-500 hover:text-ink-900 w-4">
+            {isExpanded ? "▼" : "▶"}
+          </button>
+        ) : (
+          <span className="w-4" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {isRoot && <Badge variant="neutral">{cat.type}</Badge>}
+            <span className="text-sm font-medium text-ink-900">{cat.name}</span>
+            {!cat.active && <span className="text-xs text-ink-500">(inactive)</span>}
+          </div>
+          <p className="mt-0.5 text-xs text-ink-500">
+            {hasChildren ? `${countDirectChildren(cat)} nested, ${countRecursive(cat)} product(s)` : `${cat._count?.products ?? 0} product(s)`}
+          </p>
+        </div>
+        <button type="button" onClick={() => { const next = window.prompt("Rename category", cat.name); if (next) onRename(cat, next); }} className="shrink-0 text-xs font-medium text-brand-600 hover:underline">Rename</button>
+        <button type="button" onClick={() => onDelete(cat)} className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline">Delete</button>
+        <button type="button" onClick={() => onToggleActive(cat)} className="shrink-0 text-xs font-medium text-brand-600 hover:underline">{cat.active ? "Deactivate" : "Activate"}</button>
+      </div>
+      {isExpanded && hasChildren && (
+        <div className="mt-1.5 space-y-1.5">
+          {cat.children!.map((ch) => (
+            <CategoryNode key={ch.id} cat={ch} depth={depth + 1} expanded={expanded} onToggle={onToggle} onRename={onRename} onDelete={onDelete} onToggleActive={onToggleActive} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function CategoryTreeList({
   categories,
   onChanged,
@@ -128,16 +230,7 @@ function CategoryTreeList({
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const parentCategories = categories.filter((c) => !c.parentId);
-  const childrenMap = new Map<string, Category[]>();
-  for (const c of categories) {
-    if (c.parentId) {
-      const list = childrenMap.get(c.parentId) ?? [];
-      list.push(c);
-      childrenMap.set(c.parentId, list);
-    }
-  }
-
+  const allOptions = flattenForSelect(categories);
   function toggleExpand(parentId: string) {
     setExpandedParents((prev) => {
       const next = new Set(prev);
@@ -154,10 +247,7 @@ function CategoryTreeList({
     }
     setSaving(true);
     try {
-      await apiRequest("/category", {
-        method: "POST",
-        body: { name: name.trim(), type },
-      });
+      await apiRequest("/category", { method: "POST", body: { name: name.trim(), type } });
       setName("");
       onChanged();
       toast("Category added", "success");
@@ -177,14 +267,14 @@ function CategoryTreeList({
       toast("Pick a parent category", "error");
       return;
     }
-    const parent = categories.find((c) => c.id === subParentId);
-    if (!parent) return;
+    const parent = findCategoryById(categories, subParentId);
+    if (!parent) {
+      toast("Parent not found", "error");
+      return;
+    }
     setSavingSub(true);
     try {
-      await apiRequest("/category", {
-        method: "POST",
-        body: { name: subName.trim(), type: parent.type, parentId: subParentId },
-      });
+      await apiRequest("/category", { method: "POST", body: { name: subName.trim(), type: parent.type, parentId: subParentId } });
       setSubName("");
       onChanged();
       toast("Subcategory added", "success");
@@ -236,12 +326,6 @@ function CategoryTreeList({
     }
   }
 
-  const totalProductCount = (cat: Category) => {
-    const children = childrenMap.get(cat.id) ?? [];
-    const childProductCount = children.reduce((sum, ch) => sum + (ch._count?.products ?? 0), 0);
-    return (cat._count?.products ?? 0) + childProductCount;
-  };
-
   return (
     <>
       <SegmentedControl
@@ -259,140 +343,20 @@ function CategoryTreeList({
           <div className="mt-5 flex items-end gap-2">
             <div className="flex-1">
               <label className="mb-1 block text-xs font-semibold text-ink-500">New category</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Refurbished"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void add();
-                }}
-              />
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Refurbished" onKeyDown={(e) => { if (e.key === "Enter") void add(); }} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-ink-500">Type</label>
-              <Dropdown
-                value={type}
-                options={[
-                  { value: "PHONE", label: "Phone" },
-                  { value: "ACCESSORY", label: "Accessory" },
-                ]}
-                onChange={(value) => setType(value as CategoryType)}
-                className="w-32"
-              />
+              <Dropdown value={type} options={[{ value: "PHONE", label: "Phone" }, { value: "ACCESSORY", label: "Accessory" }]} onChange={(value) => setType(value as CategoryType)} className="w-32" />
             </div>
-            <Button onClick={add} loading={saving}>
-              Add
-            </Button>
+            <Button onClick={add} loading={saving}>Add</Button>
           </div>
 
           <ScrollView className="mt-5">
             <div className="space-y-2">
-              {parentCategories.map((parent) => {
-                const children = childrenMap.get(parent.id) ?? [];
-                const isExpanded = expandedParents.has(parent.id);
-                return (
-                  <div key={parent.id}>
-                    <div
-                      className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
-                        parent.active ? "bg-ink-50" : "bg-ink-50 opacity-50"
-                      }`}
-                    >
-                      {children.length > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleExpand(parent.id)}
-                          className="shrink-0 text-xs text-ink-500 hover:text-ink-900 w-4"
-                        >
-                          {isExpanded ? "▼" : "▶"}
-                        </button>
-                      ) : (
-                        <span className="w-4" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="neutral">{parent.type}</Badge>
-                          <span className="text-sm font-medium text-ink-900">{parent.name}</span>
-                          {!parent.active && <span className="text-xs text-ink-500">(inactive)</span>}
-                        </div>
-                        <p className="mt-0.5 text-xs text-ink-500">
-                          {children.length > 0
-                            ? `${children.length} subcategor${children.length === 1 ? "y" : "ies"}, ${totalProductCount(parent)} product(s)`
-                            : `${parent._count?.products ?? 0} product(s)`}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = window.prompt("Rename category", parent.name);
-                          if (next) void rename(parent, next);
-                        }}
-                        className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                      >
-                        Rename
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(parent)}
-                        className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void toggleActive(parent)}
-                        className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                      >
-                        {parent.active ? "Deactivate" : "Activate"}
-                      </button>
-                    </div>
-
-                    {isExpanded && children.length > 0 && (
-                      <div className="ml-7 space-y-1.5 mt-1.5">
-                        {children.map((child) => (
-                          <div
-                            key={child.id}
-                            className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
-                              child.active ? "bg-white border border-ink-100" : "bg-white border border-ink-100 opacity-50"
-                            }`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-ink-900">{child.name}</span>
-                                {!child.active && <span className="text-xs text-ink-500">(inactive)</span>}
-                              </div>
-                              <p className="mt-0.5 text-xs text-ink-500">{child._count?.products ?? 0} product(s)</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const next = window.prompt("Rename subcategory", child.name);
-                                if (next) void rename(child, next);
-                              }}
-                              className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                            >
-                              Rename
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(child)}
-                              className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
-                            >
-                              Delete
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void toggleActive(child)}
-                              className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                            >
-                              {child.active ? "Deactivate" : "Activate"}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {categories.map((cat) => (
+                <CategoryNode key={cat.id} cat={cat} depth={0} expanded={expandedParents} onToggle={toggleExpand} onRename={rename} onDelete={setDeleteTarget} onToggleActive={(c) => void toggleActive(c)} />
+              ))}
             </div>
           </ScrollView>
         </>
@@ -401,85 +365,21 @@ function CategoryTreeList({
           <div className="mt-5 flex items-end gap-2">
             <div className="flex-1">
               <label className="mb-1 block text-xs font-semibold text-ink-500">Parent category</label>
-              <Dropdown
-                value={subParentId}
-                options={parentCategories.map((c) => ({ value: c.id, label: c.name }))}
-                onChange={(value) => setSubParentId(value)}
-                placeholder="Select parent…"
-              />
+              <Dropdown value={subParentId} options={allOptions} onChange={(value) => setSubParentId(value)} placeholder="Select parent… (any level)" />
             </div>
             <div className="flex-1">
               <label className="mb-1 block text-xs font-semibold text-ink-500">Subcategory name</label>
-              <Input
-                value={subName}
-                onChange={(e) => setSubName(e.target.value)}
-                placeholder="e.g. Cases & Covers"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void addSubcategory();
-                }}
-              />
+              <Input value={subName} onChange={(e) => setSubName(e.target.value)} placeholder="e.g. Pouch › TPU" onKeyDown={(e) => { if (e.key === "Enter") void addSubcategory(); }} />
             </div>
-            <Button onClick={addSubcategory} loading={savingSub}>
-              Add
-            </Button>
+            <Button onClick={addSubcategory} loading={savingSub}>Add</Button>
           </div>
 
           <ScrollView className="mt-5">
-            <div className="space-y-3">
-              {parentCategories.map((parent) => {
-                const children = childrenMap.get(parent.id) ?? [];
-                if (children.length === 0) return null;
-                return (
-                  <div key={parent.id}>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">{parent.name}</p>
-                    <div className="space-y-1.5">
-                      {children.map((child) => (
-                        <div
-                          key={child.id}
-                          className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 ${
-                            child.active ? "bg-ink-50" : "bg-ink-50 opacity-50"
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-ink-900">{child.name}</span>
-                              {!child.active && <span className="text-xs text-ink-500">(inactive)</span>}
-                            </div>
-                            <p className="mt-0.5 text-xs text-ink-500">{child._count?.products ?? 0} product(s)</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const next = window.prompt("Rename subcategory", child.name);
-                              if (next) void rename(child, next);
-                            }}
-                            className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                          >
-                            Rename
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(child)}
-                            className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline"
-                          >
-                            Delete
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void toggleActive(child)}
-                            className="shrink-0 text-xs font-medium text-brand-600 hover:underline"
-                          >
-                            {child.active ? "Deactivate" : "Activate"}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-              {parentCategories.every((p) => (childrenMap.get(p.id) ?? []).length === 0) && (
-                <p className="py-4 text-center text-sm text-ink-400">No subcategories yet. Pick a parent category above and add one.</p>
-              )}
+            <div className="space-y-2">
+              {categories.map((cat) => (
+                <CategoryNode key={cat.id} cat={cat} depth={0} expanded={expandedParents} onToggle={toggleExpand} onRename={rename} onDelete={setDeleteTarget} onToggleActive={(c) => void toggleActive(c)} />
+              ))}
+              {categories.length === 0 && <p className="py-4 text-center text-sm text-ink-400">No categories yet.</p>}
             </div>
           </ScrollView>
         </>
@@ -488,11 +388,7 @@ function CategoryTreeList({
       <Dialog
         open={deleteTarget !== null}
         title="Delete category"
-        message={
-          deleteTarget
-            ? `Delete "${deleteTarget.name}"? This permanently removes the category and cannot be undone. Categories with products or subcategories can't be deleted.`
-            : ""
-        }
+        message={deleteTarget ? `Delete "${deleteTarget.name}"? This permanently removes the category and cannot be undone. Categories with products or subcategories can't be deleted.` : ""}
         confirmLabel="Delete"
         destructive
         busy={deleting}
@@ -715,7 +611,9 @@ function EntityList<T extends { id: string; name: string; active: boolean; _coun
                   <span className="text-sm font-medium text-ink-900">{item.name}</span>
                   {!item.active && <span className="text-xs text-ink-500">(inactive)</span>}
                 </div>
-                <p className="mt-0.5 text-xs text-ink-500">{item._count?.products ?? 0} product(s)</p>
+                {item._count && (
+                  <p className="mt-0.5 text-xs text-ink-500">{item._count.products ?? 0} product(s)</p>
+                )}
               </div>
               <button
                 type="button"
@@ -751,7 +649,7 @@ function EntityList<T extends { id: string; name: string; active: boolean; _coun
         title={`Delete ${noun}`}
         message={
           deleteTarget
-            ? `Delete "${deleteTarget.name}"? This permanently removes the ${noun} and cannot be undone. ${nounPlural} with products can't be deleted.`
+            ? `Delete "${deleteTarget.name}"? This permanently removes the ${noun} and cannot be undone.${deleteTarget._count ? ` ${nounPlural} with products can't be deleted.` : ""}`
             : ""
         }
         confirmLabel="Delete"

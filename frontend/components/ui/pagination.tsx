@@ -4,10 +4,18 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants";
 
-const PAGE_SIZE_OPTIONS = ["10", "25", "50", "100"];
+const PAGE_SIZE_OPTIONS = ["10", "25", "50", "100", "500", "1000"];
 
-export function usePagination(itemCount: number, defaultPageSize = 10) {
+export const PAGE_SIZE_ALL = Number.MAX_SAFE_INTEGER;
+
+const PAGE_SIZE_DROPDOWN_OPTIONS = [
+  ...PAGE_SIZE_OPTIONS.map((v) => ({ value: v, label: v })),
+  { value: String(PAGE_SIZE_ALL), label: "All" },
+];
+
+export function usePagination(itemCount: number, defaultPageSize: number = DEFAULT_PAGE_SIZE) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
 
@@ -65,9 +73,9 @@ export function PaginationBar({
           value={String(pageSize)}
           onChange={(v) => onPageSize(Number(v))}
           className="w-24"
-          label={`${pageSize} / pg`}
+          label={pageSize === PAGE_SIZE_ALL ? "All" : `${pageSize} / pg`}
           triggerClassName="bg-white"
-          options={PAGE_SIZE_OPTIONS.map((v) => ({ value: v, label: v }))}
+          options={PAGE_SIZE_DROPDOWN_OPTIONS}
         />
         <Button variant="grey" disabled={page <= 1} onClick={onPrev}>
           <ChevronLeftIcon className="h-4 w-4" />

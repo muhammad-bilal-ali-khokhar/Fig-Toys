@@ -8,6 +8,7 @@ import { DiscardConfirmDialog } from "@/components/ui/discard-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ImagePicker } from "@/components/products/image-picker";
 
 export type ProductFormValues = {
@@ -22,6 +23,8 @@ export type ProductFormValues = {
   sellPrice: string;
   costPrice: string;
   retailPrice: string;
+  barcode: string;
+  hasBarcode: boolean;
   image: string;
 };
 
@@ -37,16 +40,29 @@ export const EMPTY_PRODUCT_FORM: ProductFormValues = {
   sellPrice: "",
   costPrice: "",
   retailPrice: "",
+  barcode: "",
+  hasBarcode: false,
   image: "",
 };
 
-function getSubcategories(categories: Category[], parentId: string): Category[] {
-  const parent = categories.find((c) => c.id === parentId);
-  return parent?.children ?? [];
+function flattenForSelect(cats: Category[], prefix = ""): { value: string; label: string }[] {
+  const out: { value: string; label: string }[] = [];
+  for (const c of cats) {
+    const label = prefix ? `${prefix} › ${c.name}` : c.name;
+    out.push({ value: c.id, label });
+    if (c.children?.length) out.push(...flattenForSelect(c.children, label));
+  }
+  return out;
 }
-
-function findParentForSubcategory(categories: Category[], subcategoryId: string): Category | undefined {
-  return categories.find((c) => c.children?.some((ch) => ch.id === subcategoryId));
+function findInTree(cats: Category[], id: string): Category | null {
+  for (const c of cats) {
+    if (c.id === id) return c;
+    if (c.children?.length) {
+      const f = findInTree(c.children, id);
+      if (f) return f;
+    }
+  }
+  return null;
 }
 
 export function ProductForm({
@@ -71,33 +87,27 @@ export function ProductForm({
   onCancel: () => void;
 }) {
   const [form, setForm] = useState<ProductFormValues>(() => {
-    if (initial.subcategoryId && !initial.categoryId) {
-      const parent = findParentForSubcategory(categories, initial.subcategoryId);
-      if (parent) return { ...initial, categoryId: parent.id };
+    const leaf = initial.subcategoryId || initial.categoryId;
+    if (leaf) {
+      const found = findInTree(categories, leaf);
+      if (found) return { ...initial, categoryId: leaf, subcategoryId: "" };
     }
-    return initial;
+    if (initial.subcategoryId && !initial.categoryId) {
+      return { ...initial, categoryId: initial.subcategoryId, subcategoryId: "" };
+    }
+    return { ...initial, subcategoryId: "" };
   });
   const dirty = useDirtyForm(initial);
 
   function update(next: Partial<ProductFormValues>) {
     const updated = { ...form, ...next };
-    if (next.categoryId !== undefined) {
-      const subs = getSubcategories(categories, next.categoryId);
-      if (subs.length > 0) {
-        if (!subs.some((s) => s.id === updated.subcategoryId)) {
-          updated.subcategoryId = "";
-        }
-      } else {
-        updated.subcategoryId = "";
-      }
-    }
     setForm(updated);
     dirty.markDirty(updated);
   }
 
   const parentCategories = categories.filter((c) => !c.parentId);
   const isPhone = type !== "ACCESSORY";
-  const filteredCategories =
+  const filteredRoots =
     type === "ACCESSORY"
       ? parentCategories.filter((c) => c.type === "ACCESSORY")
       : type === "USED"
@@ -105,17 +115,16 @@ export function ProductForm({
         : type === "NEW"
           ? parentCategories.filter((c) => c.type === "PHONE" && c.name.toLowerCase().includes("new"))
           : parentCategories;
-  const selectedParent = filteredCategories.find((c) => c.id === form.categoryId);
-  const subcategories = selectedParent?.children?.filter((c) => c.active !== false) ?? [];
-  const hasSubcategories = subcategories.length > 0;
-  const effectiveCategoryId = hasSubcategories && form.subcategoryId ? form.subcategoryId : form.categoryId;
+  const categoryOptions = flattenForSelect(filteredRoots);
+
+  const effectiveCategoryId = form.categoryId;
 
   return (
     <form
       id="product-form"
       onSubmit={(e) => {
         e.preventDefault();
-        onSave({ ...form, categoryId: effectiveCategoryId });
+        onSave({ ...form, categoryId: effectiveCategoryId, subcategoryId: "" });
       }}
     >
       <div className="space-y-3">
@@ -196,23 +205,17 @@ export function ProductForm({
           <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
           <Dropdown
             value={form.categoryId}
-            options={filteredCategories.map((c) => ({ value: c.id, label: c.name }))}
+            options={categoryOptions}
             onChange={(value) => update({ categoryId: value })}
             placeholder="Select…"
+            searchable
           />
         </div>
-        {hasSubcategories && (
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Subcategory</label>
-            <Dropdown
-              value={form.subcategoryId}
-              options={[{ value: "", label: "None" }, ...subcategories.map((c) => ({ value: c.id, label: c.name }))]}
-              onChange={(value) => update({ subcategoryId: value })}
-              placeholder="Select…"
-
-            />
-          </div>
-        )}
+        <div className="flex items-center gap-2 py-1">
+          <Checkbox checked={!!form.hasBarcode} onChange={(v) => update({ hasBarcode: !!v })} />
+          <label className="text-xs font-semibold text-ink-500">Contain barcode</label>
+          <span className="text-xs text-ink-400">— if disabled, no barcode (barcode added at purchase)</span>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-500">Sell price (PKR)</label>

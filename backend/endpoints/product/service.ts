@@ -62,31 +62,59 @@ export async function listProducts({ q, categoryId }: { q?: string; categoryId?:
     },
   });
 
-  return products.map((p) => ({
-    id: p.id,
-    brandId: p.brandId,
-    brand: p.brand.name,
-    model: p.model,
-    storage: p.storage,
-    ram: p.ram,
-    screenSize: p.screenSize,
-    colorId: p.colorId,
-    color: p.color?.name ?? null,
-    categoryId: p.categoryId,
-    categoryName: p.category.name,
-    categoryType: p.category.type,
-    parentCategoryId: p.category.parentId,
-    parentCategoryName: p.category.parent?.name ?? null,
-    sku: p.sku,
-    image: p.image,
-    sellPrice: p.sellPrice,
-    costPrice: p.costPrice,
-    retailPrice: p.retailPrice,
-    lowStockThreshold: p.lowStockThreshold,
-    inStock: p.units.length,
-    newInStock: p.units.filter((u) => u.condition === "NEW").length,
-    usedInStock: p.units.filter((u) => u.condition === "USED").length,
-  }));
+  const accessoryIds = products.filter((p) => p.category.type === "ACCESSORY").map((p) => p.id);
+  let qtyByProduct = new Map<string, number>();
+  if (accessoryIds.length > 0) {
+    const items = await prisma.transactionItem.findMany({
+      where: { productId: { in: accessoryIds }, unitId: null },
+      select: { productId: true, quantity: true, transaction: { select: { type: true } } },
+    });
+    for (const it of items) {
+      const sign =
+        it.transaction.type === "PURCHASE"
+          ? 1
+          : it.transaction.type === "SALE"
+            ? -1
+            : it.transaction.type === "PURCHASE_RETURN"
+              ? -1
+              : it.transaction.type === "SALE_RETURN"
+                ? 1
+                : 0;
+      qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) ?? 0) + sign * it.quantity);
+    }
+  }
+
+  return products.map((p) => {
+    const isAccessory = p.category.type === "ACCESSORY";
+    const qty = isAccessory ? (qtyByProduct.get(p.id) ?? 0) : p.units.length;
+    const inStock = isAccessory ? qty : p.units.length;
+    return {
+      id: p.id,
+      brandId: p.brandId,
+      brand: p.brand.name,
+      model: p.model,
+      storage: p.storage,
+      ram: p.ram,
+      screenSize: p.screenSize,
+      colorId: p.colorId,
+      color: p.color?.name ?? null,
+      categoryId: p.categoryId,
+      categoryName: p.category.name,
+      categoryType: p.category.type,
+      parentCategoryId: p.category.parentId,
+      parentCategoryName: p.category.parent?.name ?? null,
+      sku: p.sku,
+      barcode: (p as any).barcode ?? null,
+      image: p.image,
+      sellPrice: p.sellPrice,
+      costPrice: p.costPrice,
+      retailPrice: p.retailPrice,
+      lowStockThreshold: p.lowStockThreshold,
+      inStock,
+      newInStock: p.units.filter((u) => u.condition === "NEW").length,
+      usedInStock: p.units.filter((u) => u.condition === "USED").length,
+    };
+  });
 }
 
 async function resolveSku(input: { sku?: string }) {
@@ -213,15 +241,18 @@ export async function updateProduct(id: string, input: ProductInput, userId: str
 export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"]) {
   const query = q.trim();
   if (!query || query.length < 2) return [];
+  const tokens = query.split(/\s+/).filter(Boolean);
   const products = await prisma.product.findMany({
     where: {
-      OR: [
-        { brand: { name: { contains: query } } },
-        { model: { contains: query } },
-        { sku: { contains: query } },
-        { barcode: { contains: query } },
-        { units: { some: { imei: { contains: query } } } },
-      ],
+      AND: tokens.map((token) => ({
+        OR: [
+          { brand: { name: { contains: token } } },
+          { model: { contains: token } },
+          { sku: { contains: token } },
+          { barcode: { contains: token } },
+          { units: { some: { imei: { contains: token } } } },
+        ],
+      })),
     },
     take: 10,
     include: {
@@ -238,7 +269,7 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
       },
       units: {
         where: { status: { in: statuses as ("IN_STOCK" | "RESERVED")[] } },
-        select: { id: true, condition: true, imei: true, carrier: true, status: true },
+        select: { id: true, condition: true, imei: true, carrier: true, status: true, costPrice: true },
       },
     },
   });
@@ -254,7 +285,9 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
     color: p.color?.name ?? null,
     category: p.category,
     sku: p.sku,
+    barcode: (p as any).barcode ?? null,
     sellPrice: p.sellPrice,
+    costPrice: (p as any).costPrice ?? null,
     units: p.units,
   }));
   if (/^\d+$/.test(query)) {
@@ -273,7 +306,7 @@ async function findOrCreateBrand(name: string) {
 }
 
 async function findOrCreateCategory(name: string) {
-  const found = await prisma.category.findUnique({ where: { name } });
+  const found = await prisma.category.findFirst({ where: { name } });
   if (found) return found;
   const type = name.toLowerCase().includes("accessory") ? "ACCESSORY" : "PHONE";
   return prisma.category.create({ data: { name, type: type as "ACCESSORY" | "PHONE", active: true } });

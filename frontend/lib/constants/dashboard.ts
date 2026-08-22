@@ -30,11 +30,11 @@ export const DASHBOARD_WIDGETS: {
   { key: "salesTrend", label: "Sales trend", description: "Revenue line chart for the selected period", span: "lg:col-span-2" },
   { key: "payments", label: "Payments by method", description: "Cash / card / bank / credit split", span: "lg:col-span-1" },
   { key: "topProducts", label: "Top products", description: "Best selling products in the period", span: "lg:col-span-2" },
-  { key: "newUsed", label: "Sold · New vs Used", description: "New vs used units sold", span: "lg:col-span-1" },
+  { key: "newUsed", label: "Sold · by Leaf Category", description: "Sold units by leaf category (all available categories)", span: "lg:col-span-1" },
   { key: "recentActivity", label: "Recent activity", description: "Latest audit log entries", span: "lg:col-span-2" },
   { key: "stockPta", label: "Stock · PTA status", description: "PTA / Non-PTA / SIM locked units in stock", span: "lg:col-span-1" },
   { key: "topSellers", label: "Top sellers", description: "Best staff by revenue in the period", span: "lg:col-span-1" },
-  { key: "soldCategory", label: "Sold · Phones vs Accessories", description: "Phones vs accessories sold", span: "lg:col-span-2" },
+  { key: "soldCategory", label: "Sold · by Category", description: "Sold units by category (root + full path, dynamic)", span: "lg:col-span-2" },
   { key: "lowStock", label: "Low stock", description: "Products near their low-stock threshold", span: "lg:col-span-1" },
   { key: "recentTransactions", label: "Recent transactions", description: "Latest transactions", span: "lg:col-span-2" },
 ];

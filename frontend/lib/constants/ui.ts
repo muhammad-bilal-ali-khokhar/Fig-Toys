@@ -10,6 +10,8 @@ export const UI = {
   backToDashboard: "Back to dashboard",
 } as const;
 
+export const DEFAULT_PAGE_SIZE = 50;
+
 export const TOAST = {
   maxVisible: 3,
   durationMs: 3200,

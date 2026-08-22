@@ -1,5 +1,7 @@
 "use client";
 
+import type { PrintConfig } from "@/lib/constants";
+
 import type { CompanyProfile, PurchaseReport, ReportRange } from "@/lib/api-types";
 import { REPORT_CONDITION_LABELS } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
@@ -14,15 +16,17 @@ import {
 
 export function PurchasesReportT58({
   profile,
+  config,
   data,
   range,
 }: {
   profile: CompanyProfile | null;
+  config?: PrintConfig;
   data: PurchaseReport;
   range: ReportRange;
 }) {
   return (
-    <ReportDocShell profile={profile} title="Purchase report" period={formatReportPeriod(range)} format="58">
+    <ReportDocShell profile={profile} config={config} title="Purchase report" period={formatReportPeriod(range)} format="58">
       <KpiStrip
         format="58"
         items={[

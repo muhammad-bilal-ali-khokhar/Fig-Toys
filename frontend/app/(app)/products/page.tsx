@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Brand, Category, Color, ProductDetail, ProductSummary } from "@/lib/api-types";
+import type { Brand, Category, Color, ProductDetail, ProductSummary, ScreenSize } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { canViewCosts, hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
@@ -24,9 +24,38 @@ import { SortHeader } from "@/components/ui/sort-header";
 import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
 import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon, HeadphonesIcon, SmartphoneIcon } from "@/components/icons";
-import { CONDITION_FILTER_OPTIONS } from "@/lib/constants/products";
 
 type SortKey = "brand" | "color" | "categoryName" | "sku" | "sellPrice" | "retailPrice" | "costPrice";
+
+function findCategory(cats: Category[], id: string): Category | null {
+  for (const c of cats) {
+    if (c.id === id) return c;
+    if (c.children?.length) {
+      const f = findCategory(c.children, id);
+      if (f) return f;
+    }
+  }
+  return null;
+}
+
+function collectSubtreeIds(node: Category): Set<string> {
+  const ids = new Set<string>([node.id]);
+  for (const ch of node.children ?? []) {
+    for (const id of collectSubtreeIds(ch)) ids.add(id);
+  }
+  return ids;
+}
+
+function flattenSubcategoryOptions(cats: Category[], prefix = ""): { value: string; label: string }[] {
+  const out: { value: string; label: string }[] = [];
+  for (const c of cats) {
+    if (!c.active) continue;
+    const label = prefix ? `${prefix} › ${c.name}` : c.name;
+    out.push({ value: c.id, label });
+    if (c.children?.length) out.push(...flattenSubcategoryOptions(c.children, label));
+  }
+  return out;
+}
 
 const PRODUCT_SORTS = [
   { value: "brand-asc", label: "Brand A–Z" },
@@ -43,12 +72,13 @@ export default function ProductsPage() {
   const { data: categories, refetch: refetchCategories } = useApi<Category[]>("/category");
   const { data: brands, refetch: refetchBrands } = useApi<Brand[]>("/brand");
   const { data: colors, refetch: refetchColors } = useApi<Color[]>("/color");
+  const { data: screenSizes, refetch: refetchScreenSizes } = useApi<ScreenSize[]>("/screen-size");
   const { toast } = useToast();
   const [q, setQ] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [subcategoryId, setSubcategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
   const [colorId, setColorId] = useState("");
-  const [condition, setCondition] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -76,20 +106,18 @@ export default function ProductsPage() {
   const activeBrands = (brands ?? []).filter((b) => b.active);
   const activeColors = (colors ?? []).filter((c) => c.active);
 
-  function productCondition(p: ProductSummary): string {
-    const name = p.categoryName.toLowerCase();
-    if (name.includes("used")) return "USED";
-    if (name.includes("new")) return "NEW";
-    return "ACCESSORY";
-  }
+  const allowedCategoryIds = useMemo(() => {
+    if (!categoryId && !subcategoryId) return null;
+    const target = findCategory(activeCategories, subcategoryId || categoryId);
+    return target ? collectSubtreeIds(target) : null;
+  }, [activeCategories, categoryId, subcategoryId]);
 
   const filtered = useMemo(() => {
     const list = data ?? [];
     return list.filter((p) => {
-      if (categoryId && p.categoryId !== categoryId) return false;
+      if (allowedCategoryIds && !allowedCategoryIds.has(p.categoryId)) return false;
       if (brandId && p.brandId !== brandId) return false;
       if (colorId && p.colorId !== colorId) return false;
-      if (condition && productCondition(p) !== condition) return false;
       const query = q.trim().toLowerCase();
       if (!query) return true;
       return [p.brand, p.model, p.storage ?? "", p.ram ?? "", p.screenSize ?? "", p.color ?? "", p.sku ?? ""]
@@ -97,7 +125,7 @@ export default function ProductsPage() {
         .toLowerCase()
         .includes(query);
     });
-  }, [data, q, categoryId, brandId, colorId, condition]);
+  }, [data, q, allowedCategoryIds, brandId, colorId]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
@@ -147,7 +175,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [q, categoryId, brandId, colorId, condition, pageSize]);
+  }, [q, categoryId, subcategoryId, brandId, colorId, pageSize]);
 
   function onSort(key: SortKey) {
     setSort((prev) =>
@@ -239,6 +267,8 @@ export default function ProductsPage() {
       sellPrice: String(p.sellPrice),
       costPrice: p.costPrice ? String(p.costPrice) : "",
       retailPrice: p.retailPrice ? String(p.retailPrice) : "",
+      barcode: (p as any).barcode ?? "",
+      hasBarcode: Boolean((p as any).barcode),
       image: p.image ?? "",
     };
   }
@@ -382,20 +412,19 @@ export default function ProductsPage() {
   const someSelected = selectedCount > 0 && selectedCount < filtered.length;
 
   const parentCategories = activeCategories.filter((c) => !c.parentId);
-  const categoryOptions = parentCategories.flatMap((c) => {
-    const children = activeCategories.filter((ch) => ch.parentId === c.id);
-    if (children.length === 0) return [{ value: c.id, label: c.name }];
-    return [
-      { value: c.id, label: c.name },
-      ...children.map((ch) => ({ value: ch.id, label: `  ${ch.name}` })),
-    ];
-  });
+  const selectedCategory = subcategoryId || categoryId ? findCategory(activeCategories, subcategoryId || categoryId) : null;
+  const subcategoryOptions = selectedCategory
+    ? [
+        { value: "", label: "All subcategories" },
+        ...flattenSubcategoryOptions(selectedCategory.children ?? []),
+      ]
+    : [{ value: "", label: "Select a category first", disabled: true }];
 
-  const activeFilterCount = [condition, categoryId, brandId, colorId].filter(Boolean).length;
+  const activeFilterCount = [categoryId, subcategoryId, brandId, colorId].filter(Boolean).length;
 
   function resetFilters() {
-    setCondition("");
     setCategoryId("");
+    setSubcategoryId("");
     setBrandId("");
     setColorId("");
   }
@@ -705,58 +734,64 @@ export default function ProductsPage() {
         open={filtersOpen}
         title="Filters"
         onClose={() => setFiltersOpen(false)}
-        width="max-w-md"
+        width="max-w-[640px]"
       >
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Condition</label>
-            <Dropdown
-              value={condition}
-              onChange={setCondition}
-              options={CONDITION_FILTER_OPTIONS}
-              placeholder="All conditions"
-            />
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
+              <Dropdown
+                value={categoryId}
+                onChange={(v) => {
+                  setCategoryId(v);
+                  setSubcategoryId("");
+                }}
+                searchable
+                placeholder="All categories"
+                options={[
+                  { value: "", label: "All categories" },
+                  ...parentCategories.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Subcategory</label>
+              <Dropdown
+                value={subcategoryId}
+                onChange={setSubcategoryId}
+                searchable
+                placeholder={categoryId ? "All subcategories" : "Select a category first"}
+                options={subcategoryOptions}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Brand</label>
+              <Dropdown
+                value={brandId}
+                onChange={setBrandId}
+                searchable
+                placeholder="All brands"
+                options={[
+                  { value: "", label: "All brands" },
+                  ...activeBrands.map((b) => ({ value: b.id, label: b.name })),
+                ]}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Color</label>
+              <Dropdown
+                value={colorId}
+                onChange={setColorId}
+                searchable
+                placeholder="All colors"
+                options={[
+                  { value: "", label: "All colors" },
+                  ...activeColors.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              />
+            </div>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
-            <Dropdown
-              value={categoryId}
-              onChange={setCategoryId}
-              searchable
-              placeholder="All categories"
-              options={[
-                { value: "", label: "All categories" },
-                ...categoryOptions,
-              ]}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Brand</label>
-            <Dropdown
-              value={brandId}
-              onChange={setBrandId}
-              searchable
-              placeholder="All brands"
-              options={[
-                { value: "", label: "All brands" },
-                ...activeBrands.map((b) => ({ value: b.id, label: b.name })),
-              ]}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Color</label>
-            <Dropdown
-              value={colorId}
-              onChange={setColorId}
-              searchable
-              placeholder="All colors"
-              options={[
-                { value: "", label: "All colors" },
-                ...activeColors.map((c) => ({ value: c.id, label: c.name })),
-              ]}
-            />
-          </div>
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center justify-between border-t border-ink-100 pt-4">
             <p className="text-sm text-ink-500">{filtered.length} product(s)</p>
             <div className="flex items-center gap-2">
               <Button variant="grey" onClick={resetFilters}>
@@ -789,12 +824,14 @@ export default function ProductsPage() {
           categories={categories ?? []}
           brands={brands ?? []}
           colors={colors ?? []}
+          screenSizes={screenSizes ?? []}
           initialTab={manageTab}
           onClose={() => setManageOpen(false)}
           onChanged={() => {
             refetchCategories();
             refetchBrands();
             refetchColors();
+            refetchScreenSizes();
             refetch();
           }}
         />

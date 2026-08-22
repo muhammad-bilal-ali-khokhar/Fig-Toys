@@ -18,14 +18,45 @@ export type PrintDocType =
   | "EXPENSES_REPORT"
   | "PAYABLES"
   | "RECEIVABLES"
+  | "SALES_LIST"
+  | "SALE_RETURNS"
   | "PURCHASE_LIST"
   | "PURCHASE_RETURNS";
+
+export type PrintDensity = "light" | "normal" | "bold";
+
+export type PrintConfig = {
+  fontSize: number;
+  lineHeight: number;
+  paddingMm: number;
+  marginMm: number;
+  density: PrintDensity;
+  compact: boolean;
+  headerScale: number;
+  showLogo: boolean;
+  qrSize: number;
+  barcodeHeight: number;
+};
+
+export const PRINT_DEFAULT_CONFIG: PrintConfig = {
+  fontSize: 13,
+  lineHeight: 1.4,
+  paddingMm: 3,
+  marginMm: 0,
+  density: "bold",
+  compact: false,
+  headerScale: 1.15,
+  showLogo: true,
+  qrSize: 72,
+  barcodeHeight: 48,
+};
 
 export type PrintSetting = {
   docType: PrintDocType;
   format: PrintFormatId;
   options: Record<string, boolean>;
   qrType: QrTarget;
+  config: PrintConfig;
 };
 
 export type PrintLayoutType = "document" | "inventory" | "expense" | "contacts" | "report";
@@ -38,7 +69,7 @@ export const PRINT_LAYOUT_TYPES: { value: PrintLayoutType; label: string }[] = [
   { value: "report", label: "Reports" },
 ];
 
-export const INVENTORY_FORMAT_IDS: PrintFormatId[] = ["80", "a4"];
+export const INVENTORY_FORMAT_IDS: PrintFormatId[] = ["58", "80", "a4"];
 
 export const QR_TARGETS: { id: QrTarget; label: string; hint: string }[] = [
   { id: "whatsapp", label: "WhatsApp", hint: "Customer scans to contact the shop via WhatsApp" },
@@ -233,6 +264,12 @@ export const INVENTORY_OPTION_LABELS: { key: InventoryPrintOptionKey; label: str
   { key: "cost", label: "Cost price", hint: "Cost paid for the unit (hidden for cashiers)" },
   { key: "signature", label: "Signature line", hint: "Space for a signature" },
   { key: "footer", label: "Footer & summary", hint: "Closing message and stock summary" },
+];
+
+export const PRINT_DENSITY_OPTIONS: { id: PrintDensity; label: string }[] = [
+  { id: "light", label: "Light" },
+  { id: "normal", label: "Normal" },
+  { id: "bold", label: "Bold" },
 ];
 
 export const INVENTORY_TEXT = {

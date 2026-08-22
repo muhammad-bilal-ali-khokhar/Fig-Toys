@@ -9,10 +9,12 @@ export async function listInventory(canViewCosts = false) {
   const [units, items] = await Promise.all([
     listUnits({}),
     prisma.transactionItem.findMany({
-      where: { unitId: null },
+      where: { unitId: null, transaction: { note: { not: { contains: "Migrated legacy" } } } },
       select: {
         productId: true,
         quantity: true,
+        unitPrice: true,
+        total: true,
         transaction: {
           select: {
             type: true,
@@ -24,17 +26,18 @@ export async function listInventory(canViewCosts = false) {
     }),
   ]);
 
-  const byProduct = new Map<string, { qty: number; lastPurchase: { at: Date; vendor: string } | null }>();
+  const byProduct = new Map<string, { qty: number; costTotal: number; lastPurchase: { at: Date; vendor: string } | null }>();
 
   for (const item of items) {
     const type = item.transaction.type;
     const sign = quantitySign(type);
     let agg = byProduct.get(item.productId);
     if (!agg) {
-      agg = { qty: 0, lastPurchase: null };
+      agg = { qty: 0, costTotal: 0, lastPurchase: null };
       byProduct.set(item.productId, agg);
     }
     agg.qty += sign * item.quantity;
+    agg.costTotal += sign * n(item.total);
     if (type === "PURCHASE") {
       const at = new Date(item.transaction.createdAt);
       if (!agg.lastPurchase || at > agg.lastPurchase.at) {
@@ -50,15 +53,18 @@ export async function listInventory(canViewCosts = false) {
           where: { id: { in: ids } },
           select: {
             id: true,
+            brandId: true,
+            brand: { select: { name: true } },
             model: true,
             storage: true,
             barcode: true,
             sellPrice: true,
             retailPrice: true,
             costPrice: true,
-            brand: { select: { name: true } },
+            colorId: true,
             color: { select: { name: true } },
-            category: { select: { name: true } },
+            categoryId: true,
+            category: { select: { id: true, name: true, parentId: true, parent: { select: { id: true, name: true } } } },
           },
         })
       : [];
@@ -68,16 +74,24 @@ export async function listInventory(canViewCosts = false) {
       const agg = byProduct.get(p.id)!;
       return {
         id: p.id,
+        brandId: p.brandId,
         brand: p.brand.name,
         model: p.model,
         storage: p.storage,
+        colorId: p.colorId,
         color: p.color?.name ?? null,
+        categoryId: p.categoryId,
         category: p.category.name,
+        categoryName: p.category.name,
+        parentCategoryId: p.category.parentId ?? null,
+        parentCategory: p.category.parent?.name ?? null,
+        parentCategoryName: p.category.parent?.name ?? null,
         barcode: p.barcode,
         sellPrice: p.sellPrice,
         retailPrice: p.retailPrice,
         costPrice: p.costPrice,
         qty: agg.qty,
+        costTotal: agg.costTotal,
         lastPurchasedAt: agg.lastPurchase?.at.toISOString() ?? null,
         lastVendor: agg.lastPurchase?.vendor ?? null,
       };
@@ -141,7 +155,7 @@ export async function listInventory(canViewCosts = false) {
     condMap.set(u.condition, cur);
   }
   for (const p of quantityProducts) {
-    costValue += n(p.costPrice) * p.qty;
+    costValue += n((p as any).costTotal);
     retailValue += n(p.sellPrice) * p.qty;
   }
 

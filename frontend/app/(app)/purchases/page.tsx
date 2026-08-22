@@ -203,8 +203,8 @@ export default function PurchasesPage() {
   const productOptions = (products ?? [])
     .filter((p) => {
       if (flow === "ACCESSORY") return p.categoryType === "ACCESSORY";
-      if (flow === "USED") return p.categoryType === "PHONE" && p.categoryName === "Used Phone";
-      return p.categoryType === "PHONE" && p.categoryName === "New Phone";
+      if (flow === "USED") return p.categoryType === "PHONE" && (p.categoryName === "Used Phone" || p.parentCategoryName === "Used Phone");
+      return p.categoryType === "PHONE" && (p.categoryName === "New Phone" || p.parentCategoryName === "New Phone");
     })
     .map((p) => ({
       value: p.id,

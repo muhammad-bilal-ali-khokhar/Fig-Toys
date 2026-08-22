@@ -149,7 +149,10 @@ export async function createSale(input: CreateSaleInput, userId: string) {
   }
 
   let number = await resolveNumber(input.number, "SAL");
-  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
 
   let transaction;
   for (let attempt = 0; ; attempt++) {
@@ -339,7 +342,10 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
   }
 
   const number = await resolveNumber(input.number, "PUR");
-  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
   const transaction = await prisma.$transaction(async (tx) => {
     const created = await tx.transaction.create({
       data: {
@@ -371,6 +377,64 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
             total: item.costPrice,
           },
         });
+      } else if (item.barcode) {
+        const qty = item.quantity ?? 1;
+        if (qty === 1) {
+          const existing = await tx.unit.findUnique({ where: { imei: item.barcode } });
+          if (existing && existing.status === "IN_STOCK") {
+            throw new ApiError(400, "unit.imei_exists", `Barcode ${item.barcode} already exists in stock`);
+          }
+          const unit = existing
+            ? await tx.unit.update({
+                where: { id: existing.id },
+                data: { productId: item.productId, status: "IN_STOCK", condition: "NEW", source: "VENDOR_PURCHASE", costPrice: item.costPrice },
+              })
+            : await tx.unit.create({
+                data: {
+                  productId: item.productId,
+                  imei: item.barcode,
+                  condition: "NEW",
+                  status: "IN_STOCK",
+                  source: "VENDOR_PURCHASE",
+                  carrier: "NON_PTA",
+                  costPrice: item.costPrice,
+                },
+              });
+          if (!existing) {
+            await tx.stockMovement.create({ data: { unitId: unit.id, productId: item.productId, type: "IN", note: `Purchased barcode ${item.barcode}` } });
+          } else {
+            await tx.stockMovement.create({ data: { unitId: unit.id, productId: item.productId, type: "IN", note: `Purchased barcode ${item.barcode}` } });
+          }
+          await tx.transactionItem.create({
+            data: {
+              transactionId: created.id,
+              productId: item.productId,
+              unitId: unit.id,
+              quantity: 1,
+              unitPrice: item.costPrice,
+              discount: 0,
+              total: item.costPrice,
+            },
+          });
+        } else {
+          if (item.barcode) {
+            await tx.product.update({ where: { id: item.productId }, data: { barcode: item.barcode } });
+          }
+          await tx.stockMovement.create({
+            data: { productId: item.productId, type: "IN", qty, note: item.barcode ? `Purchased barcode ${item.barcode}` : "Purchased" },
+          });
+          await tx.transactionItem.create({
+            data: {
+              transactionId: created.id,
+              productId: item.productId,
+              unitId: null,
+              quantity: qty,
+              unitPrice: item.costPrice,
+              discount: 0,
+              total: item.costPrice * qty,
+            },
+          });
+        }
       } else {
         const qty = item.quantity ?? 1;
         await tx.stockMovement.create({
@@ -427,7 +491,10 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
   }
 
   const number = await resolveNumber(input.number, "RET");
-  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
   const saleItems = await prisma.transactionItem.findMany({
     where: { transactionId: input.saleId },
   });
@@ -544,10 +611,13 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
 }
 
 export async function createPurchaseReturn(input: PurchaseReturnInput, userId: string) {
-  const purchase = await prisma.transaction.findUnique({ where: { id: input.purchaseId } });
-  if (!purchase) throw new ApiError(404, "transaction.not_found", "Transaction not found");
-  if (purchase.type !== "PURCHASE") {
-    throw new ApiError(400, "transaction.not_purchase", "Not a purchase");
+  let purchase: any = null;
+  if (input.purchaseId) {
+    purchase = await prisma.transaction.findUnique({ where: { id: input.purchaseId } });
+    if (!purchase) throw new ApiError(404, "transaction.not_found", "Transaction not found");
+    if (purchase.type !== "PURCHASE") {
+      throw new ApiError(400, "transaction.not_purchase", "Not a purchase");
+    }
   }
 
   if (input.clientRef) {
@@ -559,24 +629,29 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
   }
 
   const number = await resolveNumber(input.number, "PCR");
-  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
   const transaction = await prisma.$transaction(async (tx) => {
     const units = await tx.unit.findMany({ where: { id: { in: input.unitIds } } });
     if (units.length !== input.unitIds.length) {
       throw new ApiError(400, "unit.not_found", "One or more units not found");
     }
 
-    const purchaseItems = await tx.transactionItem.findMany({
-      where: { transactionId: input.purchaseId, unitId: { not: null } },
-      select: { unitId: true },
-    });
+    const purchaseItems = input.purchaseId
+      ? await tx.transactionItem.findMany({
+          where: { transactionId: input.purchaseId, unitId: { not: null } },
+          select: { unitId: true },
+        })
+      : [];
     const purchaseUnitIds = new Set(purchaseItems.map((i) => i.unitId));
 
     let total = 0;
     const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
 
     for (const unit of units) {
-      if (!purchaseUnitIds.has(unit.id)) {
+      if (purchase && !purchaseUnitIds.has(unit.id)) {
         throw new ApiError(400, "unit.not_from_purchase", `Unit ${unit.imei} does not belong to this purchase`);
       }
       if (unit.status !== "IN_STOCK") {
@@ -601,6 +676,21 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
         total: Number(unit.costPrice),
       });
     }
+    for (const item of input.items) {
+      const product = await tx.product.findUnique({ where: { id: item.productId } });
+      if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+      const refund = item.refund ?? Number(product.costPrice);
+      await tx.stockMovement.create({ data: { productId: item.productId, type: "OUT", qty: item.quantity, note: "Purchase return" } });
+      total += refund * item.quantity;
+      createdItems.push({
+        productId: item.productId,
+        unitId: null,
+        quantity: item.quantity,
+        unitPrice: refund,
+        discount: 0,
+        total: refund * item.quantity,
+      });
+    }
 
     const paidInput = input.payments.reduce((sum, p) => sum + p.amount, 0);
     if (paidInput > total + 0.001) {
@@ -617,12 +707,15 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
         ? "PAID"
         : "PENDING";
 
+    const fallbackContactId = input.contactId ?? (await tx.contact.findFirst())?.id ?? purchase?.contactId;
+    if (!fallbackContactId) throw new ApiError(400, "contact.not_found", "Contact not found");
+    const resolvedContactId = purchase ? purchase.contactId : fallbackContactId;
     const created = await tx.transaction.create({
       data: {
         type: "PURCHASE_RETURN",
         number,
         ...(input.clientRef ? { clientRef: input.clientRef } : {}),
-        contactId: purchase.contactId,
+        contactId: resolvedContactId,
         userId,
         subtotal: total,
         discount: 0,
@@ -822,7 +915,10 @@ export async function modifySale(id: string, input: CreateSaleInput, userId: str
     throw new ApiError(400, "payment.overpaid", "Payments exceed the total");
   }
 
-  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
 
   const transaction = await prisma.$transaction(async (tx) => {
     for (const item of existing.items) {
@@ -959,7 +1055,10 @@ export async function modifyPurchase(id: string, input: CreatePurchaseInput, use
     throw new ApiError(400, "payment.overpaid", "Payments exceed the total");
   }
 
-  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
 
   const transaction = await prisma.$transaction(async (tx) => {
     for (const item of existing.items) {
@@ -1078,7 +1177,10 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
   }
 
   const number = input.number ?? existing.number;
-  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
 
   const saleItems = await prisma.transactionItem.findMany({
     where: { transactionId: input.saleId },
@@ -1239,7 +1341,10 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
   if (purchase.type !== "PURCHASE") throw new ApiError(400, "transaction.not_purchase", "Referenced transaction is not a purchase");
 
   const number = input.number ?? existing.number;
-  const createdAt = input.date ? new Date(`${input.date}T00:00:00`) : undefined;
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
 
   const transaction = await prisma.$transaction(async (tx) => {
     for (const item of existing.items) {

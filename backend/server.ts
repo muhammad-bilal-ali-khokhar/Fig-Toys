@@ -9,6 +9,7 @@ import { seedBanks } from "./endpoints/bank/seed";
 import { seedBrands } from "./endpoints/brand/seed";
 import { seedCategories } from "./endpoints/category/seed";
 import { seedColors } from "./endpoints/color/seed";
+import { seedScreenSizes } from "./endpoints/screen-size/seed";
 import { scheduleBackups } from "./core/lib/backup";
 import { logger } from "./core/lib/logger";
 
@@ -36,12 +37,14 @@ async function bootstrap() {
       await seedCategories();
       await seedBrands();
       await seedColors();
+      await seedScreenSizes();
     } catch (err) {
       logger.warn("Catalog defaults could not be seeded", err instanceof Error ? { error: err.message } : { error: String(err) });
     }
   }
   try {
     await seedBanks();
+    await seedScreenSizes();
   } catch (err) {
     logger.warn("Banks could not be seeded", err instanceof Error ? { error: err.message } : { error: String(err) });
   }

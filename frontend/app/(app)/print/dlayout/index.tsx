@@ -31,6 +31,7 @@ import { SalesListT80 } from "./thermal-80/sales-list";
 import { SaleReturnsT80 } from "./thermal-80/sale-returns";
 import { PurchaseListT80 } from "./thermal-80/purchase-list";
 import { PurchaseReturnsT80 } from "./thermal-80/purchase-returns";
+import type { PrintConfig } from "@/lib/constants";
 import type { DocFormat } from "./shared";
 
 export type ReportDocKind =
@@ -52,56 +53,57 @@ export type ReportDocProps = {
   range?: ReportRange;
   data?: SalesReport | PurchaseReport | ProfitReport | ExpenseReport | BalancesReport | null;
   rows?: Transaction[];
+  config?: PrintConfig;
 };
 
-export function ReportDoc({ format, profile, kind, range, data, rows }: ReportDocProps) {
+export function ReportDoc({ format, profile, kind, range, data, rows, config }: ReportDocProps) {
   switch (format) {
     case "58":
       switch (kind) {
         case "SALES_REPORT":
-          return <SalesReportT58 profile={profile} data={data as SalesReport} range={range as ReportRange} />;
+          return <SalesReportT58 profile={profile} data={data as SalesReport} range={range as ReportRange} config={config} />;
         case "PURCHASES_REPORT":
-          return <PurchasesReportT58 profile={profile} data={data as PurchaseReport} range={range as ReportRange} />;
+          return <PurchasesReportT58 profile={profile} data={data as PurchaseReport} range={range as ReportRange} config={config} />;
         case "PROFIT_REPORT":
-          return <ProfitReportT58 profile={profile} data={data as ProfitReport} range={range as ReportRange} />;
+          return <ProfitReportT58 profile={profile} data={data as ProfitReport} range={range as ReportRange} config={config} />;
         case "EXPENSES_REPORT":
-          return <ExpensesReportT58 profile={profile} data={data as ExpenseReport} range={range as ReportRange} />;
+          return <ExpensesReportT58 profile={profile} data={data as ExpenseReport} range={range as ReportRange} config={config} />;
         case "PAYABLES":
-          return <PayablesT58 profile={profile} data={data as BalancesReport} />;
+          return <PayablesT58 profile={profile} data={data as BalancesReport} config={config} />;
         case "RECEIVABLES":
-          return <ReceivablesT58 profile={profile} data={data as BalancesReport} />;
+          return <ReceivablesT58 profile={profile} data={data as BalancesReport} config={config} />;
         case "SALES_LIST":
-          return <SalesListT58 profile={profile} rows={rows ?? []} />;
+          return <SalesListT58 profile={profile} rows={rows ?? []} config={config} />;
         case "SALE_RETURNS":
-          return <SaleReturnsT58 profile={profile} rows={rows ?? []} />;
+          return <SaleReturnsT58 profile={profile} rows={rows ?? []} config={config} />;
         case "PURCHASE_LIST":
-          return <PurchaseListT58 profile={profile} rows={rows ?? []} />;
+          return <PurchaseListT58 profile={profile} rows={rows ?? []} config={config} />;
         case "PURCHASE_RETURNS":
-          return <PurchaseReturnsT58 profile={profile} rows={rows ?? []} />;
+          return <PurchaseReturnsT58 profile={profile} rows={rows ?? []} config={config} />;
       }
       break;
     case "80":
       switch (kind) {
         case "SALES_REPORT":
-          return <SalesReportT80 profile={profile} data={data as SalesReport} range={range as ReportRange} />;
+          return <SalesReportT80 profile={profile} data={data as SalesReport} range={range as ReportRange} config={config} />;
         case "PURCHASES_REPORT":
-          return <PurchasesReportT80 profile={profile} data={data as PurchaseReport} range={range as ReportRange} />;
+          return <PurchasesReportT80 profile={profile} data={data as PurchaseReport} range={range as ReportRange} config={config} />;
         case "PROFIT_REPORT":
-          return <ProfitReportT80 profile={profile} data={data as ProfitReport} range={range as ReportRange} />;
+          return <ProfitReportT80 profile={profile} data={data as ProfitReport} range={range as ReportRange} config={config} />;
         case "EXPENSES_REPORT":
-          return <ExpensesReportT80 profile={profile} data={data as ExpenseReport} range={range as ReportRange} />;
+          return <ExpensesReportT80 profile={profile} data={data as ExpenseReport} range={range as ReportRange} config={config} />;
         case "PAYABLES":
-          return <PayablesT80 profile={profile} data={data as BalancesReport} />;
+          return <PayablesT80 profile={profile} data={data as BalancesReport} config={config} />;
         case "RECEIVABLES":
-          return <ReceivablesT80 profile={profile} data={data as BalancesReport} />;
+          return <ReceivablesT80 profile={profile} data={data as BalancesReport} config={config} />;
         case "SALES_LIST":
-          return <SalesListT80 profile={profile} rows={rows ?? []} />;
+          return <SalesListT80 profile={profile} rows={rows ?? []} config={config} />;
         case "SALE_RETURNS":
-          return <SaleReturnsT80 profile={profile} rows={rows ?? []} />;
+          return <SaleReturnsT80 profile={profile} rows={rows ?? []} config={config} />;
         case "PURCHASE_LIST":
-          return <PurchaseListT80 profile={profile} rows={rows ?? []} />;
+          return <PurchaseListT80 profile={profile} rows={rows ?? []} config={config} />;
         case "PURCHASE_RETURNS":
-          return <PurchaseReturnsT80 profile={profile} rows={rows ?? []} />;
+          return <PurchaseReturnsT80 profile={profile} rows={rows ?? []} config={config} />;
       }
       break;
     default:

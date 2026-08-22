@@ -37,7 +37,23 @@ export async function listUnits({
     where,
     orderBy: [{ status: "asc" }, { acquiredAt: "desc" }],
     include: {
-      product: { select: { id: true, brand: { select: { name: true } }, model: true, storage: true, screenSize: true, color: { select: { name: true } }, category: { select: { id: true, name: true, parent: { select: { name: true } } } }, sellPrice: true, retailPrice: true } },
+      product: {
+        select: {
+          id: true,
+          brandId: true,
+          brand: { select: { name: true } },
+          model: true,
+          storage: true,
+          ram: true,
+          screenSize: true,
+          colorId: true,
+          color: { select: { name: true } },
+          categoryId: true,
+          category: { select: { id: true, name: true, parentId: true, parent: { select: { id: true, name: true } } } },
+          sellPrice: true,
+          retailPrice: true,
+        },
+      },
       items: {
         select: {
           transactionId: true,
@@ -71,11 +87,23 @@ export async function listUnits({
       costPrice: u.costPrice,
       acquiredAt: u.acquiredAt,
       product: {
-        ...u.product,
+        id: u.product.id,
         brand: u.product.brand.name,
+        brandId: u.product.brandId,
+        model: u.product.model,
+        storage: u.product.storage,
+        ram: u.product.ram,
+        screenSize: u.product.screenSize,
+        colorId: u.product.colorId,
         color: u.product.color?.name ?? null,
+        categoryId: u.product.categoryId,
         category: u.product.category?.name ?? null,
+        categoryName: u.product.category?.name ?? null,
+        parentCategoryId: u.product.category?.parentId ?? null,
         parentCategory: u.product.category?.parent?.name ?? null,
+        parentCategoryName: u.product.category?.parent?.name ?? null,
+        sellPrice: u.product.sellPrice,
+        retailPrice: u.product.retailPrice,
       },
       purchase: purchaseItem
         ? {

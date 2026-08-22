@@ -195,7 +195,7 @@ model Brand {
 
 model Category {
   id        String       @id @default(cuid())
-  name      String       @unique
+  name      String
   type      CategoryType @default(PHONE)
   sortOrder Int          @default(0)
   active    Boolean      @default(true)
@@ -205,6 +205,7 @@ model Category {
   createdAt DateTime     @default(now())
   products  Product[]
 
+  @@unique([parentId, name])
   @@map("categories")
 }
 
@@ -218,6 +219,16 @@ model Color {
   units     Unit[]
 
   @@map("colors")
+}
+
+model ScreenSize {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("screen_sizes")
 }
 
 model City {
@@ -538,6 +549,7 @@ model PrintSetting {
   format    String   @default("80")
   options   Json?
   qrType    String   @default("whatsapp")
+  config    Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

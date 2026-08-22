@@ -11,6 +11,25 @@ const round = (v: number) => Math.round(v * 100) / 100;
 const canViewCosts = (permissions: readonly Permission[]) =>
   hasPermissionList(permissions, PERMISSIONS.reportProfit);
 
+async function loadCategoryMap() {
+  const cats = await prisma.category.findMany({ select: { id: true, name: true, parentId: true, type: true } });
+  return new Map<string, (typeof cats)[number]>(cats.map((c) => [c.id, c] as [string, (typeof cats)[number]]));
+}
+function categoryPath(id: string | null, catMap: Map<string, { id: string; name: string; parentId: string | null; type: string }>): string[] {
+  if (!id || !catMap.has(id)) return [];
+  const path: string[] = [];
+  let cur: string | null = id;
+  const seen = new Set<string>();
+  while (cur && catMap.has(cur) && !seen.has(cur)) {
+    seen.add(cur);
+    const got = catMap.get(cur);
+    if (!got) break;
+    path.unshift(got.name);
+    cur = got.parentId;
+  }
+  return path;
+}
+
 type RangeWhere = {
   createdAt?: { gte?: Date; lte?: Date };
   date?: { gte?: Date; lte?: Date };
@@ -153,6 +172,7 @@ export async function summary(permissions: readonly Permission[], r: Range) {
 // ============ SALES REPORT ============
 
 export async function salesReport(r: Range) {
+  const catMapData = await loadCategoryMap();
   const [agg, items, payments, txns] = await Promise.all([
     prisma.transaction.aggregate({
       where: { type: "SALE", ...rangeWhere(r) },
@@ -169,13 +189,7 @@ export async function salesReport(r: Range) {
           select: {
             brand: { select: { name: true } },
             model: true,
-            category: {
-              select: {
-                name: true,
-                type: true,
-                parent: { select: { name: true } },
-              },
-            },
+            category: { select: { id: true, name: true, parentId: true } },
           },
         },
       },
@@ -204,16 +218,20 @@ export async function salesReport(r: Range) {
     curB.revenue += n(it.total);
     brandMap.set(brand, curB);
 
-    const parentName = it.product.category.parent?.name ?? it.product.category.name;
-    const catType = it.product.category.type;
-    const curC = catMap.get(parentName) ?? { name: parentName, type: catType, count: 0, revenue: 0 };
+    const path = categoryPath(it.product.category.id, catMapData);
+    const rootName = path[0] ?? it.product.category.name;
+    const leafCat = catMapData.get(it.product.category.id);
+    const catType = leafCat?.type ?? "PHONE";
+    const curC = catMap.get(rootName) ?? { name: rootName, type: catType, count: 0, revenue: 0 };
     curC.count += 1;
     curC.revenue += n(it.total);
-    catMap.set(parentName, curC);
+    catMap.set(rootName, curC);
 
-    if (it.product.category.parent) {
-      const subKey = `${parentName} > ${it.product.category.name}`;
-      const curS = subCatMap.get(subKey) ?? { name: it.product.category.name, parentName, type: catType, count: 0, revenue: 0 };
+    if (path.length > 1) {
+      const leafName = path[path.length - 1];
+      const parentPath = path.slice(0, -1).join(" > ");
+      const subKey = path.join(" > ");
+      const curS = subCatMap.get(subKey) ?? { name: leafName, parentName: parentPath, type: catType, count: 0, revenue: 0 };
       curS.count += 1;
       curS.revenue += n(it.total);
       subCatMap.set(subKey, curS);
@@ -479,6 +497,7 @@ export async function expensesReport(r: Range) {
 
 export async function stockReport(permissions: readonly Permission[]) {
   const cost = canViewCosts(permissions);
+  const catMapData = await loadCategoryMap();
   const units = await prisma.unit.findMany({
     where: { status: "IN_STOCK" },
     select: {
@@ -489,12 +508,7 @@ export async function stockReport(permissions: readonly Permission[]) {
           brand: { select: { name: true } },
           model: true,
           sellPrice: true,
-          category: {
-            select: {
-              name: true,
-              parent: { select: { name: true } },
-            },
-          },
+          category: { select: { id: true, name: true, parentId: true } },
         },
       },
     },
@@ -515,16 +529,19 @@ export async function stockReport(permissions: readonly Permission[]) {
     c.retailValue += retailV;
     byCondition.set(u.condition, c);
 
-    const parentName = u.product.category.parent?.name ?? u.product.category.name;
-    const k = byCategory.get(parentName) ?? { name: parentName, units: 0, costValue: 0, retailValue: 0 };
+    const path = categoryPath(u.product.category.id, catMapData);
+    const rootName = path[0] ?? u.product.category.name;
+    const k = byCategory.get(rootName) ?? { name: rootName, units: 0, costValue: 0, retailValue: 0 };
     k.units += 1;
     k.costValue += costV;
     k.retailValue += retailV;
-    byCategory.set(parentName, k);
+    byCategory.set(rootName, k);
 
-    if (u.product.category.parent) {
-      const subKey = `${parentName} > ${u.product.category.name}`;
-      const s = bySubCategory.get(subKey) ?? { name: u.product.category.name, parentName, units: 0, costValue: 0, retailValue: 0 };
+    if (path.length > 1) {
+      const leafName = path[path.length - 1];
+      const parentPath = path.slice(0, -1).join(" > ");
+      const subKey = path.join(" > ");
+      const s = bySubCategory.get(subKey) ?? { name: leafName, parentName: parentPath, units: 0, costValue: 0, retailValue: 0 };
       s.units += 1;
       s.costValue += costV;
       s.retailValue += retailV;

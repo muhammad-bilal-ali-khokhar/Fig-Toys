@@ -121,6 +121,14 @@ export type Color = {
   _count?: { products: number };
 };
 
+export type ScreenSize = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+  createdAt: string;
+};
+
 export type ProductSummary = {
   id: string;
   brandId: string;
@@ -137,6 +145,7 @@ export type ProductSummary = {
   parentCategoryId: string | null;
   parentCategoryName: string | null;
   sku: string | null;
+  barcode: string | null;
   image?: string | null;
   sellPrice: string;
   costPrice?: string;
@@ -202,14 +211,19 @@ export type Unit = {
   product: {
     id: string;
     brand: string;
+    brandId: string;
     model: string;
     storage: string | null;
     ram: string | null;
     screenSize: string | null;
     colorId: string | null;
     color: string | null;
+    categoryId: string;
     category: string | null;
+    categoryName: string | null;
+    parentCategoryId: string | null;
     parentCategory: string | null;
+    parentCategoryName: string | null;
     sellPrice: string | null;
     retailPrice: string | null;
   };
@@ -223,12 +237,18 @@ export type Unit = {
 
 export type InventoryProduct = {
   id: string;
+  brandId: string;
   brand: string;
   model: string;
   storage: string | null;
+  colorId: string | null;
   color: string | null;
+  categoryId: string;
   category: string | null;
+  categoryName: string | null;
+  parentCategoryId: string | null;
   parentCategory: string | null;
+  parentCategoryName: string | null;
   barcode: string | null;
   sellPrice: string | null;
   retailPrice: string | null;
@@ -613,13 +633,20 @@ export type DashboardOverview = {
     cashOut: number;
   };
   cashOnHand: number;
-  stock: { NEW: number; USED: number; total: number };
+  money?: {
+    cashBalance: number;
+    totalBankBalance: number;
+    pendingCard: number;
+    banks: { id: string; name: string; bankName: string; accountNo: string; balance: number }[];
+  };
+  stock: { NEW: number; USED: number; total: number; accessories: number; phones: number };
   stockValue: { cost: number | null; retail: number };
   carrierSplit: { PTA: number; NON_PTA: number; SIM_LOCKED: number };
   reservations: { active: number; total: number; advance: number; consignments: number };
   credit: { receivables: number; payables: number };
   topSellers: { id: string; name: string; count: number; revenue: number }[];
   soldByCategory: { PHONE: number; ACCESSORY: number };
+  soldByRootCategory: Record<string, number>;
   soldBySubCategory: Record<string, number>;
   lowStock: {
     id: string;

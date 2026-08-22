@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
-import type { BankAccount, Contact, TransactionDetail, Unit } from "@/lib/api-types";
+import type { BankAccount, Contact, ProductSummary, TransactionDetail, Unit } from "@/lib/api-types";
 import { brandOf } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS } from "@/lib/constants";
@@ -13,6 +13,7 @@ import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
@@ -49,12 +50,15 @@ type EligibilityResult = {
 };
 
 type ReturnLine = {
-  unitId: string;
-  imei: string;
+  id: string;
+  unitId?: string;
+  imei?: string;
+  productId: string;
   productLabel: string;
   cost: number;
-  purchaseId: string;
-  purchaseNumber: string;
+  quantity: number;
+  purchaseId?: string;
+  purchaseNumber?: string;
 };
 
 export default function PurchaseReturnsPage() {
@@ -62,6 +66,7 @@ export default function PurchaseReturnsPage() {
   const searchParams = useSearchParams();
   const { data: bankData } = useApi<BankAccount[]>("/bank-account");
   const { data: contacts } = useApi<Contact[]>("/contact");
+  const { data: products } = useApi<ProductSummary[]>("/product");
   const [contactId, setContactId] = useState<string | null>(null);
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -85,6 +90,10 @@ export default function PurchaseReturnsPage() {
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [selProductId, setSelProductId] = useState<string | null>(null);
+  const [returnQty, setReturnQty] = useState("1");
+  const [returnPrice, setReturnPrice] = useState("");
 
   useEffect(() => {
     if (highlightedIndex < 0 || !listRef.current) return;
@@ -115,7 +124,7 @@ export default function PurchaseReturnsPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const showPanel = searching || results.length > 0;
+  const showPanel = searchFocused;
 
   const contactOptions = (contacts ?? []).map((c) => ({
     value: c.id,
@@ -123,7 +132,13 @@ export default function PurchaseReturnsPage() {
     trailing: c.phone ? <span className="text-xs text-ink-400">{c.phone}</span> : null,
   }));
 
-  const refundTotal = useMemo(() => cart.reduce((sum, l) => sum + l.cost, 0), [cart]);
+  const refundTotal = useMemo(() => cart.reduce((sum, l) => sum + l.cost * (l.quantity || 1), 0), [cart]);
+
+  useEffect(() => {
+    if (refundTotal > 0 && !creditAmount.trim() && bankRows.length === 0) {
+      setCash(clampMoneyInput(String(refundTotal)));
+    }
+  }, [refundTotal, creditAmount, bankRows.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,13 +178,19 @@ export default function PurchaseReturnsPage() {
 
   useEffect(() => {
     function onDown(event: MouseEvent) {
-      if (panelPos && !searchWrapRef.current?.contains(event.target as Node)) {
-        setResults([]);
+      if (searchFocused && !searchWrapRef.current?.contains(event.target as Node)) {
+        setSearchFocused(false);
       }
     }
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [panelPos]);
+  }, [searchFocused]);
+
+  const productOptions = (products ?? []).map((p) => ({
+    value: p.id,
+    label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
+    trailing: <span className="text-xs text-ink-400">{formatPKR(p.sellPrice)}</span>,
+  }));
 
   const flatUnits = useMemo(() => {
     const units: { unit: SearchResult["units"][number]; productIndex: number }[] = [];
@@ -277,13 +298,19 @@ export default function PurchaseReturnsPage() {
       ]
         .filter(Boolean)
         .join(" ");
+      const cost = returnPrice.trim() ? parseFloat(returnPrice) || parseFloat(res.unit!.costPrice ?? "0") || 0 : parseFloat(res.unit!.costPrice ?? "0") || 0;
+      setReturnPrice(String(cost || ""));
+      setReturnQty("1");
       setCart((prev) => [
         ...prev,
         {
+          id: crypto.randomUUID(),
           unitId: res.unit!.id,
           imei: res.unit!.imei,
+          productId: res.unit!.product.id,
           productLabel: label,
-          cost: parseFloat(res.unit!.costPrice ?? "0") || 0,
+          cost: cost,
+          quantity: 1,
           purchaseId: res.purchaseId!,
           purchaseNumber: res.purchaseNumber!,
         },
@@ -334,8 +361,46 @@ export default function PurchaseReturnsPage() {
     void tryAddImei(unit.imei);
   }
 
-  function removeLine(unitId: string) {
-    setCart((prev) => prev.filter((l) => l.unitId !== unitId));
+  function addAccessoryQuantity(product: SearchResult) {
+    const qty = Math.max(1, parseInt(returnQty, 10) || 1);
+    const price = returnPrice.trim() ? parseFloat(returnPrice) : parseFloat((product as any).sellPrice ?? "0") || 0;
+    const prod = (products ?? []).find((p) => p.id === product.id);
+    const available = prod?.inStock ?? Infinity;
+    const existingQty = cart.filter((l) => l.productId === product.id && !l.unitId).reduce((s, l) => s + l.quantity, 0);
+    if (existingQty + qty > available) {
+      toast(`Only ${available} pcs available for ${brandOf(product)} ${product.model}. You tried to add ${existingQty + qty} pcs.`, "error");
+      return;
+    }
+    const label = [brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ");
+    setCart((prev) => {
+      const idx = prev.findIndex((l) => l.productId === product.id && !l.unitId);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], quantity: next[idx].quantity + qty, cost: price || next[idx].cost };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          productId: product.id,
+          productLabel: label,
+          cost: price,
+          quantity: qty,
+          purchaseId: "",
+          purchaseNumber: "",
+        },
+      ];
+    });
+    setReturnPrice("");
+    setReturnQty("1");
+    setResults([]);
+    setHighlightedIndex(-1);
+    toast(`${label} ×${qty} added`, "success");
+  }
+
+  function removeLine(id: string) {
+    setCart((prev) => prev.filter((l) => l.id !== id));
   }
 
   function reset() {
@@ -368,10 +433,13 @@ export default function PurchaseReturnsPage() {
     setReturnDate(txn.createdAt.slice(0, 10));
     setCart(
       txn.items.map((item) => ({
-        unitId: item.unit?.id ?? "",
-        imei: item.unit?.imei ?? "",
+        id: crypto.randomUUID(),
+        unitId: item.unit?.id,
+        imei: item.unit?.imei,
+        productId: item.product.id,
         productLabel: `${item.product.brand} ${item.product.model}`,
-        cost: parseFloat(item.total),
+        cost: parseFloat(item.unitPrice),
+        quantity: item.quantity,
         purchaseId: "",
         purchaseNumber: "",
       })),
@@ -424,26 +492,30 @@ export default function PurchaseReturnsPage() {
             note: note.trim() || undefined,
             payments,
             number: returnNo,
-            date: returnDate,
+            date: returnDate ? (returnDate === toISODate(new Date()) ? new Date().toISOString() : new Date(`${returnDate}T00:00:00`).toISOString()) : undefined,
           },
         });
         toast(`Return modified`, "success");
       } else {
+        const unitLines = cart.filter((l) => l.unitId);
+        const qtyLines = cart.filter((l) => !l.unitId);
         const groups = new Map<string, ReturnLine[]>();
-        for (const line of cart) {
-          const arr = groups.get(line.purchaseId) ?? [];
+        for (const line of unitLines) {
+          const arr = groups.get(line.purchaseId ?? "") ?? [];
           arr.push(line);
-          groups.set(line.purchaseId, arr);
+          groups.set(line.purchaseId ?? "", arr);
         }
         const groupsArr = Array.from(groups.entries());
         const noMatch = returnNo.match(/PCR-(\d+)$/);
         let nextNo = noMatch ? parseInt(noMatch[1], 10) : 1;
         let cashAllocated = 0;
         let bankAllocated = bankRows.map(() => 0);
+        const qtyTotal = qtyLines.reduce((s, l) => s + l.cost * l.quantity, 0);
+        const unitTotal = unitLines.reduce((s, l) => s + l.cost, 0);
         for (let i = 0; i < groupsArr.length; i++) {
           const [purchaseId, lines] = groupsArr[i];
           const groupTotal = lines.reduce((sum, l) => sum + l.cost, 0);
-          const isLast = i === groupsArr.length - 1;
+          const isLast = i === groupsArr.length - 1 && qtyLines.length === 0;
           const groupPayments: { method: "CASH" | "CREDIT" | "BANK_TRANSFER"; amount: number; bankAccountId?: string }[] = [];
           const groupCash =
             cashAmt <= 0
@@ -471,16 +543,49 @@ export default function PurchaseReturnsPage() {
             method: "POST",
             body: {
               purchaseId,
-              unitIds: lines.map((l) => l.unitId),
+              unitIds: lines.map((l) => l.unitId!),
               note: note.trim() || undefined,
               payments: groupPayments,
               number: `PCR-${String(nextNo++).padStart(4, "0")}`,
-              date: returnDate,
+              date: returnDate ? (returnDate === toISODate(new Date()) ? new Date().toISOString() : new Date(`${returnDate}T00:00:00`).toISOString()) : undefined,
               clientRef: crypto.randomUUID(),
             },
           });
         }
-        toast(`${cart.length} unit(s) returned`, "success");
+        if (qtyLines.length > 0) {
+          const qtyGroupTotal = qtyLines.reduce((s, l) => s + l.cost * l.quantity, 0);
+          const isLastQty = true;
+          const groupPayments: { method: "CASH" | "CREDIT" | "BANK_TRANSFER"; amount: number; bankAccountId?: string }[] = [];
+          const groupCash = cashAmt <= 0 ? 0 : Math.max(0, cashAmt - cashAllocated);
+          let groupBank = 0;
+          for (let b = 0; b < bankRows.length; b++) {
+            const rowAmt = parseFloat(bankRows[b].amount) || 0;
+            if (rowAmt <= 0) continue;
+            const share = Math.max(0, rowAmt - bankAllocated[b]);
+            if (share > 0) groupPayments.push({ method: "BANK_TRANSFER", amount: share, bankAccountId: bankRows[b].bankId });
+            groupBank += share;
+            bankAllocated[b] += share;
+          }
+          const covered = groupCash + groupBank;
+          const groupCredit = Math.max(0, qtyGroupTotal - covered);
+          if (groupCash > 0) groupPayments.push({ method: "CASH", amount: groupCash });
+          if (groupCredit > 0) groupPayments.push({ method: "CREDIT", amount: groupCredit });
+          await apiRequest<{ number: string }>("/transaction/purchase/returns", {
+            method: "POST",
+            body: {
+              purchaseId: "",
+              contactId: contactId ?? undefined,
+              unitIds: [],
+              items: qtyLines.map((l) => ({ productId: l.productId, quantity: l.quantity, refund: l.cost })),
+              note: note.trim() || undefined,
+              payments: groupPayments,
+              number: `PCR-${String(nextNo++).padStart(4, "0")}`,
+              date: returnDate ? (returnDate === toISODate(new Date()) ? new Date().toISOString() : new Date(`${returnDate}T00:00:00`).toISOString()) : undefined,
+              clientRef: crypto.randomUUID(),
+            },
+          });
+        }
+        toast(`${cart.length} line(s) returned`, "success");
       }
       playSuccess();
       reset();
@@ -549,15 +654,21 @@ export default function PurchaseReturnsPage() {
       <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
         <div className="flex-1 min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Seller</p>
-          <div className="flex h-9 items-center rounded-2xl bg-white px-3.5 text-sm">
-            <span className="truncate text-ink-500">
-              {contactName
-                ? contactPhone
-                  ? `${contactName} · ${contactPhone}`
-                  : contactName
-                : "Auto-assigns from the unit"}
-            </span>
-          </div>
+          <Dropdown
+            value={contactId}
+            options={contactOptions}
+            onChange={(v) => {
+              setContactId(v);
+              const c = (contacts ?? []).find((x) => x.id === v);
+              if (c) {
+                setContactName(c.name);
+                setContactPhone(c.phone ?? "");
+              }
+            }}
+            searchable
+            placeholder="Select seller…"
+          />
+          <p className="mt-1 text-xs text-ink-400">{contactName ? `${contactName}${contactPhone ? ` · ${contactPhone}` : ""}` : "Or auto-assigns from unit"}</p>
         </div>
 
         <div className="flex-1 min-w-0">
@@ -573,94 +684,221 @@ export default function PurchaseReturnsPage() {
 
       <section className="mt-3 shrink-0">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Add items</p>
-        <div ref={searchWrapRef} className="relative">
-          <SearchInput
-            value={q}
-            onChange={setQ}
-            onKeyDown={(e) => {
-              const hasResults = flatUnits.length > 0;
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                if (hasResults) setHighlightedIndex((i) => (i + 1) % flatUnits.length);
-              } else if (e.key === "ArrowUp") {
-                e.preventDefault();
-                if (hasResults) setHighlightedIndex((i) => (i <= 0 ? flatUnits.length - 1 : i - 1));
-              } else if (e.key === "Enter") {
-                e.preventDefault();
-                if (hasResults && highlightedIndex >= 0 && highlightedIndex < flatUnits.length) {
-                  pickUnit(flatUnits[highlightedIndex].unit);
+        <div className="flex flex-wrap items-end gap-3">
+          <div ref={searchWrapRef} className="relative min-w-48 flex-1">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              onFocus={() => {
+                setSearchFocused(true);
+                if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q);
+              }}
+              onKeyDown={(e) => {
+                const totalFlat = results.reduce((c, r) => c + (r.units.length > 0 ? r.units.length : r.category.type === "ACCESSORY" ? 1 : 0), 0);
+                const hasResults = totalFlat > 0;
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  if (hasResults) setHighlightedIndex((i) => (i + 1) % totalFlat);
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  if (hasResults) setHighlightedIndex((i) => (i <= 0 ? totalFlat - 1 : i - 1));
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (hasResults && highlightedIndex >= 0) {
+                    const flat = (() => {
+                      let idx = -1;
+                      for (const r of results) {
+                        if (r.units.length === 0) {
+                          if (r.category.type !== "ACCESSORY") continue;
+                          idx++;
+                          if (idx === highlightedIndex) return { type: "product", product: r } as const;
+                        } else {
+                          for (const u of r.units) {
+                            idx++;
+                            if (idx === highlightedIndex) return { type: "unit", unit: u } as const;
+                          }
+                        }
+                      }
+                      return null;
+                    })();
+                    if (flat?.type === "unit") pickUnit(flat.unit);
+                    else if (flat?.type === "product") addAccessoryQuantity(flat.product);
+                    else toast("Quantity accessories return not yet supported — use barcoded units", "error");
+                  } else {
+                    void handleEnterOrScan(q);
+                  }
+                } else if (e.key === "Escape") {
+                  setSearchFocused(false);
+                }
+              }}
+              placeholder="Scan IMEI / Barcode…"
+              variant="white"
+              className="bg-ink-100 h-10 text-sm rounded-[12px]"
+              iconClassName="h-4 w-4"
+            />
+
+            {panelPos && results.length === 0 && (
+              <div
+                style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
+                className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"
+              >
+                <p className="text-sm text-ink-400">
+                  {searching ? "Searching…" : q.trim().length >= 2 ? "No in-stock units for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}
+                </p>
+              </div>
+            )}
+
+            {panelPos && results.length > 0 && (
+              <div
+                ref={listRef}
+                style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
+                className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
+              >
+                {(() => {
+                  let flatIdx = -1;
+                  return results.map((product) => {
+                    if (product.units.length === 0) {
+                      if (product.category.type !== "ACCESSORY") return null;
+                      flatIdx++;
+                      const isActive = flatIdx === highlightedIndex;
+                      return (
+                        <button
+                          key={`prod-${product.id}`}
+                          data-flat={flatIdx}
+                          type="button"
+                          onClick={() => addAccessoryQuantity(product)}
+                          onMouseEnter={() => setHighlightedIndex(flatIdx)}
+                          className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-ink-900">
+                              {[brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ")}
+                            </p>
+                            <p className="text-xs text-ink-500">{product.category.name} · quantity stock</p>
+                          </div>
+                          <span className="text-xs text-ink-400">Qty stock</span>
+                        </button>
+                      );
+                    }
+                    return product.units.map((unit) => {
+                      flatIdx++;
+                      const isActive = flatIdx === highlightedIndex;
+                      return (
+                        <button
+                          key={unit.id}
+                          data-flat={flatIdx}
+                          type="button"
+                          onClick={() => pickUnit(unit)}
+                          onMouseEnter={() => setHighlightedIndex(flatIdx)}
+                          className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-ink-900">
+                              {[brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ")}{" "}
+                              <span className="font-mono text-xs text-ink-500">· {unit.imei}</span>
+                            </p>
+                            <p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
+                              <Badge variant="neutral">{unit.condition}</Badge>
+                              <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
+                            </p>
+                          </div>
+                          <PlusIcon className="h-4 w-4 shrink-0 text-ink-400" />
+                        </button>
+                      );
+                    });
+                  });
+                })()}
+              </div>
+            )}
+          </div>
+          <div className="min-w-64 max-w-[320px] flex-1">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p>
+            <Dropdown
+              value={selProductId}
+              options={productOptions}
+              onChange={(v) => {
+                setSelProductId(v);
+                const p = (products ?? []).find((x) => x.id === v);
+                if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || ""));
+              }}
+              searchable
+              placeholder="Select product…"
+            />
+          </div>
+          <div className="w-20">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
+            <Input
+              value={returnQty}
+              onChange={(e) => setReturnQty(e.target.value.replace(/\D/g, ""))}
+              placeholder="1"
+              inputMode="numeric"
+              className="bg-white text-center"
+            />
+          </div>
+          <div className="w-28">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p>
+            <Input
+              value={returnPrice}
+              onChange={(e) => setReturnPrice(clampMoneyInput(e.target.value))}
+              placeholder="Auto"
+              inputMode="decimal"
+              className="bg-white"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              const totalFlat = results.reduce((c, r) => c + (r.units.length > 0 ? r.units.length : r.category.type === "ACCESSORY" ? 1 : 0), 0);
+              if (totalFlat > 0 && highlightedIndex >= 0) {
+                const flat = (() => {
+                  let idx = -1;
+                  for (const r of results) {
+                    if (r.units.length === 0) {
+                      if (r.category.type !== "ACCESSORY") continue;
+                      idx++;
+                      if (idx === highlightedIndex) return { type: "product", product: r } as const;
+                    } else {
+                      for (const u of r.units) {
+                        idx++;
+                        if (idx === highlightedIndex) return { type: "unit", unit: u } as const;
+                      }
+                    }
+                  }
+                  return null;
+                })();
+                if (flat?.type === "unit") pickUnit(flat.unit);
+                else if (flat?.type === "product") addAccessoryQuantity(flat.product);
+                else void handleEnterOrScan(q);
+              } else if (selProductId) {
+                const p = (products ?? []).find((x) => x.id === selProductId);
+                if (p && p.categoryType === "ACCESSORY") {
+                  const fake: SearchResult = {
+                    id: p.id,
+                    brand: p.brand,
+                    model: p.model,
+                    storage: p.storage,
+                    ram: p.ram,
+                    screenSize: p.screenSize,
+                    color: p.color,
+                    category: { id: p.categoryId, name: p.categoryName, type: p.categoryType },
+                    sellPrice: p.sellPrice,
+                    units: [],
+                  };
+                  addAccessoryQuantity(fake);
                 } else {
                   void handleEnterOrScan(q);
                 }
+              } else {
+                void handleEnterOrScan(q);
               }
             }}
-            placeholder="Scan IMEI of an in-stock unit or search product…"
-            variant="white"
-            className="bg-ink-100 h-14 text-base rounded-[16px]"
-            iconClassName="h-5 w-5"
-          />
-
-          {panelPos && results.length === 0 && q.trim().length >= 2 && (
-            <div
-              style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-              className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"
-            >
-              <p className="text-sm text-ink-400">
-                {searching ? "Searching…" : "No products found."}
-              </p>
-            </div>
-          )}
-
-          {panelPos && results.length > 0 && (
-            <div
-              ref={listRef}
-              style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-              className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
-            >
-              {results.map((result, ri) => {
-                let unitOffset = 0;
-                for (let i = 0; i < ri; i++) unitOffset += results[i].units.length;
-                return (
-                  <div key={result.id} className="rounded-xl">
-                    <div className="px-3 pt-3">
-                      <p className="truncate font-medium text-ink-900">
-                        {[brandOf(result), result.model, result.storage, result.ram, result.screenSize, result.color]
-                          .filter(Boolean)
-                          .join(" ")}
-                      </p>
-                      <p className="text-xs text-ink-500">
-                        {result.category.name} · {result.units.length} unit(s)
-                      </p>
-                    </div>
-                    {result.units.length > 0 && (
-                      <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
-                        {result.units.map((unit, ui) => {
-                          const flatIdx = unitOffset + ui;
-                          const isActive = flatIdx === highlightedIndex;
-                          return (
-                            <button
-                              key={unit.id}
-                              data-flat={flatIdx}
-                              type="button"
-                              onClick={() => pickUnit(unit)}
-                              onMouseEnter={() => setHighlightedIndex(flatIdx)}
-                              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 transition ${isActive ? "bg-brand-50" : "bg-ink-50 hover:bg-brand-50"}`}
-                            >
-                              <span className="truncate text-xs text-ink-700">{unit.imei}</span>
-                              <span className="flex shrink-0 items-center gap-2">
-                                <Badge variant="neutral">{unit.condition}</Badge>
-                                <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            className="h-10 shrink-0 rounded-[12px] px-6"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Add
+          </Button>
         </div>
       </section>
 
@@ -704,18 +942,18 @@ export default function PurchaseReturnsPage() {
                     </td>
                   </tr>
                   {groupLines.map((line) => (
-                    <tr key={line.unitId} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                    <tr key={line.id} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
                       <td className="px-4 py-2.5 pl-9">
-                        <span className="text-[13px] font-medium text-ink-900">{line.imei}</span>
+                        <span className="text-[13px] font-medium text-ink-900">{line.imei ?? `${line.quantity} pcs × ${formatPKR(line.cost)}`}</span>
                       </td>
-                      <td className="px-4 py-2.5 text-ink-700">{line.purchaseNumber}</td>
+                      <td className="px-4 py-2.5 text-ink-700">{line.purchaseNumber || "—"}</td>
                       <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
-                        {formatPKR(line.cost)}
+                        {formatPKR(line.cost * line.quantity)}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <button
                           type="button"
-                          onClick={() => removeLine(line.unitId)}
+                          onClick={() => removeLine(line.id)}
                           title="Remove"
                           className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
                         >

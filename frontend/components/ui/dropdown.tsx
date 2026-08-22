@@ -15,9 +15,12 @@ export type DropdownOption<T extends string = string> = {
 };
 
 function matchOptions<T extends string>(options: DropdownOption<T>[], query: string) {
-  const q = query.toLowerCase();
-  if (!q) return options;
-  return options.filter((o) => o.label.toLowerCase().startsWith(q));
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return options;
+  return options.filter((o) => {
+    const label = o.label.toLowerCase();
+    return tokens.every((t) => label.includes(t));
+  });
 }
 
 type MenuPos = { top: number; left: number; width: number } | null;
@@ -38,6 +41,8 @@ export function Dropdown<T extends string>({
   searchPrefix = "",
   className = "",
   menuClassName = "",
+  open: controlledOpen,
+  onOpenChange,
 }: {
   value: T | null;
   options: DropdownOption<T>[];
@@ -54,8 +59,19 @@ export function Dropdown<T extends string>({
   searchPrefix?: string;
   className?: string;
   menuClassName?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? (v as (p: boolean) => boolean)(open) : v;
+      if (controlledOpen === undefined) setInternalOpen(next);
+      onOpenChange?.(next);
+    },
+    [open, controlledOpen, onOpenChange],
+  );
   const [openUp, setOpenUp] = useState(false);
   const [pos, setPos] = useState<MenuPos>(null);
   const [filter, setFilter] = useState("");

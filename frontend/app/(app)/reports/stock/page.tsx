@@ -72,10 +72,10 @@ export default function StockReportPage() {
 
           {data.bySubCategory.length > 0 && (
             <TopList
-              title="By subcategory (accessories)"
+              title="By leaf category"
               rows={data.bySubCategory.map((sc) => ({
                 id: `${sc.parentName}-${sc.name}`,
-                label: `${sc.parentName} > ${sc.name}`,
+                label: `${sc.parentName} › ${sc.name}`,
                 sub: `${pluralize(sc.units, "unit")}`,
                 value: sc.costValue ?? sc.retailValue,
               }))}

@@ -9,16 +9,13 @@ export const DEFAULT_CATEGORIES: {
   parentId?: string;
 }[] = [
   { id: "cat-phone-new", name: "New Phone", type: "PHONE", sortOrder: 1 },
-  { id: "cat-phone-used", name: "Used Phone", type: "PHONE", sortOrder: 2 },
-  { id: "cat-accessory", name: "Accessory", type: "ACCESSORY", sortOrder: 3 },
-  { id: "cat-acc-cases", name: "Cases & Covers", type: "ACCESSORY", sortOrder: 4, parentId: "cat-accessory" },
-  { id: "cat-acc-chargers", name: "Chargers & Cables", type: "ACCESSORY", sortOrder: 5, parentId: "cat-accessory" },
-  { id: "cat-acc-screens", name: "Screens & Protectors", type: "ACCESSORY", sortOrder: 6, parentId: "cat-accessory" },
-  { id: "cat-acc-batteries", name: "Batteries", type: "ACCESSORY", sortOrder: 7, parentId: "cat-accessory" },
-  { id: "cat-acc-earphones", name: "Earphones & Headphones", type: "ACCESSORY", sortOrder: 8, parentId: "cat-accessory" },
-  { id: "cat-acc-cards", name: "Memory Cards & Storages", type: "ACCESSORY", sortOrder: 9, parentId: "cat-accessory" },
-  { id: "cat-acc-holders", name: "Holders & Stands", type: "ACCESSORY", sortOrder: 10, parentId: "cat-accessory" },
-  { id: "cat-acc-other", name: "Other Accessories", type: "ACCESSORY", sortOrder: 11, parentId: "cat-accessory" },
+  { id: "cat-phone-new-feature", name: "Feature Phone", type: "PHONE", sortOrder: 2, parentId: "cat-phone-new" },
+  { id: "cat-phone-new-smart", name: "Smart Phone", type: "PHONE", sortOrder: 3, parentId: "cat-phone-new" },
+  { id: "cat-phone-used", name: "Used Phone", type: "PHONE", sortOrder: 4 },
+  { id: "cat-phone-used-feature", name: "Feature Phone", type: "PHONE", sortOrder: 5, parentId: "cat-phone-used" },
+  { id: "cat-phone-used-smart", name: "Smart Phone", type: "PHONE", sortOrder: 6, parentId: "cat-phone-used" },
+  { id: "cat-accessory", name: "Accessory", type: "ACCESSORY", sortOrder: 7 },
+  { id: "cat-acc-other", name: "Other Accessories", type: "ACCESSORY", sortOrder: 8, parentId: "cat-accessory" },
 ];
 
 export async function seedCategories() {

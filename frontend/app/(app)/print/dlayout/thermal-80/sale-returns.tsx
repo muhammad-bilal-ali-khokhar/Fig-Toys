@@ -1,5 +1,7 @@
 "use client";
 
+import type { PrintConfig } from "@/lib/constants";
+
 import type { CompanyProfile, Transaction } from "@/lib/api-types";
 import {
   DataTable,
@@ -9,13 +11,15 @@ import {
 
 export function SaleReturnsT80({
   profile,
+  config,
   rows,
 }: {
   profile: CompanyProfile | null;
+  config?: PrintConfig;
   rows: Transaction[];
 }) {
   return (
-    <ReportDocShell profile={profile} title="Sale returns" period="Selected period" format="80">
+    <ReportDocShell profile={profile} config={config} title="Sale returns" period="Selected period" format="80">
       <DataTable
         format="80"
         title={`${rows.length} transaction(s)`}

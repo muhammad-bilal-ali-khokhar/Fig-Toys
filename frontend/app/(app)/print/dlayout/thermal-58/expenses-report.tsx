@@ -1,5 +1,7 @@
 "use client";
 
+import type { PrintConfig } from "@/lib/constants";
+
 import type { CompanyProfile, ExpenseReport, ReportRange } from "@/lib/api-types";
 import { EXPENSE_CATEGORY_LABELS } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
@@ -13,15 +15,17 @@ import {
 
 export function ExpensesReportT58({
   profile,
+  config,
   data,
   range,
 }: {
   profile: CompanyProfile | null;
+  config?: PrintConfig;
   data: ExpenseReport;
   range: ReportRange;
 }) {
   return (
-    <ReportDocShell profile={profile} title="Expenses report" period={formatReportPeriod(range)} format="58">
+    <ReportDocShell profile={profile} config={config} title="Expenses report" period={formatReportPeriod(range)} format="58">
       <KpiStrip
         format="58"
         items={[
