@@ -1,10 +1,16 @@
 /** @type {import('next').NextConfig} */
 const backendUrl = process.env.BACKEND_URL ?? "http://localhost:47620";
+const tenantApiUrl = process.env.TENANT_API_URL ?? "https://fig-tenant-api.p0s.workers.dev";
 
 const nextConfig = {
   output: "standalone",
   async rewrites() {
     return [
+      {
+        source: "/api/:path*",
+        has: [{ type: "host", value: "(?<tenant>.*).fig.myko.pk" }],
+        destination: `${tenantApiUrl}/api/:path*`,
+      },
       {
         source: "/api/:path*",
         destination: `${backendUrl}/api/:path*`,
@@ -44,3 +50,5 @@ const nextConfig = {
 };
 
 export default nextConfig;
+
+import('@opennextjs/cloudflare').then(m => m.initOpenNextCloudflareForDev());

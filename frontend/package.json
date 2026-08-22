@@ -1,13 +1,17 @@
 {
   "name": "fig-mobile-pos-frontend",
-  "version": "0.1.58",
+  "version": "0.1.89",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -p 58340",
     "build": "next build",
+    "dev": "next dev --turbopack -p 58340",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build:production": "node scripts/prepare-production.mjs"
+    "build:production": "node scripts/prepare-production.mjs",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@fontsource/montserrat": "^5.3.0",
@@ -23,6 +27,7 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.2",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/jsbarcode": "^3.11.4",
     "@types/node": "^22.10.7",
@@ -31,6 +36,7 @@
     "@types/react-dom": "^19.0.3",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.125.0"
   }
 }

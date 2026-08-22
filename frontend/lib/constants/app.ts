@@ -37,7 +37,16 @@ export const DEFAULT_LOCALE = "en-PK";
 
 export const DEFAULT_TIMEZONE = "Asia/Karachi";
 
-// Same-origin /api proxy (the Next server forwards it to the backend). Falls
-// back to /api so the app works even when NEXT_PUBLIC_API_URL isn't set at
-// build time (CI/packaged builds don't ship the gitignored .env.local).
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
+export const ROOT_DOMAIN = "fig.myko.pk";
+
+function resolveApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname;
+    if (h.endsWith(ROOT_DOMAIN) || h === "localhost" || h === "127.0.0.1") return "/api";
+    return "/api";
+  }
+  return "/api";
+}
+
+export const API_BASE = resolveApiBase();

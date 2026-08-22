@@ -19,17 +19,35 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
+function apiUrl(path: string): string {
+  if (typeof window !== "undefined" && API_BASE === "/api") {
+    return `/api${path}`;
+  }
+  return `${API_BASE}${path}`;
+}
+
+function tenantHeader(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const h = window.location.hostname;
+  if (h.endsWith("fig.myko.pk") && h !== "fig.myko.pk") {
+    const slug = h.slice(0, -( "fig.myko.pk".length + 1));
+    if (slug) return { "x-tenant": slug };
+  }
+  return {};
+}
+
 export async function apiRequest<T>(
   path: string,
   { method = "GET", body, signal }: RequestOptions = {},
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    res = await fetch(apiUrl(path), {
       method,
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
+        ...tenantHeader(),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,

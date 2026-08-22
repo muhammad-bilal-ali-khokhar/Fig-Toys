@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.58
+## v0.1.89
+
+- Released on: 2026-08-22
+
+- feat: global IMEI/barcode scanner, phone-by-serial enforcement and bank payment overhaul
 
 - Released on: 2026-08-21
 
