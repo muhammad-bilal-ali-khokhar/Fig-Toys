@@ -11,7 +11,7 @@ const outliers = db
         OR (p.categoryId LIKE '%phone-used%' AND p.sellPrice > 100000)
      ORDER BY p.sellPrice DESC LIMIT 15`
   )
-  .all();
+  .all() as any[];
 for (const r of outliers)
   console.log(` ${r.brand} | ${r.model} | ${r.cat} | Rs ${Number(r.sellPrice).toLocaleString()}`);
 
@@ -21,7 +21,7 @@ const rows = db
     `SELECT b.name brand, p.model FROM Product p JOIN brands b ON b.id=p.brandId
      WHERE p.categoryId LIKE 'cat-acc%'`
   )
-  .all();
+  .all() as any[];
 const seen = new Set<string>();
 for (const r of rows) {
   const m = String(r.model).match(/\b(PMX|FOXCON|CASTI|PLY|MIX|ORG|LOSE|SPINGEN|OFFCIAL|OFICAL|LDR|DPTP|PIXIL|HUWEI|NOT |SMAT )/i);
