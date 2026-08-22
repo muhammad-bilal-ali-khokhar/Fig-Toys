@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **CRITICAL FIX: database no longer wiped on update** — data was stored at `C:\Wavlon Studio\Fig POS\data\fig.db` (`desktop/main.js:420` `APP_DATA_DIR`), the same folder the NSIS installer deletes on every OTA `installUpdate():299` `/S` and manual reinstall (`desktop/build/installer.nsh:6`). Now `userDataDir()` is `app.getPath("userData")` (`%APPDATA%\Fig POS for Mobile Phones`) which `electron-builder.yml:54` `deleteAppDataOnUninstall: false` preserves. Added one-time `migrateLegacyDataDir()` at `app.whenReady():1200` to copy `data/logs/fig-runtime.json/fig-secret.txt/backups` from the old location if present. Future updates keep your DB; if already wiped, restore from `*.pre-migrate-*.bak` in `data/`.
+
 ## v0.1.93
 
 - **Single download — full installer only** — removed the separate frontend/backend delta updates. `Settings → Update` now shows one **App** row only (`frontend/components/settings/update-tab.tsx:30`, `frontend/lib/electron.d.ts:4`, `frontend/lib/constants/app.ts:12`). The desktop app no longer checks or downloads `content.json`/`frontend-*.zip`/`backend-*.zip` on the loading screen or via `window.fig.content` (`desktop/main.js:26`, `desktop/preload.js:31`). Updates are **manual-only** via `Check for updates → Download → Install & restart` (`desktop/main.js:237`); the silent startup `checkForUpdates()` and auto-download on `available` are gone. Stale `userData/content` is purged once on next launch.
