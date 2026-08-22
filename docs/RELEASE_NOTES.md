@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.1.90
+
+
+
 ## v0.1.89
 
 - **Global barcode/IMEI scanner** — new `GlobalScannerProvider` (`frontend/components/scanner/global-scanner.tsx:60`, `frontend/app/providers.tsx:19`) wraps the whole app. Press **Ctrl+Shift+S** (⌘+Shift+S on Mac) or tap **Scan IMEI** anywhere (POS, Purchases, Purchase Orders, Inventory, Reservations) to open the camera scanner. Scanning fills the focused IMEI/barcode field or auto-adds the product to the cart. Scanner buttons added to POS (`frontend/app/(app)/pos/page.tsx:912`), Purchases (`frontend/app/(app)/purchases/page.tsx:798`), Reservations (`frontend/app/(app)/reservations/page.tsx`) and Inventory. `ScannerButton` / `ScannerIconButton` (`frontend/components/scanner/scanner-button.tsx:10`) reuse the same provider.

@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.89
+## v0.1.90
+
+- Released on: 2026-08-22
+
+- No notable changes.
 
 - Released on: 2026-08-22
 
