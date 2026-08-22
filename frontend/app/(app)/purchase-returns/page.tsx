@@ -20,9 +20,10 @@ import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
-import { Scanner } from "@/components/scanner";
 import { SearchInput } from "@/components/ui/search-input";
-import { CameraIcon, PlusIcon, XIcon } from "@/components/icons";
+import { ScannerButton } from "@/components/scanner/scanner-button";
+import { useScannerScan } from "@/components/scanner/global-scanner";
+import { PlusIcon, XIcon } from "@/components/icons";
 import { BankPaymentRow, PaymentSummaryCard } from "@/components/payment-bottom";
 import { BankDepositSheet } from "@/components/bank-deposit-sheet";
 
@@ -78,7 +79,6 @@ export default function PurchaseReturnsPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
   const [returnNo, setReturnNo] = useState("PCR-0001");
   const [returnDate, setReturnDate] = useState(() => toISODate(new Date()));
 
@@ -141,6 +141,16 @@ export default function PurchaseReturnsPage() {
   }, [refundTotal, creditAmount, bankRows.length]);
 
   useEffect(() => {
+    const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    if (bankTotal === 0) return;
+    const remaining = refundTotal - (parseFloat(creditAmount) || 0) - bankTotal;
+    const cashVal = parseFloat(cash) || 0;
+    if (cashVal > remaining) {
+      setCash(clampMoneyInput(String(Math.max(0, remaining))));
+    }
+  }, [bankRows, refundTotal, creditAmount, cash]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
@@ -186,11 +196,13 @@ export default function PurchaseReturnsPage() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [searchFocused]);
 
-  const productOptions = (products ?? []).map((p) => ({
-    value: p.id,
-    label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
-    trailing: <span className="text-xs text-ink-400">{formatPKR(p.sellPrice)}</span>,
-  }));
+  const productOptions = (products ?? [])
+    .filter((p) => p.categoryType === "ACCESSORY")
+    .map((p) => ({
+      value: p.id,
+      label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
+      trailing: <span className="text-xs text-ink-400">{formatPKR(p.sellPrice)} · {p.inStock} pcs</span>,
+    }));
 
   const flatUnits = useMemo(() => {
     const units: { unit: SearchResult["units"][number]; productIndex: number }[] = [];
@@ -298,9 +310,7 @@ export default function PurchaseReturnsPage() {
       ]
         .filter(Boolean)
         .join(" ");
-      const cost = returnPrice.trim() ? parseFloat(returnPrice) || parseFloat(res.unit!.costPrice ?? "0") || 0 : parseFloat(res.unit!.costPrice ?? "0") || 0;
-      setReturnPrice(String(cost || ""));
-      setReturnQty("1");
+      const cost = parseFloat(res.unit!.costPrice ?? "0") || 0;
       setCart((prev) => [
         ...prev,
         {
@@ -361,6 +371,13 @@ export default function PurchaseReturnsPage() {
     void tryAddImei(unit.imei);
   }
 
+  useScannerScan((value) => {
+    const el = document.activeElement as HTMLElement | null;
+    const isSearch = el?.getAttribute("data-scanner-input") === "purchase-return-search";
+    const isBody = !el || el === document.body || el.tagName === "BODY";
+    if (isSearch || isBody) void handleEnterOrScan(value);
+  }, [handleEnterOrScan]);
+
   function addAccessoryQuantity(product: SearchResult) {
     const qty = Math.max(1, parseInt(returnQty, 10) || 1);
     const price = returnPrice.trim() ? parseFloat(returnPrice) : parseFloat((product as any).sellPrice ?? "0") || 0;
@@ -394,6 +411,42 @@ export default function PurchaseReturnsPage() {
     });
     setReturnPrice("");
     setReturnQty("1");
+    setResults([]);
+    setHighlightedIndex(-1);
+    toast(`${label} ×${qty} added`, "success");
+  }
+
+  function addAccessoryScanned(product: SearchResult) {
+    const qty = 1;
+    const price = parseFloat((product as any).sellPrice ?? "0") || 0;
+    const prod = (products ?? []).find((p) => p.id === product.id);
+    const available = prod?.inStock ?? Infinity;
+    const existingQty = cart.filter((l) => l.productId === product.id && !l.unitId).reduce((s, l) => s + l.quantity, 0);
+    if (existingQty + qty > available) {
+      toast(`Only ${available} pcs available for ${brandOf(product)} ${product.model}. You tried to add ${existingQty + qty} pcs.`, "error");
+      return;
+    }
+    const label = [brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ");
+    setCart((prev) => {
+      const idx = prev.findIndex((l) => l.productId === product.id && !l.unitId);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], quantity: next[idx].quantity + qty, cost: price || next[idx].cost };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          productId: product.id,
+          productLabel: label,
+          cost: price,
+          quantity: qty,
+          purchaseId: "",
+          purchaseNumber: "",
+        },
+      ];
+    });
     setResults([]);
     setHighlightedIndex(-1);
     toast(`${label} ×${qty} added`, "success");
@@ -635,10 +688,7 @@ export default function PurchaseReturnsPage() {
           <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
             Modify
           </Button>
-          <Button variant="ghost" onClick={() => setScannerOpen(true)}>
-            <CameraIcon className="h-4 w-4" />
-            Scan IMEI
-          </Button>
+          <ScannerButton label="Scan IMEI" variant="ghost" />
           <Link href="/purchases">
             <Button variant="ghost">
               <PlusIcon className="h-4 w-4" />
@@ -688,6 +738,7 @@ export default function PurchaseReturnsPage() {
           <div ref={searchWrapRef} className="relative min-w-48 flex-1">
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
             <SearchInput
+              data-scanner-input="purchase-return-search"
               value={q}
               onChange={setQ}
               onFocus={() => {
@@ -723,7 +774,7 @@ export default function PurchaseReturnsPage() {
                       return null;
                     })();
                     if (flat?.type === "unit") pickUnit(flat.unit);
-                    else if (flat?.type === "product") addAccessoryQuantity(flat.product);
+                    else if (flat?.type === "product") addAccessoryScanned(flat.product);
                     else toast("Quantity accessories return not yet supported — use barcoded units", "error");
                   } else {
                     void handleEnterOrScan(q);
@@ -767,7 +818,7 @@ export default function PurchaseReturnsPage() {
                           key={`prod-${product.id}`}
                           data-flat={flatIdx}
                           type="button"
-                          onClick={() => addAccessoryQuantity(product)}
+                          onClick={() => addAccessoryScanned(product)}
                           onMouseEnter={() => setHighlightedIndex(flatIdx)}
                           className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}
                         >
@@ -813,7 +864,7 @@ export default function PurchaseReturnsPage() {
             )}
           </div>
           <div className="min-w-64 max-w-[320px] flex-1">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
             <Dropdown
               value={selProductId}
               options={productOptions}
@@ -823,7 +874,7 @@ export default function PurchaseReturnsPage() {
                 if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || ""));
               }}
               searchable
-              placeholder="Select product…"
+              placeholder="Select accessory…"
             />
           </div>
           <div className="w-20">
@@ -869,7 +920,7 @@ export default function PurchaseReturnsPage() {
                   return null;
                 })();
                 if (flat?.type === "unit") pickUnit(flat.unit);
-                else if (flat?.type === "product") addAccessoryQuantity(flat.product);
+                else if (flat?.type === "product") addAccessoryScanned(flat.product);
                 else void handleEnterOrScan(q);
               } else if (selProductId) {
                 const p = (products ?? []).find((x) => x.id === selProductId);
@@ -985,15 +1036,53 @@ export default function PurchaseReturnsPage() {
             </p>
           </div>
           <div className="px-5 pb-5">
-            <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
-                  <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
+                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
+                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
                 </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
-                  <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCash(
+                        clampMoneyInput(
+                          String(
+                            refundTotal -
+                              (parseFloat(creditAmount) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Fill remaining as cash
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCreditAmount(
+                        clampMoneyInput(
+                          String(
+                            refundTotal -
+                              (parseFloat(cash) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Fill remaining as credit
+                  </Button>
                 </div>
               </div>
 
@@ -1008,19 +1097,6 @@ export default function PurchaseReturnsPage() {
                   }
                   setBankSheetOpen(true);
                 }}
-                fillLabel="Fill remaining as credit"
-                fillDisabled={bankRows.length >= bankAccounts.length}
-                onFill={() =>
-                  setCreditAmount(
-                    clampMoneyInput(
-                      String(
-                        refundTotal -
-                          (parseFloat(cash) || 0) -
-                          bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                      ),
-                    ),
-                  )
-                }
               />
             </div>
           </div>
@@ -1040,14 +1116,6 @@ export default function PurchaseReturnsPage() {
           </Button>
         </PaymentSummaryCard>
       </div>
-
-      {scannerOpen && (
-        <Scanner
-          title="Scan IMEI or barcode"
-          onScan={(value) => void handleEnterOrScan(value)}
-          onClose={() => setScannerOpen(false)}
-        />
-      )}
 
       <ModifyPicker
         open={modifyPickerOpen}

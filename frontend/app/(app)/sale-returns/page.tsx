@@ -19,9 +19,10 @@ import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
-import { Scanner } from "@/components/scanner";
 import { SearchInput } from "@/components/ui/search-input";
-import { CameraIcon, PlusIcon, PrinterIcon, XIcon } from "@/components/icons";
+import { ScannerButton } from "@/components/scanner/scanner-button";
+import { useScannerScan } from "@/components/scanner/global-scanner";
+import { PlusIcon, PrinterIcon, XIcon } from "@/components/icons";
 import { BankPaymentRow, PaymentSummaryCard } from "@/components/payment-bottom";
 import { BankDepositSheet } from "@/components/bank-deposit-sheet";
 import Link from "next/link";
@@ -70,7 +71,6 @@ export default function SaleReturnsPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
   const [returnNo, setReturnNo] = useState("RET-0001");
   const [returnDate, setReturnDate] = useState(() => toISODate(new Date()));
 
@@ -142,11 +142,13 @@ export default function SaleReturnsPage() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [searchFocused]);
 
-  const productOptions = (products ?? []).map((p) => ({
-    value: p.id,
-    label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
-    trailing: <span className="text-xs text-ink-400">{formatPKR(p.sellPrice)}</span>,
-  }));
+  const productOptions = (products ?? [])
+    .filter((p) => p.categoryType === "ACCESSORY")
+    .map((p) => ({
+      value: p.id,
+      label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
+      trailing: <span className="text-xs text-ink-400">{formatPKR(p.sellPrice)}</span>,
+    }));
 
   const contactOptions = (contacts ?? []).map((c) => ({
     value: c.id,
@@ -278,8 +280,7 @@ export default function SaleReturnsPage() {
       ]
         .filter(Boolean)
         .join(" ");
-      const refund = returnPrice.trim() ? parseFloat(returnPrice) : (res.refund ?? 0);
-      setReturnPrice(String(refund || ""));
+      const refund = res.refund ?? 0;
       setCart((prev) => [
         ...prev,
         {
@@ -340,6 +341,13 @@ export default function SaleReturnsPage() {
     void tryAddImei(unit.imei);
   }
 
+  useScannerScan((value) => {
+    const el = document.activeElement as HTMLElement | null;
+    const isSearch = el?.getAttribute("data-scanner-input") === "sale-return-search";
+    const isBody = !el || el === document.body || el.tagName === "BODY";
+    if (isSearch || isBody) void handleEnterOrScan(value);
+  }, [handleEnterOrScan]);
+
   function removeLine(id: string) {
     setCart((prev) => prev.filter((l) => l.id !== id));
   }
@@ -356,6 +364,16 @@ export default function SaleReturnsPage() {
       setCash(clampMoneyInput(String(refundTotal)));
     }
   }, [refundTotal, creditAmount, bankRows.length]);
+
+  useEffect(() => {
+    const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    if (bankTotal === 0) return;
+    const remaining = refundTotal - (parseFloat(creditAmount) || 0) - bankTotal;
+    const cashVal = parseFloat(cash) || 0;
+    if (cashVal > remaining) {
+      setCash(clampMoneyInput(String(Math.max(0, remaining))));
+    }
+  }, [bankRows, refundTotal, creditAmount, cash]);
 
   useSaveShortcut(() => {
     void submit();
@@ -548,10 +566,7 @@ export default function SaleReturnsPage() {
           <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
             Modify
           </Button>
-          <Button variant="ghost" onClick={() => setScannerOpen(true)}>
-            <CameraIcon className="h-4 w-4" />
-            Scan IMEI
-          </Button>
+          <ScannerButton label="Scan IMEI" variant="ghost" />
           <Link href="/pos">
             <Button variant="ghost">
               <PrinterIcon className="h-4 w-4" />
@@ -601,6 +616,7 @@ export default function SaleReturnsPage() {
           <div ref={searchWrapRef} className="relative min-w-48 flex-1">
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
             <SearchInput
+              data-scanner-input="sale-return-search"
               value={q}
               onChange={setQ}
               onFocus={() => {
@@ -679,7 +695,7 @@ export default function SaleReturnsPage() {
             )}
           </div>
           <div className="min-w-64 max-w-[320px] flex-1">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
             <Dropdown
               value={selProductId}
               options={productOptions}
@@ -689,7 +705,7 @@ export default function SaleReturnsPage() {
                 if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || ""));
               }}
               searchable
-              placeholder="Select product…"
+              placeholder="Select accessory…"
             />
           </div>
           <div className="w-20">
@@ -719,6 +735,10 @@ export default function SaleReturnsPage() {
               if (selProductId) {
                 const p = (products ?? []).find((x) => x.id === selProductId);
                 if (p) {
+                  if (p.categoryType === "PHONE") {
+                    toast("Phones require IMEI — scan the serial", "error");
+                    return;
+                  }
                   const fake: SearchResult = {
                     id: p.id,
                     brand: p.brand,
@@ -841,15 +861,53 @@ export default function SaleReturnsPage() {
             </p>
           </div>
           <div className="px-5 pb-5">
-            <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash paid</p>
-                  <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash paid</p>
+                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">On credit</p>
+                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
                 </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">On credit</p>
-                  <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCash(
+                        clampMoneyInput(
+                          String(
+                            refundTotal -
+                              (parseFloat(creditAmount) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Fill remaining as cash
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCreditAmount(
+                        clampMoneyInput(
+                          String(
+                            refundTotal -
+                              (parseFloat(cash) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Fill remaining as credit
+                  </Button>
                 </div>
               </div>
 
@@ -864,19 +922,6 @@ export default function SaleReturnsPage() {
                   }
                   setBankSheetOpen(true);
                 }}
-                fillLabel="Fill remaining as credit"
-                fillDisabled={bankRows.length >= bankAccounts.length}
-                onFill={() =>
-                  setCreditAmount(
-                    clampMoneyInput(
-                      String(
-                        refundTotal -
-                          (parseFloat(cash) || 0) -
-                          bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                      ),
-                    ),
-                  )
-                }
               />
             </div>
           </div>
@@ -896,14 +941,6 @@ export default function SaleReturnsPage() {
           </Button>
         </PaymentSummaryCard>
       </div>
-
-      {scannerOpen && (
-        <Scanner
-          title="Scan IMEI or barcode"
-          onScan={(value) => void handleEnterOrScan(value)}
-          onClose={() => setScannerOpen(false)}
-        />
-      )}
 
       <ModifyPicker
         open={modifyPickerOpen}

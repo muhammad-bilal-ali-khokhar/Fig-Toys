@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
-import { brandOf, type Contact, type ReservationDetail } from "@/lib/api-types";
+import { brandOf, type Contact, type ProductSummary, type ReservationDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Kbd } from "@/components/ui/kbd";
 import { PriceInput } from "@/components/ui/price-input";
+import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { PaymentSummaryCard } from "@/components/payment-bottom";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
@@ -22,6 +23,7 @@ import { ReservationReceipt } from "@/components/transactions/transaction-receip
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { ChevronLeftIcon, PlusIcon, ReservationIcon, SmartphoneIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
+import { useScannerScan } from "@/components/scanner/global-scanner";
 
 type SearchResult = {
   id: string;
@@ -32,6 +34,7 @@ type SearchResult = {
   screenSize: string | null;
   color: string | null;
   category: { id: string; name: string; type: string };
+  barcode: string | null;
   sellPrice: string;
   units: { id: string; imei: string; condition: "NEW" | "USED"; carrier: "NON_PTA" | "PTA" | "SIM_LOCKED" }[];
 };
@@ -85,6 +88,7 @@ export default function ReservationsPage() {
   const [flow, setFlow] = useState<"RESERVATION" | "CONSIGNMENT" | null>(null);
   const [modifyId, setModifyId] = useState<string | null>(null);
   const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
+  const { data: products } = useApi<ProductSummary[]>("/product");
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -110,6 +114,11 @@ export default function ReservationsPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [addQty, setAddQty] = useState("1");
+  const [addPrice, setAddPrice] = useState("");
+  const [selProductId, setSelProductId] = useState<string | null>(null);
+  const [stockDialog, setStockDialog] = useState<string | null>(null);
 
   useEffect(() => {
     if (highlightedIndex < 0 || !listRef.current) return;
@@ -172,7 +181,7 @@ export default function ReservationsPage() {
     setHighlightedIndex(-1);
   }, [results]);
 
-  const showPanel = searching || results.length > 0;
+  const showPanel = searchFocused;
 
   useEffect(() => {
     if (!showPanel) {
@@ -212,13 +221,13 @@ export default function ReservationsPage() {
 
   useEffect(() => {
     function onDown(event: MouseEvent) {
-      if (panelPos && !searchWrapRef.current?.contains(event.target as Node)) {
-        setResults([]);
+      if (searchFocused && !searchWrapRef.current?.contains(event.target as Node)) {
+        setSearchFocused(false);
       }
     }
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [panelPos]);
+  }, [searchFocused]);
 
   const runSearch = useCallback(
     async (term: string): Promise<SearchResult[]> => {
@@ -268,11 +277,23 @@ export default function ReservationsPage() {
     }
     const product = found[0];
     if (product.units.length === 1) {
-      if (addLine(product, product.units[0])) {
+      if (addLine(product, product.units[0], undefined, 1)) {
+        setQ("");
+        setResults([]);
         toast(`${product.brand} ${product.model} · ${product.units[0].imei} added`, "success");
       }
     } else if (product.units.length === 0) {
-      addLine(product);
+      const prod = (products ?? []).find((p) => p.id === product.id);
+      const available = prod?.inStock ?? Infinity;
+      const existingQty = cart.find((l) => l.key === `prod-${product.id}`)?.quantity ?? 0;
+      if (existingQty + 1 > available) {
+        setStockDialog(`Only ${available} pcs available for ${product.brand} ${product.model}. You tried to add ${existingQty + 1} pcs.`);
+        return;
+      }
+      const ok = addLine(product, undefined, undefined, 1);
+      if (!ok) return;
+      setQ("");
+      setResults([]);
       toast(`${product.brand} ${product.model} added`, "success");
     } else {
       toast("Multiple units. Tap the IMEI", "error");
@@ -285,7 +306,15 @@ export default function ReservationsPage() {
         removeLine(`prod-${item.result.id}`);
         toast(`${item.result.brand} ${item.result.model} removed from reservation`, "success");
       } else {
-        addLine(item.result);
+        const prod = (products ?? []).find((p) => p.id === item.result.id);
+        const available = prod?.inStock ?? Infinity;
+        const existingQty = cart.find((l) => l.key === `prod-${item.result.id}`)?.quantity ?? 0;
+        if (existingQty + 1 > available) {
+          setStockDialog(`Only ${available} pcs available for ${item.result.brand} ${item.result.model}. You tried to add ${existingQty + 1} pcs.`);
+          return;
+        }
+        const ok = addLine(item.result, undefined, undefined, 1);
+        if (!ok) return;
         setQ("");
         setResults([]);
         toast(`${item.result.brand} ${item.result.model} added`, "success");
@@ -295,7 +324,8 @@ export default function ReservationsPage() {
         removeLine(`unit-${item.unit.id}`);
         toast(`${item.result.brand} ${item.result.model} · ${item.unit.imei.slice(-6)} removed from reservation`, "success");
       } else {
-        addLine(item.result, item.unit);
+        const ok = addLine(item.result, item.unit, undefined, 1);
+        if (!ok) return;
         setQ("");
         setResults([]);
         toast(`${item.result.brand} ${item.result.model} · ${item.unit.imei} added`, "success");
@@ -303,7 +333,115 @@ export default function ReservationsPage() {
     }
   }
 
-  function addLine(result: SearchResult, unit?: { id: string; imei: string; carrier?: "NON_PTA" | "PTA" | "SIM_LOCKED" }): boolean {
+  function handleAddClick() {
+    const imei = q.trim();
+    if (imei.length > 0) {
+      const unitMatch = flatItems.find((f) => f.kind === "unit" && f.unit.imei === imei);
+      if (unitMatch) {
+        activateFlatItem(unitMatch);
+        return;
+      }
+      if (results.length > 0) {
+        if (flatItems.length === 1) {
+          activateFlatItem(flatItems[0]);
+          return;
+        }
+        if (highlightedIndex >= 0 && highlightedIndex < flatItems.length) {
+          activateFlatItem(flatItems[highlightedIndex]);
+          return;
+        }
+        if (results.length === 1 && results[0].units.length === 0) {
+          activateFlatItem({ kind: "product", result: results[0], added: false });
+          return;
+        }
+      }
+      void handleSearchEnter();
+      return;
+    }
+    if (selProductId) {
+      const prod = (products ?? []).find((p) => p.id === selProductId);
+      if (!prod) {
+        toast("Select a product first", "error");
+        return;
+      }
+      if (prod.categoryType === "PHONE") {
+        toast("Phones require IMEI/Serial — scan or tap the IMEI from search", "error");
+        return;
+      }
+      const qty = Math.max(1, parseInt(addQty, 10) || 1);
+      const existingQty = cart.find((l) => l.key === `prod-${prod.id}`)?.quantity ?? 0;
+      if (existingQty + qty > prod.inStock) {
+        setStockDialog(`Only ${prod.inStock} pcs available for ${prod.brand} ${prod.model}. You tried to add ${existingQty + qty} pcs.`);
+        return;
+      }
+      const priceOverride = parseFloat(addPrice);
+      const hasPrice = Number.isFinite(priceOverride) && priceOverride >= 0;
+      const fakeResult: SearchResult = {
+        id: prod.id,
+        brand: prod.brand,
+        model: prod.model,
+        storage: prod.storage,
+        ram: prod.ram,
+        screenSize: prod.screenSize,
+        color: prod.color,
+        category: { id: prod.categoryId, name: prod.categoryName, type: prod.categoryType },
+        barcode: prod.barcode ?? null,
+        sellPrice: prod.sellPrice,
+        units: [],
+      };
+      const ok = addLine(fakeResult, undefined, hasPrice ? priceOverride : undefined, qty);
+      if (!ok) return;
+      toast(`${prod.brand} ${prod.model} added`, "success");
+      return;
+    }
+    toast("Select a product or scan IMEI / Barcode", "error");
+  }
+
+  useScannerScan((value) => {
+    const el = document.activeElement as HTMLElement | null;
+    const isSearch = el?.getAttribute("data-scanner-input") === "pos-search";
+    const isBody = !el || el === document.body || el.tagName === "BODY";
+    if (isSearch || isBody) void (async () => {
+      const term = value.trim();
+      if (!term) return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      const found = await runSearch(term);
+      if (found.length === 0) return;
+      if (found.length > 1) {
+        toast("Multiple products. Tap one to add", "error");
+        return;
+      }
+      const product = found[0];
+      if (product.units.length === 1) {
+        if (addLine(product, product.units[0], undefined, 1)) {
+          setQ("");
+          setResults([]);
+          toast(`${product.brand} ${product.model} · ${product.units[0].imei} added`, "success");
+        }
+      } else if (product.units.length === 0) {
+        const prod = (products ?? []).find((p) => p.id === product.id);
+        const available = prod?.inStock ?? Infinity;
+        const existingQty = cart.find((l) => l.key === `prod-${product.id}`)?.quantity ?? 0;
+        if (existingQty + 1 > available) {
+          setStockDialog(`Only ${available} pcs available for ${product.brand} ${product.model}. You tried to add ${existingQty + 1} pcs.`);
+          return;
+        }
+        const ok = addLine(product, undefined, undefined, 1);
+        if (!ok) return;
+        setQ("");
+        setResults([]);
+        toast(`${product.brand} ${product.model} added`, "success");
+      } else {
+        toast("Multiple units. Tap the IMEI", "error");
+      }
+    })();
+  }, [q, results, cart, products]);
+
+  function addLine(result: SearchResult, unit?: { id: string; imei: string; carrier?: "NON_PTA" | "PTA" | "SIM_LOCKED" }, priceOverride?: number, qtyOverride?: number): boolean {
+    if (!unit && result.category.type === "PHONE") {
+      toast("IMEI/Serial required for phones — scan the serial", "error");
+      return false;
+    }
     const label = [
       result.brand,
       result.model,
@@ -317,13 +455,15 @@ export default function ReservationsPage() {
       .join(" ");
     const key = unit ? `unit-${unit.id}` : `prod-${result.id}`;
     const already = cart.some((l) => l.key === key);
+    const nextPrice = priceOverride != null && Number.isFinite(priceOverride) ? priceOverride : parseFloat(result.sellPrice);
+    const nextQty = unit ? 1 : Math.max(1, qtyOverride ?? 1);
     if (already) {
       if (unit) {
         toast("This IMEI is already reserved", "error");
         return false;
       }
       setCart((prev) =>
-        prev.map((l) => (l.key === key ? { ...l, quantity: l.quantity + 1 } : l)),
+        prev.map((l) => (l.key === key ? { ...l, quantity: l.quantity + nextQty } : l)),
       );
       return true;
     }
@@ -335,8 +475,8 @@ export default function ReservationsPage() {
         label,
         imei: unit?.imei ?? null,
         unitId: unit?.id ?? null,
-        unitPrice: parseFloat(result.sellPrice),
-        quantity: 1,
+        unitPrice: nextPrice,
+        quantity: nextQty,
       },
     ]);
     return true;
@@ -471,6 +611,18 @@ export default function ReservationsPage() {
       trailing: c.phone ? <span className="text-xs text-ink-400">{c.phone}</span> : null,
     })),
   ];
+
+  const productOptions = (products ?? [])
+    .filter((p) => p.inStock > 0 && p.categoryType === "ACCESSORY")
+    .map((p) => ({
+      value: p.id,
+      label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
+      trailing: (
+        <span className="text-xs text-ink-400">
+          {formatPKR(p.sellPrice)} · {p.inStock} pcs
+        </span>
+      ),
+    }));
 
   const isWalkIn = contactId === WALK_IN;
   const balanceDue = roundMoney(total - (advance === "" ? 0 : parseFloat(advance) || 0));
@@ -670,10 +822,17 @@ export default function ReservationsPage() {
 
       <section className="mt-6 shrink-0">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Add items</p>
-          <div ref={searchWrapRef} className="relative">
+        <div className="flex flex-wrap items-end gap-3">
+          <div ref={searchWrapRef} className="relative min-w-48 flex-1">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
             <SearchInput
+              data-scanner-input="pos-search"
               value={q}
               onChange={setQ}
+              onFocus={() => {
+                setSearchFocused(true);
+                if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "ArrowDown") {
                   e.preventDefault();
@@ -688,113 +847,136 @@ export default function ReservationsPage() {
                   } else {
                     void handleSearchEnter();
                   }
+                } else if (e.key === "Escape") {
+                  setSearchFocused(false);
                 }
               }}
-              placeholder="Scan IMEI or search product…"
+              placeholder="Scan IMEI / Barcode…"
               variant="white"
-              className="bg-ink-100 h-14 text-base rounded-[16px]"
-              iconClassName="h-5 w-5"
+              className="bg-ink-100 h-10 text-sm rounded-[12px]"
+              iconClassName="h-4 w-4"
             />
 
-            {panelPos && results.length === 0 && q.trim().length >= 2 && (
-                <div
-                  style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                  className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"
-                >
-                  <p className="text-sm text-ink-400">
-                    {searching ? "Searching…" : "No products found."}
-                  </p>
-                </div>
-              )}
+            {panelPos && results.length === 0 && (
+              <div
+                style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
+                className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"
+              >
+                <p className="text-sm text-ink-400">
+                  {searching ? "Searching…" : q.trim().length >= 2 ? "No units found for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}
+                </p>
+              </div>
+            )}
 
             {panelPos && results.length > 0 && (
               <div
                 ref={listRef}
                 style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                className="z-[100] max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
+                className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
               >
-                {(() => {
-                  let flatIdx = -1;
-                  return results.map((result) => {
-                    const inStock = result.units;
-                    const isProductRow = inStock.length === 0;
-                    if (isProductRow) flatIdx++;
-                    const productFlatIdx = isProductRow ? flatIdx : -1;
-                    const isProductHighlighted = productFlatIdx === highlightedIndex;
+                {flatItems.map((item, idx) => {
+                  const isActive = idx === highlightedIndex;
+                  if (item.kind === "product") {
                     return (
-                      <div key={result.id} className="rounded-xl">
-                        <div
-                          className={`flex items-center justify-between gap-3 px-3 pt-3 ${isProductHighlighted ? "bg-brand-50 rounded-xl" : ""}`}
-                          onMouseEnter={() => { if (isProductRow) setHighlightedIndex(productFlatIdx); }}
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-ink-900">
-                              {[result.brand, result.model, result.storage, result.ram, result.screenSize, result.color]
-                                .filter(Boolean)
-                                .join(" ")}
-                            </p>
-                            <p className="text-xs text-ink-500">
-                              {formatPKR(result.sellPrice)} · {result.category.name}
-                            </p>
-                          </div>
-                          {inStock.length === 0 ? (
-                            <button
-                              data-flat={productFlatIdx}
-                              type="button"
-                              onClick={() => activateFlatItem({ kind: "product", result, added: cart.some((l) => l.key === `prod-${result.id}`) })}
-                              className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold ${
-                                cart.some((l) => l.key === `prod-${result.id}`)
-                                  ? "bg-brand-50 text-brand-600 hover:bg-brand-100"
-                                  : isProductHighlighted
-                                    ? "bg-brand-100 text-brand-600"
-                                    : "bg-ink-100 text-ink-600 hover:bg-brand-50"
-                              }`}
-                            >
-                              {cart.some((l) => l.key === `prod-${result.id}`) ? "✓ Added" : "Add"}
-                            </button>
-                          ) : null}
+                      <button
+                        key={`prod-${item.result.id}`}
+                        data-flat={idx}
+                        type="button"
+                        onClick={() => activateFlatItem(item)}
+                        onMouseEnter={() => setHighlightedIndex(idx)}
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${
+                          isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-ink-900">
+                            {item.result.category.type === "ACCESSORY" && item.result.barcode
+                              ? item.result.barcode
+                              : [item.result.brand, item.result.model, item.result.storage, item.result.ram, item.result.screenSize, item.result.color]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                          </p>
+                          <p className="truncate text-xs text-ink-500">
+                            {formatPKR(item.result.sellPrice)} · {item.result.category.name}
+                            {item.result.category.type === "ACCESSORY" && item.result.barcode ? ` · ${item.result.barcode}` : ""}
+                          </p>
                         </div>
-                        {inStock.length > 0 && (
-                          <div className="space-y-1.5 px-1.5 pb-3 pt-1.5">
-                            {inStock.map((unit) => {
-                              flatIdx++;
-                              const added = cart.some((l) => l.key === `unit-${unit.id}`);
-                              const isActive = flatIdx === highlightedIndex;
-                              return (
-                                <button
-                                  key={unit.id}
-                                  data-flat={flatIdx}
-                                  type="button"
-                                  onClick={() => activateFlatItem({ kind: "unit", result, unit, added })}
-                                  onMouseEnter={() => setHighlightedIndex(flatIdx)}
-                                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 ${
-                                    isActive ? "bg-brand-100" : added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
-                                  }`}
-                                >
-                                  <span className={`truncate font-mono text-xs ${added ? "text-brand-600" : "text-ink-700"}`}>
-                                    {unit.imei}
-                                  </span>
-                                  <span className="flex shrink-0 items-center gap-2">
-                                    <Badge variant="neutral">{unit.condition}</Badge>
-                                    <Badge variant="neutral">{CARRIER_LABELS[unit.carrier]}</Badge>
-                                    {added ? (
-                                      <span className="text-xs font-semibold text-brand-600">Added</span>
-                                    ) : (
-                                      <PlusIcon className="h-3.5 w-3.5 text-ink-400" />
-                                    )}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
+                        <span className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${item.added ? "bg-brand-100 text-brand-600" : "bg-white text-ink-600"}`}>
+                          {item.added ? "✓ Added" : "Add"}
+                        </span>
+                      </button>
                     );
-                  });
-                })()}
+                  }
+                  return (
+                    <button
+                      key={item.unit.id}
+                      data-flat={idx}
+                      type="button"
+                      onClick={() => activateFlatItem(item)}
+                      onMouseEnter={() => setHighlightedIndex(idx)}
+                      className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${
+                        isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-ink-900">
+                          {[item.result.brand, item.result.model, item.result.storage, item.result.ram, item.result.screenSize].filter(Boolean).join(" ")}{" "}
+                          <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span>
+                        </p>
+                        <p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
+                          <span>{formatPKR(item.result.sellPrice)}</span>
+                          <Badge variant="neutral">{item.unit.condition}</Badge>
+                          <Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge>
+                        </p>
+                      </div>
+                      <span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>
+                        {item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
+          <div className="min-w-64 max-w-[320px] flex-1">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
+            <Dropdown
+              value={selProductId}
+              options={productOptions}
+              onChange={(v) => {
+                setSelProductId(v);
+                const p = (products ?? []).find((x) => x.id === v);
+                if (p?.sellPrice) setAddPrice(String(parseFloat(p.sellPrice) || ""));
+              }}
+              searchable
+              placeholder="Select accessory…"
+            />
+          </div>
+          <div className="w-20">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
+            <Input
+              value={addQty}
+              onChange={(e) => setAddQty(e.target.value.replace(/\D/g, ""))}
+              placeholder="1"
+              inputMode="numeric"
+              className="bg-white text-center"
+            />
+          </div>
+          <div className="w-28">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p>
+            <Input
+              value={addPrice}
+              onChange={(e) => setAddPrice(clampMoneyInput(e.target.value))}
+              placeholder="Auto"
+              inputMode="decimal"
+              className="bg-white"
+            />
+          </div>
+          <Button type="button" variant="secondary" onClick={handleAddClick} className="h-14 shrink-0 rounded-[16px] px-6">
+            <PlusIcon className="h-4 w-4" />
+            Add
+          </Button>
+        </div>
       </section>
 
       <div className="mb-3 flex shrink-0 items-center justify-between">
@@ -994,6 +1176,15 @@ export default function ReservationsPage() {
         loadForModify(reservation);
       }}
     />
+
+      <Dialog
+        open={stockDialog !== null}
+        title="Not enough stock"
+        message={<p className="text-sm text-ink-600">{stockDialog}</p>}
+        confirmLabel="OK"
+        onCancel={() => setStockDialog(null)}
+        onConfirm={() => setStockDialog(null)}
+      />
     </>
   );
 }

@@ -22,6 +22,8 @@ import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { PlusIcon, PosIcon, RefundIcon, ReservationIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
 import { TypePill } from "@/components/ui/type-pill";
+import { ScannerButton } from "@/components/scanner/scanner-button";
+import { useScannerScan } from "@/components/scanner/global-scanner";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { DiscountFields } from "@/components/discount-fields";
 import { BankPaymentRow, PaymentSummaryCard } from "@/components/payment-bottom";
@@ -261,6 +263,16 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     }
   }, [due, card, credit, bankRows.length]);
 
+  useEffect(() => {
+    const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    if (bankTotal === 0) return;
+    const remaining = due - (parseFloat(card) || 0) - (parseFloat(credit) || 0) - bankTotal;
+    const cashVal = parseFloat(cash) || 0;
+    if (cashVal > remaining) {
+      setCash(clampMoneyInput(String(Math.max(0, remaining))));
+    }
+  }, [bankRows, due, card, credit, cash]);
+
   const runSearch = useCallback(
     async (term: string): Promise<SearchResult[]> => {
       const query = term.trim();
@@ -329,9 +341,6 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
   }, [results]);
 
   function activateFlatItem(item: FlatItem) {
-    const qty = Math.max(1, parseInt(addQty, 10) || 1);
-    const priceOverride = parseFloat(addPrice);
-    const hasPrice = Number.isFinite(priceOverride) && priceOverride >= 0;
     if (item.kind === "product") {
       if (item.added) {
         removeLine(`prod-${item.result.id}`);
@@ -340,11 +349,11 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
         const prod = (products ?? []).find((p) => p.id === item.result.id);
         const available = prod?.inStock ?? Infinity;
         const existingQty = cart.find((l) => l.key === `prod-${item.result.id}`)?.quantity ?? 0;
-        if (existingQty + qty > available) {
-          setStockDialog(`Only ${available} pcs available for ${item.result.brand} ${item.result.model}. You tried to add ${existingQty + qty} pcs.`);
+        if (existingQty + 1 > available) {
+          setStockDialog(`Only ${available} pcs available for ${item.result.brand} ${item.result.model}. You tried to add ${existingQty + 1} pcs.`);
           return;
         }
-        const ok = addLine(item.result, undefined, hasPrice ? priceOverride : undefined, qty);
+        const ok = addLine(item.result, undefined, undefined, 1);
         if (!ok) return;
         setQ("");
         setResults([]);
@@ -355,7 +364,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
         removeLine(`unit-${item.unit.id}`);
         toast(`${item.result.brand} ${item.result.model} · ${item.unit.imei.slice(-6)} removed from sale`, "success");
       } else {
-        const ok = addLine(item.result, item.unit, hasPrice ? priceOverride : undefined, 1);
+        const ok = addLine(item.result, item.unit, undefined, 1);
         if (!ok) return;
         setQ("");
         setResults([]);
@@ -363,6 +372,46 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
       }
     }
   }
+
+  useScannerScan((value) => {
+    const el = document.activeElement as HTMLElement | null;
+    const isSearch = el?.getAttribute("data-scanner-input") === "pos-search";
+    const isBody = !el || el === document.body || el.tagName === "BODY";
+    if (isSearch || isBody) void (async () => {
+      const term = value.trim();
+      if (!term) return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      const found = await runSearch(term);
+      if (found.length === 0) return;
+      if (found.length > 1) {
+        toast("Multiple products. Tap one to add", "error");
+        return;
+      }
+      const product = found[0];
+      if (product.units.length === 1) {
+        if (addLine(product, product.units[0], undefined, 1)) {
+          setQ("");
+          setResults([]);
+          toast(`${product.brand} ${product.model} · ${product.units[0].imei} added`, "success");
+        }
+      } else if (product.units.length === 0) {
+        const prod = (products ?? []).find((p) => p.id === product.id);
+        const available = prod?.inStock ?? Infinity;
+        const existingQty = cart.find((l) => l.key === `prod-${product.id}`)?.quantity ?? 0;
+        if (existingQty + 1 > available) {
+          setStockDialog(`Only ${available} pcs available for ${product.brand} ${product.model}. You tried to add ${existingQty + 1} pcs.`);
+          return;
+        }
+        const ok = addLine(product, undefined, undefined, 1);
+        if (!ok) return;
+        setQ("");
+        setResults([]);
+        toast(`${product.brand} ${product.model} added`, "success");
+      } else {
+        toast("Multiple units. Tap the IMEI", "error");
+      }
+    })();
+  }, [q, results, cart, products]);
 
   async function handleSearchEnter() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -373,11 +422,8 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
       return;
     }
     const product = found[0];
-    const qty = Math.max(1, parseInt(addQty, 10) || 1);
-    const priceOverride = parseFloat(addPrice);
-    const hasPrice = Number.isFinite(priceOverride) && priceOverride >= 0;
     if (product.units.length === 1) {
-      if (addLine(product, product.units[0], hasPrice ? priceOverride : undefined, 1)) {
+      if (addLine(product, product.units[0], undefined, 1)) {
         setQ("");
         setResults([]);
         toast(`${product.brand} ${product.model} · ${product.units[0].imei} added`, "success");
@@ -386,11 +432,11 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
       const prod = (products ?? []).find((p) => p.id === product.id);
       const available = prod?.inStock ?? Infinity;
       const existingQty = cart.find((l) => l.key === `prod-${product.id}`)?.quantity ?? 0;
-      if (existingQty + qty > available) {
-        setStockDialog(`Only ${available} pcs available for ${product.brand} ${product.model}. You tried to add ${existingQty + qty} pcs.`);
+      if (existingQty + 1 > available) {
+        setStockDialog(`Only ${available} pcs available for ${product.brand} ${product.model}. You tried to add ${existingQty + 1} pcs.`);
         return;
       }
-      const ok = addLine(product, undefined, hasPrice ? priceOverride : undefined, qty);
+      const ok = addLine(product, undefined, undefined, 1);
       if (!ok) return;
       setQ("");
       setResults([]);
@@ -431,6 +477,10 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
         toast("Select a product first", "error");
         return;
       }
+      if (prod.categoryType === "PHONE") {
+        toast("Phones require IMEI/Serial — scan or tap the IMEI from search", "error");
+        return;
+      }
       const qty = Math.max(1, parseInt(addQty, 10) || 1);
       const existingQty = cart.find((l) => l.key === `prod-${prod.id}`)?.quantity ?? 0;
       if (existingQty + qty > prod.inStock) {
@@ -467,6 +517,10 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     priceOverride?: number,
     qtyOverride?: number,
   ): boolean {
+    if (!unit && result.category.type === "PHONE") {
+      toast("IMEI/Serial required for phones — scan the serial", "error");
+      return false;
+    }
     const label = [
       result.brand,
       result.model,
@@ -793,11 +847,17 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     const cashPayment = txn.payments.find((p) => p.method === "CASH");
     const cardPayment = txn.payments.find((p) => p.method === "CARD");
     const creditPayment = txn.payments.find((p) => p.method === "CREDIT");
-    const bankPayment = txn.payments.find((p) => p.method === "BANK_TRANSFER");
+    const bankPayments = txn.payments.filter((p) => p.method === "BANK_TRANSFER");
     setCash(cashPayment ? String(parseFloat(cashPayment.amount)) : "");
     setCard(cardPayment ? String(parseFloat(cardPayment.amount)) : "");
     setCredit(creditPayment ? String(parseFloat(creditPayment.amount)) : "");
-    if (bankPayment?.bankAccount) setBankId(bankPayment.bankAccount.id);
+    setBankRows(
+      bankPayments.map((p) => ({
+        id: p.id,
+        amount: String(parseFloat(p.amount)),
+        bankId: p.bankAccount?.id ?? bankId ?? "",
+      })),
+    );
     setQ("");
     setResults([]);
     toast(`Editing ${txn.number}`, "success");
@@ -817,13 +877,12 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
   ];
 
   const productOptions = (products ?? [])
-    .filter((p) => p.inStock > 0)
+    .filter((p) => p.inStock > 0 && p.categoryType === "ACCESSORY")
     .map((p) => ({
       value: p.id,
       label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
       trailing: (
         <span className="text-xs text-ink-400">
-          {p.categoryType === "ACCESSORY" && p.barcode ? `${p.barcode} · ` : ""}
           {formatPKR(p.sellPrice)} · {p.inStock} pcs
         </span>
       ),
@@ -853,6 +912,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Invoice" : "Sale Invoice"}</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <ScannerButton label="Scan IMEI" variant="ghost" />
           <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
             Modify
           </Button>
@@ -953,6 +1013,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
           <div ref={searchWrapRef} className="relative min-w-48 flex-1">
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
             <SearchInput
+              data-scanner-input="pos-search"
               value={q}
               onChange={setQ}
               onFocus={() => {
@@ -1066,7 +1127,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
             )}
           </div>
           <div className="min-w-64 max-w-[320px] flex-1">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
             <Dropdown
               value={selProductId}
               options={productOptions}
@@ -1076,7 +1137,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
                 if (p?.sellPrice) setAddPrice(String(parseFloat(p.sellPrice) || ""));
               }}
               searchable
-              placeholder="Select product…"
+              placeholder="Select accessory…"
             />
           </div>
           <div className="w-20">
@@ -1281,19 +1342,77 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
             </p>
           </div>
           <div className="px-5 pb-5">
-            <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
-                  <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
+                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Card</p>
+                    <Input value={card} onChange={(e) => setCard(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
+                    <Input value={credit} onChange={(e) => setCredit(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
                 </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Card</p>
-                  <Input value={card} onChange={(e) => setCard(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
-                </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
-                  <Input value={credit} onChange={(e) => setCredit(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCash(
+                        clampMoneyInput(
+                          String(
+                            due -
+                              (parseFloat(card) || 0) -
+                              (parseFloat(credit) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Cash
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCard(
+                        clampMoneyInput(
+                          String(
+                            due -
+                              (parseFloat(cash) || 0) -
+                              (parseFloat(credit) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Card
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCredit(
+                        clampMoneyInput(
+                          String(
+                            due -
+                              (parseFloat(cash) || 0) -
+                              (parseFloat(card) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Credit
+                  </Button>
                 </div>
               </div>
 
@@ -1308,20 +1427,6 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
                   }
                   setBankSheetOpen(true);
                 }}
-                fillLabel="Fill remaining as credit"
-                fillDisabled={bankRows.length >= bankAccounts.length}
-                onFill={() =>
-                  setCredit(
-                    clampMoneyInput(
-                      String(
-                        due -
-                          (parseFloat(cash) || 0) -
-                          (parseFloat(card) || 0) -
-                          bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                      ),
-                    ),
-                  )
-                }
               />
             </div>
           {loadedReservation && (
@@ -1369,6 +1474,10 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
           lines={[
             { label: "Discount", amount: invoiceDisc },
             { label: "Tax", amount: tax },
+            ...((parseFloat(cash) || 0) > 0 ? [{ label: "Cash", amount: parseFloat(cash) || 0 }] : []),
+            ...((parseFloat(card) || 0) > 0 ? [{ label: "Card", amount: parseFloat(card) || 0 }] : []),
+            ...((parseFloat(credit) || 0) > 0 ? [{ label: "Credit", amount: parseFloat(credit) || 0 }] : []),
+            ...(bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) > 0 ? [{ label: "Bank", amount: bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) }] : []),
             ...(cardFee > 0 ? [{ label: "Card fee", amount: cardFee }] : []),
             ...(change > 0 ? [{ label: "Change", amount: change, accent: true }] : []),
           ]}

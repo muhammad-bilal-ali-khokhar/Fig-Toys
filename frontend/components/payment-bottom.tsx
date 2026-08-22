@@ -20,43 +20,55 @@ export function BankPaymentRow({
   bankAccounts: BankAccount[];
   onBankSheetOpen: () => void;
   onAddBank: () => void;
-  fillLabel: string;
-  onFill: () => void;
+  fillLabel?: string;
+  onFill?: () => void;
   fillDisabled?: boolean;
 }) {
+  const hasFill = !!fillLabel && !!onFill;
   return (
-    <>
-      {bankRows.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-ink-50 px-3 py-2">
+    <div className="rounded-2xl border border-ink-100 bg-ink-50/40 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Banks</p>
+        <Button
+          variant="secondary"
+          className="px-2.5 py-1 text-xs"
+          disabled={bankRows.length === 0 && bankAccounts.length === 0}
+          onClick={onAddBank}
+        >
+          <PlusIcon className="mr-1 h-3 w-3" />
+          {bankRows.length > 0 ? "Edit banks" : "Add bank"}
+        </Button>
+      </div>
+
+      {bankRows.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
           {bankRows.map((row) => {
             const bank = bankAccounts.find((b) => b.id === row.bankId);
             return (
-              <span key={row.id} className="text-xs text-ink-700">
-                {bank?.bankName ?? "Bank"} · {row.amount ? formatPKR(parseFloat(row.amount)) : "—"}
+              <span
+                key={row.id}
+                className="inline-flex items-center gap-1.5 rounded-full border border-ink-100 bg-white px-2.5 py-1 text-xs font-medium text-ink-700"
+              >
+                <span className="max-w-[90px] truncate">{bank?.bankName ?? "Bank"}{bank?.accountNo ? ` · ${bank.accountNo.slice(-4)}` : ""}</span>
+                <span className="font-semibold text-ink-900">{row.amount ? formatPKR(parseFloat(row.amount)) : "—"}</span>
               </span>
             );
           })}
-          <Button variant="ghost" className="px-2 py-1 text-xs" onClick={onBankSheetOpen}>
-            Edit
+        </div>
+      ) : (
+        <p className="rounded-xl bg-white px-3 py-2 text-xs text-ink-400">
+          No bank selected. Split payment across bank accounts.
+        </p>
+      )}
+
+      {hasFill && (
+        <div className="mt-3 flex justify-end border-t border-ink-100 pt-2">
+          <Button variant="ghost" className="px-2 py-1 text-xs" disabled={fillDisabled} onClick={onFill}>
+            {fillLabel}
           </Button>
         </div>
       )}
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button
-          variant="secondary"
-          className="px-3 py-1.5 text-xs"
-          disabled={fillDisabled}
-          onClick={onAddBank}
-        >
-          <PlusIcon className="mr-1 h-3.5 w-3.5" />
-          {bankRows.length > 0 ? "Edit banks" : "Add bank"}
-        </Button>
-        <Button variant="secondary" className="px-3 py-1.5 text-xs" onClick={onFill}>
-          {fillLabel}
-        </Button>
-      </div>
-    </>
+    </div>
   );
 }
 

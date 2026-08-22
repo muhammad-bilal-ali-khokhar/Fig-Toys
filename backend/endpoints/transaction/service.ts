@@ -99,8 +99,14 @@ export async function createSale(input: CreateSaleInput, userId: string) {
   if (!contact) throw new ApiError(404, "contact.not_found", "Contact not found");
 
   for (const item of input.items) {
-    const product = await prisma.product.findUnique({ where: { id: item.productId } });
+    const product = await prisma.product.findUnique({ where: { id: item.productId }, include: { category: true } });
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+    if (product.category.type === "PHONE" && !item.unitId) {
+      throw new ApiError(400, "sale.phone_requires_imei", `IMEI/Serial required for ${product.model} — phones must be sold by serial`);
+    }
+    if (product.category.type === "PHONE" && item.unitId && item.quantity !== 1) {
+      throw new ApiError(400, "sale.phone_quantity", "Phones must be sold one unit at a time");
+    }
   }
 
   for (const item of input.items) {
@@ -889,8 +895,14 @@ export async function modifySale(id: string, input: CreateSaleInput, userId: str
   if (!contact) throw new ApiError(404, "contact.not_found", "Contact not found");
 
   for (const item of input.items) {
-    const product = await prisma.product.findUnique({ where: { id: item.productId } });
+    const product = await prisma.product.findUnique({ where: { id: item.productId }, include: { category: true } });
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+    if (product.category.type === "PHONE" && !item.unitId) {
+      throw new ApiError(400, "sale.phone_requires_imei", `IMEI/Serial required for ${product.model} — phones must be sold by serial`);
+    }
+    if (product.category.type === "PHONE" && item.unitId && item.quantity !== 1) {
+      throw new ApiError(400, "sale.phone_quantity", "Phones must be sold one unit at a time");
+    }
   }
 
   const items = input.items.map((i) => {

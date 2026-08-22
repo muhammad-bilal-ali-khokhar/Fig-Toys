@@ -32,8 +32,8 @@ import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
 import { ManageWindow } from "@/components/products/manage-window";
 import { TransactionDetailModal } from "@/components/transactions/transaction-detail";
-import { Scanner } from "@/components/scanner";
-import { AlertIcon, CameraIcon, DownloadIcon, FilterIcon, PlusIcon, PrinterIcon, RefundIcon, SettingsIcon, TrashIcon, UploadIcon } from "@/components/icons";
+import { ScannerButton } from "@/components/scanner/scanner-button";
+import { AlertIcon, DownloadIcon, FilterIcon, PlusIcon, PrinterIcon, RefundIcon, SettingsIcon, TrashIcon, UploadIcon } from "@/components/icons";
 
 type SortKey = "imei" | "category" | "status" | "carrier" | "vendor" | "purchased" | "sellPrice" | "retailPrice" | "costPrice";
 
@@ -108,7 +108,6 @@ export default function InventoryPage() {
   const [condition, setCondition] = useState("");
   const [vendor, setVendor] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "purchased", dir: "desc" });
@@ -480,17 +479,6 @@ export default function InventoryPage() {
     setVendor("");
   }
 
-  function onScannerScan(value: string) {
-    const imei = value.trim().toLowerCase();
-    const match = units.find((u) => u.imei.toLowerCase() === imei);
-    if (!match) {
-      toast("No unit found with that IMEI", "error");
-      return;
-    }
-    setQ(value.trim());
-    setScannerOpen(false);
-  }
-
   const totalItems = filteredUnits.length + filteredProducts.length;
 
   const lowStockIds = useMemo(() => new Set(data?.lowStock.map((l) => l.id) ?? []), [data]);
@@ -554,14 +542,12 @@ export default function InventoryPage() {
         <SearchInput
           value={q}
           onChange={setQ}
+          data-scanner-input="inventory-search"
           placeholder="Search by IMEI, brand or model…"
           variant="white"
           wrapperClassName="min-w-[220px] flex-1"
         />
-        <Button variant="grey" onClick={() => setScannerOpen(true)}>
-          <CameraIcon className="h-4 w-4" />
-          Scan IMEI
-        </Button>
+        <ScannerButton label="Scan IMEI" variant="ghost" />
         <Button variant="grey" onClick={() => setFiltersOpen(true)}>
           <FilterIcon className="h-4 w-4" />
           Filters
@@ -1129,14 +1115,6 @@ export default function InventoryPage() {
           </div>
         </div>
       </Sheet>
-
-      {scannerOpen && (
-        <Scanner
-          title="Scan IMEI"
-          onScan={onScannerScan}
-          onClose={() => setScannerOpen(false)}
-        />
-      )}
 
       {selectedTxnId && (
         <TransactionDetailModal

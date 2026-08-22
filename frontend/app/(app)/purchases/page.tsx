@@ -25,7 +25,7 @@ import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playPop, playSuccess } from "@/lib/sound";
-import { Scanner } from "@/components/scanner";
+import { ScannerButton } from "@/components/scanner/scanner-button";
 import { CameraIcon, CheckIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, ReportsIcon, SmartphoneIcon, XIcon } from "@/components/icons";
 
 type PendingUnit = {
@@ -97,7 +97,6 @@ export default function PurchasesPage() {
   const [barcodes, setBarcodes] = useState<string[]>([]);
   const [sameBarcode, setSameBarcode] = useState(false);
   const [singleBarcode, setSingleBarcode] = useState("");
-  const [scannerOpen, setScannerOpen] = useState(false);
   const barcodeFieldRefs = useRef<(HTMLInputElement | null)[]>([]);
   const purchaseClientRef = useRef<string | null>(null);
   const [modifyId, setModifyId] = useState<string | null>(null);
@@ -220,6 +219,22 @@ export default function PurchasesPage() {
     [rows],
   );
   const total = Math.max(0, subtotal - (subtotal * discountPct) / 100 - (parseFloat(discount) || 0));
+
+  useEffect(() => {
+    if (total > 0 && !creditAmount.trim() && bankRows.length === 0) {
+      setCash(clampMoneyInput(String(total)));
+    }
+  }, [total, creditAmount, bankRows.length]);
+
+  useEffect(() => {
+    const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    if (bankTotal === 0) return;
+    const remaining = total - (parseFloat(creditAmount) || 0) - bankTotal;
+    const cashVal = parseFloat(cash) || 0;
+    if (cashVal > remaining) {
+      setCash(clampMoneyInput(String(Math.max(0, remaining))));
+    }
+  }, [bankRows, total, creditAmount, cash]);
 
   function onProductSelect(value: string) {
     setSelProductId(value);
@@ -381,21 +396,6 @@ export default function PurchasesPage() {
     setBarcodes([]);
     setSingleBarcode("");
     setSameBarcode(false);
-  }
-
-  function onScannerScan(value: string) {
-    if (sameBarcode) {
-      setSingleBarcode(value);
-      return;
-    }
-    const idx = barcodes.findIndex((v) => v.trim() === "");
-    if (idx === -1) {
-      toast("All barcodes are already filled", "error");
-      return;
-    }
-    const next = barcodes.map((v, i) => (i === idx ? value : v));
-    setBarcodes(next);
-    focusNextBarcodeField(next, idx);
   }
 
   function focusNextBarcodeField(next: string[], after: number) {
@@ -795,6 +795,7 @@ export default function PurchasesPage() {
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ScannerButton label="Scan IMEI" variant="ghost" />
           <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
             Modify
           </Button>
@@ -1112,15 +1113,53 @@ export default function PurchasesPage() {
             </p>
           </div>
           <div className="px-5 pb-5">
-            <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
-                  <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
+                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
+                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
                 </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
-                  <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCash(
+                        clampMoneyInput(
+                          String(
+                            total -
+                              (parseFloat(creditAmount) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Fill remaining as cash
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCreditAmount(
+                        clampMoneyInput(
+                          String(
+                            total -
+                              (parseFloat(cash) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Fill remaining as credit
+                  </Button>
                 </div>
               </div>
 
@@ -1135,19 +1174,6 @@ export default function PurchasesPage() {
                   }
                   setBankSheetOpen(true);
                 }}
-                fillLabel="Fill remaining as credit"
-                fillDisabled={bankRows.length >= bankAccounts.length}
-                onFill={() =>
-                  setCreditAmount(
-                    clampMoneyInput(
-                      String(
-                        total -
-                          (parseFloat(cash) || 0) -
-                          bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                      ),
-                    ),
-                  )
-                }
               />
             </div>
           </div>
@@ -1213,6 +1239,7 @@ export default function PurchasesPage() {
                     ref={(el) => {
                       imeiFieldRefs.current[i] = el;
                     }}
+                    data-scanner-input="imei"
                     value={val}
                     onChange={(e) => updatePopupImei(i, e.target.value.replace(/\D/g, "").slice(0, 15))}
                     onKeyDown={(e) => {
@@ -1223,7 +1250,7 @@ export default function PurchasesPage() {
                     }}
                     placeholder={`IMEI ${i + 1}`}
                     variant="filled"
-                    className={`rounded-xl py-1.5 font-mono text-xs ${val.length === 15 ? "border border-brand-500/50" : ""}`}
+                    className={`min-w-0 flex-1 rounded-xl py-1.5 font-mono text-xs ${val.length === 15 ? "border border-brand-500/50" : ""}`}
                   />
                   {val.length === 15 ? (
                     <CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />
@@ -1242,6 +1269,7 @@ export default function PurchasesPage() {
             </div>
 
             <div className="mt-5 flex shrink-0 justify-end gap-2">
+              <ScannerButton label="Scan" variant="grey" />
               <Button variant="grey" onClick={closePopup}>
                 Cancel
               </Button>
@@ -1276,6 +1304,7 @@ export default function PurchasesPage() {
             {sameBarcode ? (
               <div className="-mx-1 h-72 space-y-2 overflow-y-auto overscroll-none px-1 py-1">
                 <Input
+                  data-scanner-input="barcode"
                   value={singleBarcode}
                   onChange={(e) => setSingleBarcode(e.target.value)}
                   onKeyDown={(e) => {
@@ -1287,7 +1316,7 @@ export default function PurchasesPage() {
                   placeholder={`Barcode for all ${barcodePopup.qty} units`}
                   variant="filled"
                   autoFocus
-                  className="rounded-xl py-1.5 font-mono text-xs"
+                  className="w-full rounded-xl py-1.5 font-mono text-xs"
                 />
               </div>
             ) : (
@@ -1308,6 +1337,7 @@ export default function PurchasesPage() {
                         ref={(el) => {
                           barcodeFieldRefs.current[i] = el;
                         }}
+                        data-scanner-input="barcode"
                         value={val}
                         onChange={(e) => updateBarcode(i, e.target.value)}
                         onKeyDown={(e) => {
@@ -1318,7 +1348,7 @@ export default function PurchasesPage() {
                         }}
                         placeholder={`Barcode ${i + 1}`}
                         variant="filled"
-                        className={`rounded-xl py-1.5 font-mono text-xs ${val.trim() !== "" ? "border border-brand-500/50" : ""}`}
+                        className={`min-w-0 flex-1 rounded-xl py-1.5 font-mono text-xs ${val.trim() !== "" ? "border border-brand-500/50" : ""}`}
                       />
                       {val.trim() !== "" ? (
                         <CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />
@@ -1339,10 +1369,7 @@ export default function PurchasesPage() {
             )}
 
             <div className="mt-5 flex shrink-0 justify-end gap-2">
-              <Button variant="grey" onClick={() => setScannerOpen(true)}>
-                <CameraIcon className="h-4 w-4" />
-                Scan
-              </Button>
+              <ScannerButton label="Scan IMEI" variant="ghost" />
               <Button variant="grey" onClick={closeBarcodePopup}>
                 Cancel
               </Button>
@@ -1350,14 +1377,6 @@ export default function PurchasesPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {scannerOpen && (
-        <Scanner
-          title="Scan barcode"
-          onScan={onScannerScan}
-          onClose={() => setScannerOpen(false)}
-        />
       )}
 
       <ModifyPicker

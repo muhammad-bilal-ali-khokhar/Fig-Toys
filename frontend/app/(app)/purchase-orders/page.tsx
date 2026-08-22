@@ -143,6 +143,16 @@ export default function PurchaseOrdersPage() {
     [rows],
   );
 
+  useEffect(() => {
+    const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    if (bankTotal === 0) return;
+    const remaining = subtotal - (parseFloat(creditAmount) || 0) - bankTotal;
+    const cashVal = parseFloat(cash) || 0;
+    if (cashVal > remaining) {
+      setCash(clampMoneyInput(String(Math.max(0, remaining))));
+    }
+  }, [bankRows, subtotal, creditAmount, cash]);
+
   function onProductSelect(value: string) {
     setSelProductId(value);
     const p = (products ?? []).find((x) => x.id === value);
@@ -742,15 +752,53 @@ export default function PurchaseOrdersPage() {
             </p>
           </div>
           <div className="px-5 pb-5">
-            <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
-                  <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
+                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
+                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                  </div>
                 </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
-                  <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCash(
+                        clampMoneyInput(
+                          String(
+                            subtotal -
+                              (parseFloat(creditAmount) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Fill remaining as cash
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      setCreditAmount(
+                        clampMoneyInput(
+                          String(
+                            subtotal -
+                              (parseFloat(cash) || 0) -
+                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Fill remaining as credit
+                  </Button>
                 </div>
               </div>
 
@@ -765,19 +813,6 @@ export default function PurchaseOrdersPage() {
                   }
                   setBankSheetOpen(true);
                 }}
-                fillLabel="Fill remaining as credit"
-                fillDisabled={bankRows.length >= bankAccounts.length}
-                onFill={() =>
-                  setCreditAmount(
-                    clampMoneyInput(
-                      String(
-                        subtotal -
-                          (parseFloat(cash) || 0) -
-                          bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                      ),
-                    ),
-                  )
-                }
               />
             </div>
           </div>
