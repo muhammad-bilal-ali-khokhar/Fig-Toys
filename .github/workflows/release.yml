@@ -167,6 +167,7 @@ jobs:
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: fig-pos-setup
           path: |
