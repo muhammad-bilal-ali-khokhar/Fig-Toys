@@ -1,4 +1,7 @@
 ## Unreleased
+
+## v0.1.59
+
 - **Voucher print no longer shows plus/minus sign** — `CPV`/`CRV` vouchers (`frontend/components/print/documents.tsx:736`) now show `Rs 50,000` under **Amount paid** / **Amount received** instead of `- Rs 50,000` / `+ Rs 50,000`. The header label already says paid/received, so the dash was redundant and looked like a deduction on migration pay-outs (e.g. ZAEEM BHAI / RASHID MINHAS).
 - **Full thermal tuning per document type** — Print Studio's Show/Hide now has a Thermal tuning panel: font size, line height, page padding/margin, header scale, density (light/normal/bold), compact mode, logo toggle, QR size and barcode height. Each setting is saved per document type (`SALE`, `PURCHASE`, returns, `VOUCHER`, `EXPENSE`, inventory, contacts, expense sheet + 8 report types) in `print_settings.config` via `PUT /api/print-setting` (`backend/prisma/schema.prisma:546`, `backend/endpoints/print-setting/`). Receipts, vouchers, inventory/contacts/expense sheets and all report layouts (`frontend/components/print/documents.tsx:367`, `frontend/app/(app)/print/dlayout/shared.tsx:22`) render with the saved `fontSize`/`padding`/`margin`/`density` so 58mm and 80mm rolls no longer clip.
 - **58mm now available everywhere** — `INVENTORY_FORMAT_IDS` (`frontend/lib/constants/print.ts:70`) and `Print Studio` format picker (`frontend/app/(app)/print/page.tsx:240`) now offer 58mm for every list and report, and Settings → Print defaults (`frontend/components/settings/print-settings-tab.tsx:20`) include 58mm.

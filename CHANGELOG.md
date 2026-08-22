@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.58
+## v0.1.59
+
+- Released on: 2026-08-22
+
+- feat: screen sizes, per-parent category uniqueness, print config and report/dashboard overhaul
+- fix: voucher print removes +/- sign on amount paid/received
 
 - Released on: 2026-08-21
 
