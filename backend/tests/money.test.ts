@@ -72,13 +72,16 @@ describe("transaction money math", () => {
       product: p,
       contact: await prisma.contact.findFirstOrThrow(),
     }));
+    const unit = await prisma.unit.create({
+      data: { productId: product.id, imei: `overpay-${Date.now()}`, condition: "NEW", costPrice: 5000 },
+    });
 
     const res = await request(app)
       .post("/api/transaction/sale")
       .set(auth())
       .send({
         contactId: contact.id,
-        items: [{ productId: product.id, quantity: 1, unitPrice: 10000 }],
+        items: [{ productId: product.id, unitId: unit.id, quantity: 1, unitPrice: 10000 }],
         payments: [{ method: "CASH", amount: 99999 }],
       });
 
