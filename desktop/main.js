@@ -372,8 +372,8 @@ function checkForUpdates() {
   if (autoUpdaterReady && app.isPackaged) {
     autoUpdater.checkForUpdates().catch((err) => {
       const raw = err && err.message ? String(err.message) : String(err);
-      if (/dev-app-update\.yml|ENOENT/i.test(raw)) {
-        logging.write("OTA: packaged check failed — falling back to latest.json");
+      if (/app-update\.yml|ENOENT|no such file/i.test(raw)) {
+        logging.write(`OTA: app-update.yml missing (${raw}) — falling back to latest.json for older install`);
         fallbackCheck();
         return;
       }
