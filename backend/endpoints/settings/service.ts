@@ -12,6 +12,7 @@ const DEFAULT_SOUND_PREFS = {
 } as const;
 
 const THEME_KEY = "app.theme";
+const DASHBOARD_LAYOUT_KEY = "app.dashboardLayout";
 
 export async function getTheme(): Promise<string | null> {
   const row = await prisma.settings.findUnique({ where: { key: THEME_KEY } });
@@ -25,6 +26,20 @@ export async function updateTheme(theme: string) {
     create: { key: THEME_KEY, value: theme },
   });
   return theme;
+}
+
+export async function getDashboardLayout(): Promise<string | null> {
+  const row = await prisma.settings.findUnique({ where: { key: DASHBOARD_LAYOUT_KEY } });
+  return row?.value ?? null;
+}
+
+export async function updateDashboardLayout(layout: string) {
+  await prisma.settings.upsert({
+    where: { key: DASHBOARD_LAYOUT_KEY },
+    update: { value: layout },
+    create: { key: DASHBOARD_LAYOUT_KEY, value: layout },
+  });
+  return layout;
 }
 
 export async function getCompanyProfile() {

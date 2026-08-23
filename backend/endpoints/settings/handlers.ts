@@ -1,13 +1,15 @@
 import type { Request, Response } from "express";
 import {
   getCompanyProfile,
+  getDashboardLayout,
   getSoundPrefs,
   getTheme,
   updateCompanyProfile,
+  updateDashboardLayout,
   updateSoundPrefs,
   updateTheme,
 } from "./service";
-import type { CompanyProfileInput, SoundPrefsInput, ThemeInput } from "./schemas";
+import type { CompanyProfileInput, DashboardLayoutInput, SoundPrefsInput, ThemeInput } from "./schemas";
 
 export async function companyGetHandler(req: Request, res: Response) {
   res.json({ data: await getCompanyProfile() });
@@ -31,4 +33,12 @@ export async function themeGetHandler(req: Request, res: Response) {
 
 export async function themePutHandler(req: Request, res: Response) {
   res.json({ data: await updateTheme((req.body as ThemeInput).theme) });
+}
+
+export async function dashboardLayoutGetHandler(req: Request, res: Response) {
+  res.json({ data: await getDashboardLayout() });
+}
+
+export async function dashboardLayoutPutHandler(req: Request, res: Response) {
+  res.json({ data: await updateDashboardLayout((req.body as DashboardLayoutInput).layout) });
 }

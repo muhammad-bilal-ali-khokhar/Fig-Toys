@@ -40,7 +40,13 @@ jobs:
             VERSION="${{ github.event.inputs.version }}"
           else
             CURRENT=$(node -p "require('./desktop/package.json').version")
-            VERSION=$(node -e "const [m,j,p]=process.argv[1].split('.').map(Number); console.log(m+'.'+j+'.'+(p+1))" "$CURRENT")
+            VERSION=$(node -e "
+              let [m,j,p]=process.argv[1].split('.').map(Number);
+              p+=1;
+              if (p>=100) { p=0; j+=1; }
+              if (j>=100) { j=0; m+=1; }
+              console.log(m+'.'+j+'.'+p);
+            " "$CURRENT")
           fi
           ./scripts/version.sh "$VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"

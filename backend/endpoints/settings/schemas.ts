@@ -40,3 +40,9 @@ export const themeSchema = z.object({
 });
 
 export type ThemeInput = z.infer<typeof themeSchema>;
+
+export const dashboardLayoutSchema = z.object({
+  layout: z.enum(["classic", "new"]),
+});
+
+export type DashboardLayoutInput = z.infer<typeof dashboardLayoutSchema>;

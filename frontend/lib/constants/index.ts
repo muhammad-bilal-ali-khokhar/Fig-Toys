@@ -15,6 +15,7 @@ export * from "./products";
 export * from "./reports";
 export * from "./sound";
 export * from "./themes";
+export * from "./layouts";
 export * from "./transactions";
 export * from "./ui";
 export * from "./units";

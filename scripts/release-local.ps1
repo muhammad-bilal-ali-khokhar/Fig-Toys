@@ -46,7 +46,11 @@ if (Test-Path $envFile) {
 Step "Version"
 if (-not $Version) {
   $cur = (Get-Content "$Root\desktop\package.json" | ConvertFrom-Json).version
-  $parts = $cur.Split('.'); $parts[2] = [int]$parts[2] + 1; $Version = $parts -join '.'
+  $parts = $cur.Split('.') | ForEach-Object { [int]$_ }
+  $parts[2] += 1
+  if ($parts[2] -ge 100) { $parts[2] = 0; $parts[1] += 1 }
+  if ($parts[1] -ge 100) { $parts[1] = 0; $parts[0] += 1 }
+  $Version = $parts -join '.'
   Write-Host "Auto-bump $cur → $Version" -ForegroundColor Yellow
 }
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version must be semver like 0.1.91" }

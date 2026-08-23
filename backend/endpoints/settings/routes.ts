@@ -6,12 +6,14 @@ import { validate } from "../../core/middleware/validate";
 import {
   companyGetHandler,
   companyPutHandler,
+  dashboardLayoutGetHandler,
+  dashboardLayoutPutHandler,
   soundGetHandler,
   soundPutHandler,
   themeGetHandler,
   themePutHandler,
 } from "./handlers";
-import { companyProfileSchema, soundPrefsSchema, themeSchema } from "./schemas";
+import { companyProfileSchema, dashboardLayoutSchema, soundPrefsSchema, themeSchema } from "./schemas";
 
 const router = Router();
 
@@ -24,5 +26,7 @@ router.get("/sound", requirePermission(PERMISSIONS.settingsView), asyncHandler(s
 router.put("/sound", requirePermission(PERMISSIONS.settingsView), validate(soundPrefsSchema), asyncHandler(soundPutHandler));
 router.get("/theme", asyncHandler(themeGetHandler));
 router.put("/theme", validate(themeSchema), asyncHandler(themePutHandler));
+router.get("/dashboard-layout", asyncHandler(dashboardLayoutGetHandler));
+router.put("/dashboard-layout", validate(dashboardLayoutSchema), asyncHandler(dashboardLayoutPutHandler));
 
 export default router;

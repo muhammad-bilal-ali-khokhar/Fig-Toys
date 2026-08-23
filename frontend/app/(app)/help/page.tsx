@@ -9,7 +9,7 @@ import { DEVELOPER, HELP_SECTIONS, type HelpSectionId } from "@/lib/constants";
 type GroupProps = { children: React.ReactNode };
 
 function Group({ children }: GroupProps) {
-  return <div className="divide-y divide-ink-100 overflow-hidden rounded-2xl bg-white">{children}</div>;
+  return <div className="overflow-hidden rounded-2xl bg-white">{children}</div>;
 }
 
 function SectionTitle({ children }: GroupProps) {
