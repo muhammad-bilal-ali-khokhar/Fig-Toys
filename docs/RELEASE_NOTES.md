@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **Test release to verify your auto update flow end to end. This is a safe check to make sure download, install and restart work perfectly on your shop PC. Just update as usual and your app will restart on the latest version.**
+
 ## v0.2.6
 
 - **Your update install now feels beautiful and clear. Watch progress live with a smooth ring, a big percentage and friendly status messages like Copying files and Almost done so you always know your update is moving forward. The new progress bar makes waiting calm and confident.**
