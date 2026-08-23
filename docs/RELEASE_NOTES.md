@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.8
+
 - **Updates are now truly one click. Hit Download and watch a smooth progress bar finish the job, no Next buttons or prompts. Your app downloads only the changed parts so updates are much faster and use less internet. The installer runs automatically and restarts Fig POS for you.**
 - **Faster smarter updates plus a cleaner install. Differential downloads mean only a few MB instead of the full app, and the installer now updates in place without asking you to confirm. You get a clear Installing message and the app comes back ready.**
 
