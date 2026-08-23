@@ -48,8 +48,9 @@ publish:
   url: https://download.myko.pk/
 
 nsis:
-  oneClick: false
+  oneClick: true
   perMachine: false
+  allowToChangeInstallationDirectory: false
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: Fig POS

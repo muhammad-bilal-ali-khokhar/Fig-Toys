@@ -420,8 +420,8 @@ function spawnUpdater(installerPath, ver) {
   const p = installerPath || updateState.installerPath || "";
   logging.write(`OTA: spawning updater window for v${v} installer=${p || "(will download)"}`);
   try {
-    const updaterArgs = app.isPackaged ? ["--updater", p, v] : [ROOT, "--updater", p, v];
-    const child = spawn(process.execPath, updaterArgs, { detached: true, stdio: "ignore" });
+    const updaterArgs = app.isPackaged ? ["--updater", p, v] : [path.join(__dirname, "main.js"), "--updater", p, v];
+    const child = spawn(process.execPath, updaterArgs, { detached: true, stdio: "ignore", windowsHide: true });
     child.on("error", (e) => logging.error(`OTA: updater spawn failed: ${e.message}`));
     child.unref();
     logging.write(`OTA: updater window spawned pid ${child.pid}`);
@@ -460,6 +460,23 @@ async function downloadUpdate() {
       pushUpdateState();
       return updateSnapshot();
     }
+  }
+  if (autoUpdaterReady && app.isPackaged) {
+    updateState.downloading = true;
+    updateState.installing = false;
+    updateState.error = "";
+    pushUpdateState();
+    logging.write(`OTA: starting differential download via electron-updater for v${updateState.version}`);
+    try {
+      await autoUpdater.downloadUpdate();
+    } catch (err) {
+      const raw = err && err.message ? String(err.message) : String(err);
+      logging.error(`OTA: differential download failed (${raw}) — falling back to full download via updater window`);
+      updateState.downloading = false;
+      pushUpdateState();
+      spawnUpdater("", updateState.version);
+    }
+    return updateSnapshot();
   }
   updateState.downloading = true;
   updateState.installing = false;
@@ -1298,26 +1315,23 @@ async function runUpdater() {
         try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: "Installer not found." }).catch(() => {}); } catch {}
         return;
       }
-      sendUpdaterProgress(win, 96, "Installing… please wait");
-      logging.write(`Updater: spawning silent installer ${installerPath} /S --force-run`);
-      const child = spawn(installerPath, ["/S", "--force-run"], { detached: false, stdio: "ignore" });
-      child.on("error", (e) => {
+      sendUpdaterProgress(win, 96, "Installing… app will close and restart — please wait");
+      logging.write(`Updater: spawning auto installer ${installerPath} --force-run (oneClick progress, no clicks)`);
+      try {
+        const child = spawn(installerPath, ["--force-run"], { detached: true, stdio: "ignore", windowsHide: false });
+        child.on("error", (e) => {
+          logging.error(`Updater: spawn failed: ${e.message}`);
+          try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: String(e.message) }).catch(() => {}); } catch {}
+        });
+        child.unref();
+        logging.write(`Updater: installer spawned pid ${child.pid} — updater will quit so NSIS can overwrite Program Files (NSIS oneClick shows auto progress)`);
+      } catch (e) {
         logging.error(`Updater: spawn failed: ${e.message}`);
-        try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: String(e.message) }).catch(() => {}); } catch {}
-      });
-      child.on("close", (code) => {
-        logging.write(`Updater: installer exited with code ${code}`);
-        sendUpdaterProgress(win, 100, "100% — restarting…");
-        setTimeout(() => {
-          try {
-            const c2 = spawn(exePath, [], { detached: true, stdio: "ignore" });
-            c2.unref();
-            logging.write(`Updater: relaunched ${exePath} pid ${c2.pid}`);
-          } catch (e) { logging.error(`Updater: relaunch failed: ${e.message}`); }
-          app.quit();
-          setTimeout(() => { try { app.exit(0); } catch {} }, 500);
-        }, 800);
-      });
+      }
+      setTimeout(() => {
+        app.quit();
+        setTimeout(() => { try { app.exit(0); } catch {} }, 500);
+      }, 900);
     } catch (e) {
       logging.error(`Updater: fatal ${e.message}`);
       try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: String(e.message) }).catch(() => {}); } catch {}

@@ -10,23 +10,9 @@
   WriteRegExpandStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "C:\Wavlon Studio\Fig POS"
 !macroend
 
-# When the app is already installed, ask before overwriting. Uses the
-# uninstall registry entry (written only by a real install) rather than
-# InstallLocation, which preInit fakes to force the default folder. Skips in
-# silent mode so OTA self-updates still install without prompts.
+# oneClick auto-update — never prompt when already installed, just update in place.
+# Silent /S OTA and visible oneClick both proceed without a Yes/No dialog.
 !macro customInit
-  ${ifNot} ${Silent}
-    ReadRegStr $0 HKCU "${UNINSTALL_REGISTRY_KEY}" "DisplayName"
-    ${if} $0 == ""
-      ReadRegStr $0 HKLM "${UNINSTALL_REGISTRY_KEY}" "DisplayName"
-    ${endIf}
-    ${if} $0 != ""
-      MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 \
-        "Fig POS is already installed.$\r$\n$\r$\nDo you want to update it to this version?$\r$\n$\r$\nChoose No to cancel and leave the current installation unchanged." \
-        IDYES +2
-      Abort
-    ${endIf}
-  ${endIf}
 !macroend
 
 # Friendly welcome text on the assisted-installer welcome page.
