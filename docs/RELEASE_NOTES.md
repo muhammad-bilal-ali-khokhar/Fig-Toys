@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.4
+
 - **Updates just work. Even older installs can now find new versions reliably. Your app will check correctly every time and download only what changed. No more missing update info.**
 
 ## v0.2.3
