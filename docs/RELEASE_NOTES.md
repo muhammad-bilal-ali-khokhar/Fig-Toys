@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.1.100
+
 - **Update notes now render as formatted text with markdown** — `frontend/components/settings/update-tab.tsx:114` showed `releaseNotes` raw in a `max-h-48 overflow-auto whitespace-pre-wrap` scroll box so `**bold**`/`code` appeared literally. Now `ReleaseNotes` parses markdown (`**bold**` → bold, `` `code` `` → code badge, `-` → bullet list) in a normal flow `rounded-2xl py-3` block. `desktop/about.html:433` `setNotes()` updated similarly — no `pre-wrap`/`max-height` scroll, proper `<ul>`/`<code>` rendering.
 
 ## v0.1.99
