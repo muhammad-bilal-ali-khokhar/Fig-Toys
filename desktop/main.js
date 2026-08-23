@@ -316,8 +316,22 @@ async function downloadUpdate(manifest) {
 }
 
 function installUpdate() {
-  if (!updateState.installerPath || !fs.existsSync(updateState.installerPath)) return;
-  const { exec } = require("node:child_process");
+  if (!updateState.installerPath || !fs.existsSync(updateState.installerPath)) {
+    logging.error(`OTA: installer not found at ${updateState.installerPath}`);
+    try {
+      dialog.showMessageBox(mainWindow, {
+        type: "error",
+        title: "Update failed",
+        message: "Update installer not found.",
+        detail: "Please try downloading again from Settings → Update.",
+      }).catch(() => {});
+    } catch {}
+    return;
+  }
+  const { spawn } = require("node:child_process");
+  const installerPath = updateState.installerPath;
+  const exePath = app.getPath("exe");
+  logging.write(`OTA: installing ${installerPath} (current exe: ${exePath})`);
   try {
     const win = new BrowserWindow({
       width: 420,
@@ -337,13 +351,39 @@ function installUpdate() {
     );
     win.show();
     setTimeout(() => {
-      exec(`"${updateState.installerPath}" /S`, () => {});
-      setTimeout(() => app.quit(), 600);
+      try {
+        const helper = path.join(app.getPath("temp"), `fig-install-${Date.now()}.bat`);
+        const bat = `@echo off\r\n` +
+          `ping 127.0.0.1 -n 3 > nul\r\n` +
+          `start "" /wait "${installerPath.replace(/"/g, '""')}" /S\r\n` +
+          `ping 127.0.0.1 -n 3 > nul\r\n` +
+          `start "" "${exePath.replace(/"/g, '""')}"\r\n` +
+          `(del "%~f0")\r\n`;
+        fs.writeFileSync(helper, bat, "utf8");
+        spawn("cmd.exe", ["/c", helper], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+        logging.write(`OTA: helper batch spawned at ${helper}`);
+      } catch (e) {
+        logging.error(`OTA: helper spawn failed: ${e.message} — falling back to direct spawn`);
+        try {
+          spawn(installerPath, ["/S"], { detached: true, stdio: "ignore" }).unref();
+        } catch (err2) {
+          logging.error(`OTA: direct spawn failed: ${err2.message}`);
+        }
+      }
+      setTimeout(() => {
+        app.quit();
+        setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
+      }, 800);
     }, 900);
     return;
+  } catch (e) {
+    logging.error(`OTA: install window failed: ${e.message}`);
+  }
+  try {
+    spawn(installerPath, ["/S"], { detached: true, stdio: "ignore" }).unref();
   } catch {}
-  exec(`"${updateState.installerPath}" /S`, () => {});
   app.quit();
+  setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
 }
 
 // ---------------------------------------------------------------------------
@@ -963,11 +1003,10 @@ function createWindow(url) {
     icon: APP_ICON,
     title: "Fig POS for Mobile Phones",
     backgroundColor: "#f6f5f2",
-    // Hide the native title bar but keep the OS window controls (traffic lights
-    // on macOS, min/max/close overlay on Windows/Linux). The renderer adds a
-    // draggable strip so the window can still be moved.
     titleBarStyle: "hidden",
-    ...(process.platform !== "darwin" ? { titleBarOverlay: true } : {}),
+    ...(process.platform !== "darwin"
+      ? { titleBarOverlay: { color: "#f6f5f2", symbolColor: "#1c1916", height: 32 } }
+      : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
