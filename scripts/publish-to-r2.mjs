@@ -176,10 +176,14 @@ async function main() {
   if (latestYmlKey) {
     const ymlBuf = readFileSync(path.join(SOURCE, latestYml));
     const ymlText = ymlBuf.toString("utf8");
-    const patchedYaml = ymlText
-      .replace(/^(\s*url:\s*).+$/m, `$1${absoluteUrl}`)
+    let patchedYaml = ymlText
+      .replace(/url:\s*Fig-POS-Setup[^ \n]*\.exe/g, `url: ${absoluteUrl}`)
       .replace(/^(\s*path:\s*).+$/m, `$1${absoluteUrl}`);
-    finalYml = /^\s*url:/m.test(patchedYaml) ? patchedYaml : patchedYaml + `\nfiles:\n  - url: ${absoluteUrl}\n    sha512: ${sha512b64}\n    size: ${setupBuf.length}\n`;
+    if (/^\s*files:/m.test(patchedYaml)) {
+      finalYml = patchedYaml;
+    } else {
+      finalYml = patchedYaml + `\nfiles:\n  - url: ${absoluteUrl}\n    sha512: ${sha512b64}\n    size: ${setupBuf.length}\n`;
+    }
   } else {
     const now = new Date().toISOString();
     finalYml = `version: ${version}\nfiles:\n  - url: ${absoluteUrl}\n    sha512: ${sha512b64}\n    size: ${setupBuf.length}\npath: ${absoluteUrl}\nsha512: ${sha512b64}\nreleaseDate: '${now}'\n`;
