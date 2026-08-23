@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.98
+## v0.1.99
+
+- Released on: 2026-08-23
+
+- feat: security & encryption + expanded contact & support
+- fix: show visible installer for updates instead of silent
 
 - Released on: 2026-08-23
 
