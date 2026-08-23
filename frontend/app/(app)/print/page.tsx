@@ -395,8 +395,14 @@ function PrintStudioContent() {
   useEffect(() => {
     const cur = settings?.[printDocType];
     if (cur) applySetting(cur);
+    else if (settings) {
+      setFormat("80");
+      setOptions({ ...defaultOptionsFor(docToLayoutType(printDocType)) });
+      setQrType("whatsapp");
+      setConfig({ ...PRINT_DEFAULT_CONFIG });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [printDocType]);
+  }, [printDocType, settings]);
 
   async function saveSetting(overrides?: { format?: PrintFormatId; options?: Record<string, boolean>; qrType?: QrTarget; config?: PrintConfig }) {
     if (!settings) return;

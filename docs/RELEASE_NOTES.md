@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **Your POS just got faster and smarter. Search now finds products instantly, pick date and time for every sale and return, and see your last sale hint while adding items so you price with confidence. Save with Ctrl plus Enter and print right after sale without extra clicks.**
+- **Purchases and returns rebuilt for busy shops. New layouts for purchases, purchase orders, sale returns and purchase returns give you grouped item tables, clear payment breakdowns with Fill buttons, and instant barcode checks. Pick any product and add stock in one smooth flow.**
+- **Sharper every day tools. Global search now jumps to products, sales, purchases and contacts with smart actions like Modify or Print, the calendar handles date and time beautifully, and inventory and print views stay clean in your chosen theme.**
+
 ## v0.2.8
 
 - **Updates are now truly one click. Hit Download and watch a smooth progress bar finish the job, no Next buttons or prompts. Your app downloads only the changed parts so updates are much faster and use less internet. The installer runs automatically and restarts Fig POS for you.**

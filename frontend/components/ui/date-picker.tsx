@@ -13,14 +13,29 @@ function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function formatValue(value: string) {
-  const [y, m, d] = value.split("-").map(Number);
+function parseDateTime(value: string): { date: string; time: string } {
+  if (!value) return { date: "", time: "00:00" };
+  const [d, t] = value.split("T");
+  if (t) return { date: d, time: t.slice(0, 5) };
+  if (value.includes(" ")) {
+    const [dd, tt] = value.split(" ");
+    return { date: dd, time: (tt ?? "00:00").slice(0, 5) };
+  }
+  return { date: value, time: "00:00" };
+}
+
+function formatValue(value: string, withTime?: boolean) {
+  const { date, time } = parseDateTime(value);
+  const [y, m, d] = date.split("-").map(Number);
   if (!y || !m || !d) return "";
-  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+  const base = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+  if (withTime && time) return `${base} ${time}`;
+  return base;
 }
 
 function parseDateInput(text: string): string | null {
-  const match = text.trim().match(/^(\d{1,2})[/\-. ](\d{1,2})[/\-. ](\d{4})$/);
+  const datePart = text.trim().split(" ")[0];
+  const match = datePart.match(/^(\d{1,2})[/\-. ](\d{1,2})[/\-. ](\d{4})$/);
   if (!match) return null;
   const d = Number(match[1]);
   const m = Number(match[2]);
@@ -47,32 +62,49 @@ export function DatePicker({
   value,
   onChange,
   className = "",
+  withTime = false,
+  variant = "light",
 }: {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  withTime?: boolean;
+  variant?: "light" | "dark";
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [text, setText] = useState(() => formatValue(value));
+  const [text, setText] = useState(() => formatValue(value, withTime));
 
-  const selected = value ? new Date(`${value}T00:00:00`) : null;
+  const selected = value ? new Date(`${parseDateTime(value).date}T00:00:00`) : null;
   const [view, setView] = useState(() => startOfDay(selected ?? new Date()));
   const [mode, setMode] = useState<"day" | "month" | "year">("day");
+  const [time, setTime] = useState(() => parseDateTime(value).time || "00:00");
 
   useEffect(() => {
-    setText(formatValue(value));
-  }, [value]);
+    setText(formatValue(value, withTime));
+    if (withTime) setTime(parseDateTime(value).time || "00:00");
+  }, [value, withTime]);
 
   function commit() {
     const parsed = parseDateInput(text);
     if (parsed) {
-      onChange(parsed);
+      if (withTime) onChange(`${parsed}T${time}`);
+      else onChange(parsed);
     } else {
-      setText(formatValue(value));
+      setText(formatValue(value, withTime));
     }
+  }
+
+  function updateTime(next: string) {
+    const [h, m] = next.split(":").map(Number);
+    const hh = String(Math.min(23, Math.max(0, isNaN(h) ? 0 : h))).padStart(2, "0");
+    const mm = String(Math.min(59, Math.max(0, isNaN(m) ? 0 : m))).padStart(2, "0");
+    const t = `${hh}:${mm}`;
+    setTime(t);
+    const parsed = parseDateInput(text) ?? parseDateTime(value).date;
+    if (parsed) onChange(`${parsed}T${t}`);
   }
 
   useEffect(() => {
@@ -145,12 +177,13 @@ export function DatePicker({
 
   function pick(day: number) {
     const next = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    onChange(next);
+    onChange(withTime ? `${next}T${time}` : next);
     setOpen(false);
   }
 
   function quickPick(d: Date) {
-    onChange(toISODate(d));
+    const dStr = toISODate(d);
+    onChange(withTime ? `${dStr}T${time}` : dStr);
     setOpen(false);
   }
 
@@ -163,9 +196,12 @@ export function DatePicker({
     );
   }
 
+  const isDark = variant === "dark";
   return (
-    <div ref={rootRef} className={`relative ${className}`}>
-      <div className="flex h-9 w-full items-center gap-1 rounded-2xl bg-white pl-3.5 pr-1 transition focus-within:ring-2 focus-within:ring-brand-500/40">
+    <div ref={rootRef} className={`relative min-w-0 ${className}`}>
+      <div
+        className={`flex h-9 w-full items-center gap-1 rounded-2xl pl-3.5 pr-1 transition focus-within:ring-2 focus-within:ring-white/30 ${isDark ? "bg-white text-ink-900" : "bg-white"}`}
+      >
         <input
           ref={inputRef}
           type="text"
@@ -185,7 +221,7 @@ export function DatePicker({
         <button
           type="button"
           onClick={() => setOpen((prev) => !prev)}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-ink-400 transition hover:bg-ink-200 hover:text-ink-700"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-ink-400 transition hover:bg-ink-100 hover:text-ink-700"
           aria-label="Open calendar"
         >
           <CalendarIcon className="h-4 w-4" />
@@ -309,6 +345,12 @@ export function DatePicker({
             </div>
           )}
 
+          {withTime && (
+            <div className="mt-3 flex items-center gap-2 border-t border-ink-100 pt-3">
+              <input type="time" value={time} onChange={(e) => updateTime(e.target.value)} className="flex-1 rounded-xl bg-ink-50 px-3 py-2 text-sm text-ink-900 outline-none" />
+              <span className="text-xs font-medium text-ink-500">{time}</span>
+            </div>
+          )}
           {mode === "day" && (
             <div className="grid grid-cols-7 gap-1 text-center">
               {WEEKDAYS.map((w) => (

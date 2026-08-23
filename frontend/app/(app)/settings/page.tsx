@@ -975,7 +975,7 @@ export default function SettingsPage() {
 
         {tab === "appearance" && (
           <>
-            <PaneTitle title="Appearance" subtitle="Try the new layout. Classic stays default. New switches the dashboard, help and sidebar together. We will update everything to the new style." />
+            <PaneTitle title="Appearance" subtitle="New is now the default for fresh installs. Switch between Classic and New. New switches the dashboard, help and sidebar together. We will update everything to the new style." />
             <Group>
               <div className="px-4 py-3">
                 <p className="text-sm font-semibold text-ink-900">Dashboard, Help and Sidebar layout</p>
@@ -1005,7 +1005,7 @@ export default function SettingsPage() {
               </div>
             </Group>
             <div className="mt-4 rounded-2xl bg-ink-900 px-4 py-3 text-xs leading-relaxed text-white/80">
-              <span className="font-semibold text-white">Note:</span> Choice is saved to this device and synced to your account. Classic stays default; New is Beta for testing.
+              <span className="font-semibold text-white">Note:</span> Choice is saved to this device and synced to your account. New is default for new installs. Existing installs keep Classic until you switch to New in Settings.
             </div>
           </>
         )}

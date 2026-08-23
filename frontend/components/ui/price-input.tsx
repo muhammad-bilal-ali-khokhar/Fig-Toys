@@ -23,6 +23,13 @@ export function PriceInput({
   useEffect(() => {
     if (!focused) setText(value > 0 ? String(value) : "");
   }, [value, focused]);
+  function commit(raw: string) {
+    let n = parseFloat(raw);
+    if (!Number.isFinite(n) || n < 0) n = 0;
+    if (max !== undefined && n > max) n = max;
+    if (n !== value) onChange(n);
+    setText(n > 0 ? String(n) : "");
+  }
   return (
     <Input
       value={text}
@@ -35,13 +42,18 @@ export function PriceInput({
         setFocused(true);
         setText(value > 0 ? String(value) : "");
       }}
-      onBlur={() => setFocused(false)}
+      onBlur={() => {
+        setFocused(false);
+        commit(text);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
       onChange={(e) => {
         setText(e.target.value);
-        let n = parseFloat(e.target.value);
-        if (!Number.isFinite(n) || n < 0) n = 0;
-        if (max !== undefined && n > max) n = max;
-        onChange(n);
       }}
     />
   );

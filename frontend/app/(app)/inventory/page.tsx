@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import type { Brand, Category, Color, InventoryData, InventoryProduct, Unit } from "@/lib/api-types";
@@ -95,12 +96,14 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
 export default function InventoryPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const { data, loading, refetch } = useApi<InventoryData>("/inventory");
   const { data: categories } = useApi<Category[]>("/category");
   const { data: brands } = useApi<Brand[]>("/brand");
   const { data: colors } = useApi<Color[]>("/color");
   const [q, setQ] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [productIdFilter, setProductIdFilter] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
   const [colorId, setColorId] = useState("");
@@ -145,6 +148,15 @@ export default function InventoryPage() {
   const visibleColumns = INVENTORY_COLUMNS.filter((c) => view.columns[c.key]).map((c) => c.key);
   const unitColSpan = visibleColumns.length + 1;
 
+  useEffect(() => {
+    const imei = searchParams.get("imei");
+    const qp = searchParams.get("q") ?? searchParams.get("search") ?? searchParams.get("barcode");
+    const pid = searchParams.get("productId");
+    if (imei) setQ(imei);
+    else if (qp) setQ(qp);
+    if (pid) setProductIdFilter(pid);
+  }, [searchParams]);
+
   const allowedCategoryIds = useMemo(() => {
     if (!categoryId && !subcategoryId) return null;
     const target = findCategory(activeCategories, subcategoryId || categoryId);
@@ -183,6 +195,7 @@ export default function InventoryPage() {
 
   const filteredUnits = useMemo(() => {
     return units.filter((u) => {
+      if (productIdFilter && u.product.id !== productIdFilter) return false;
       if (allowedCategoryIds && !allowedCategoryIds.has(u.product.categoryId)) return false;
       if (brandId && u.product.brandId !== brandId) return false;
       if (colorId && u.product.colorId !== colorId) return false;
@@ -197,10 +210,11 @@ export default function InventoryPage() {
         .toLowerCase()
         .includes(query);
     });
-  }, [units, q, allowedCategoryIds, brandId, colorId, status, carrier, condition, vendor]);
+  }, [units, q, productIdFilter, allowedCategoryIds, brandId, colorId, status, carrier, condition, vendor]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
+      if (productIdFilter && p.id !== productIdFilter) return false;
       if (allowedCategoryIds && !allowedCategoryIds.has(p.categoryId)) return false;
       if (brandId && p.brandId !== brandId) return false;
       if (colorId && p.colorId !== colorId) return false;
@@ -469,7 +483,7 @@ export default function InventoryPage() {
   const allSelected = filteredUnits.length > 0 && selectedCount === filteredUnits.length;
   const someSelected = selectedCount > 0 && selectedCount < filteredUnits.length;
 
-  const activeFilterCount = [categoryId, subcategoryId, brandId, colorId, status, carrier, condition, vendor].filter(Boolean).length;
+  const activeFilterCount = [categoryId, subcategoryId, brandId, colorId, status, carrier, condition, vendor, productIdFilter].filter(Boolean).length;
 
   function resetFilters() {
     setCategoryId("");
@@ -480,6 +494,8 @@ export default function InventoryPage() {
     setCarrier("");
     setCondition("");
     setVendor("");
+    setProductIdFilter("");
+    setQ("");
   }
 
   const totalItems = filteredUnits.length + filteredProducts.length;
@@ -555,7 +571,10 @@ export default function InventoryPage() {
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         <SearchInput
           value={q}
-          onChange={setQ}
+          onChange={(v) => {
+            setQ(v);
+            if (productIdFilter && v !== q) setProductIdFilter("");
+          }}
           data-scanner-input="inventory-search"
           placeholder="Search by IMEI, brand or model…"
           variant="white"
@@ -570,6 +589,20 @@ export default function InventoryPage() {
           )}
         </Button>
       </div>
+      {(q || productIdFilter) && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-3 py-2 text-sm">
+          <span className="text-ink-500">
+            {productIdFilter ? `Filtering by product` : `Searching for “${q}”`} — {totalItems} result(s)
+          </span>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="ml-auto text-sm font-semibold text-brand-600 hover:text-brand-700"
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">

@@ -14,12 +14,24 @@ export async function globalSearch(q: string): Promise<SearchResult[]> {
   const term = q.trim();
   if (!term) return [];
 
-  const [units, transactions, vouchers, expenses, orders, reservations, contacts] = await Promise.all([
+  const [units, products, transactions, vouchers, expenses, orders, reservations, contacts] = await Promise.all([
     prisma.unit.findMany({
       where: { imei: { contains: term } },
       take: 10,
       include: { product: { select: { brand: { select: { name: true } }, model: true, storage: true } } },
       orderBy: { acquiredAt: "desc" },
+    }),
+    prisma.product.findMany({
+      where: {
+        OR: [
+          { model: { contains: term } },
+          { barcode: { contains: term } },
+          { brand: { is: { name: { contains: term } } } },
+        ],
+      },
+      take: 10,
+      include: { brand: { select: { name: true } }, category: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
     }),
     prisma.transaction.findMany({
       where: {
@@ -82,6 +94,16 @@ export async function globalSearch(q: string): Promise<SearchResult[]> {
       title: `${u.product.brand.name} ${u.product.model}${u.product.storage ? ` ${u.product.storage}` : ""}`,
       subtitle: `${u.condition} · ${u.status}`,
       date: u.acquiredAt.toISOString(),
+    });
+  }
+
+  for (const p of products) {
+    results.push({
+      kind: "PRODUCT",
+      id: p.id,
+      number: p.barcode ?? p.model,
+      title: `${p.brand.name} ${p.model}${p.storage ? ` ${p.storage}` : ""}`,
+      subtitle: p.category.name,
     });
   }
 

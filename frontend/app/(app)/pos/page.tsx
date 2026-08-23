@@ -19,7 +19,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { PriceInput } from "@/components/ui/price-input";
 import { useToast } from "@/components/ui/toast";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
-import { PlusIcon, PosIcon, RefundIcon, ReservationIcon, XIcon } from "@/components/icons";
+import { useDashboardLayout } from "@/lib/dashboard-layout-context";
+import { PlusIcon, PosIcon, PrinterIcon, RefundIcon, ReservationIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
 import { TypePill } from "@/components/ui/type-pill";
 import { ScannerButton } from "@/components/scanner/scanner-button";
@@ -77,6 +78,8 @@ const WALK_IN = "__walk_in__";
 
 export default function PosPage() {
   const { toast } = useToast();
+  const { layout } = useDashboardLayout();
+  const isNewLayout = layout === "new";
   const searchParams = useSearchParams();
   const { data: contacts, refetch: refetchContacts } = useApi<Contact[]>("/contact");
   const { data: bankData } = useApi<BankAccount[]>("/bank-account");
@@ -120,7 +123,10 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     advance: number;
     contactId: string;
   } | null>(null);
-  const [saleDate, setSaleDate] = useState(() => toISODate(new Date()));
+  const [saleDate, setSaleDate] = useState(() => {
+    const d = new Date();
+    return `${toISODate(d)}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  });
   const [invoiceNo, setInvoiceNo] = useState("SAL-0001");
   const [modifyId, setModifyId] = useState<string | null>(null);
   const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
@@ -133,6 +139,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
   const [addQty, setAddQty] = useState("1");
   const [addPrice, setAddPrice] = useState("");
   const [selProductId, setSelProductId] = useState<string | null>(null);
+  const [lastSale, setLastSale] = useState<TransactionDetail | null>(null);
   const [stockDialog, setStockDialog] = useState<string | null>(null);
   const [lowPriceDialog, setLowPriceDialog] = useState<{ label: string } | null>(null);
 
@@ -593,18 +600,18 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
-  function updateGroupPrice(productId: string, unitPrice: number) {
-    const sample = cart.find((l) => l.productId === productId);
+  function updateGroupPrice(groupKey: string, unitPrice: number) {
+    const sample = cart.find((l) => `${l.productId}:${l.condition ?? ""}` === groupKey);
     const cost = sample?.costPrice ?? 0;
     if (cost > 0 && unitPrice < cost) {
       setLowPriceDialog({ label: sample?.label ?? "Item" });
       return;
     }
-    setCart((prev) => prev.map((l) => (l.productId === productId ? { ...l, unitPrice } : l)));
+    setCart((prev) => prev.map((l) => (`${l.productId}:${l.condition ?? ""}` === groupKey ? { ...l, unitPrice } : l)));
   }
 
-  function updateGroupDiscount(productId: string, patch: Partial<CartLine>) {
-    const sample = cart.find((l) => l.productId === productId);
+  function updateGroupDiscount(groupKey: string, patch: Partial<CartLine>) {
+    const sample = cart.find((l) => `${l.productId}:${l.condition ?? ""}` === groupKey);
     const cost = sample?.costPrice ?? 0;
     const nextPct = patch.discountPct ?? sample?.discountPct ?? 0;
     const nextFlat = patch.discountFlat ?? sample?.discountFlat ?? 0;
@@ -614,7 +621,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
       setLowPriceDialog({ label: sample?.label ?? "Item" });
       return;
     }
-    setCart((prev) => prev.map((l) => (l.productId === productId ? { ...l, ...patch } : l)));
+    setCart((prev) => prev.map((l) => (`${l.productId}:${l.condition ?? ""}` === groupKey ? { ...l, ...patch } : l)));
   }
 
   async function openReservationPicker() {
@@ -627,6 +634,40 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     } finally {
       setPickLoading(false);
     }
+  }
+
+  async function addSameFromLastSale() {
+    if (!lastSale) return;
+    for (const it of lastSale.items as any[]) {
+      const pid = it.productId ?? it.product?.id;
+      const prod = (products ?? []).find((p) => p.id === pid);
+      if (!prod) continue;
+      const uid = it.unitId ?? it.unit?.id ?? null;
+      if (uid) {
+        try {
+          const unitsRes: any = await apiRequest<any>(`/unit?productId=${encodeURIComponent(prod.id)}`);
+          const units: any[] = Array.isArray(unitsRes) ? unitsRes : unitsRes?.data ?? [];
+          const unit = units.find((u) => u.status === "IN_STOCK");
+          if (unit) {
+            const label = [prod.brand, prod.model, prod.storage, prod.ram, prod.screenSize].filter(Boolean).join(" ");
+            setCart((prev) => {
+              const key = `unit-${unit.id}`;
+              if (prev.some((l) => l.key === key)) return prev;
+              return [...prev, { key, productId: prod.id, label, imei: unit.imei, unitId: unit.id, unitPrice: parseFloat(it.unitPrice as any), costPrice: Number((unit as any).costPrice ?? prod.costPrice), quantity: 1, discountPct: 0, discountFlat: 0, condition: (unit as any).condition, carrier: (unit as any).carrier, color: prod.color ?? undefined }];
+            });
+          } else toast(`${prod.brand} ${prod.model} out of stock`, "error");
+        } catch { toast("Could not add same", "error"); }
+      } else {
+        const label = [prod.brand, prod.model].filter(Boolean).join(" ");
+        setCart((prev) => {
+          const key = `prod-${prod.id}`;
+          const existing = prev.find((l) => l.key === key);
+          if (existing) return prev.map((l) => l.key === key ? { ...l, quantity: l.quantity + (it.quantity ?? 1) } : l);
+          return [...prev, { key, productId: prod.id, label, imei: null, unitId: null, unitPrice: parseFloat(it.unitPrice as any), costPrice: Number(prod.costPrice), quantity: it.quantity ?? 1, discountPct: 0, discountFlat: 0, color: prod.color ?? undefined }];
+        });
+      }
+    }
+    toast("Added last bought items", "success");
   }
 
   function loadReservation(reservation: ReservationDetail) {
@@ -688,21 +729,35 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     let customerId = contactId;
     if (isWalkIn) {
       const name = walkInName.trim();
-      if (!name) {
-        toast("Enter a name for the walk-in customer", "error");
-        return;
-      }
-      try {
-        const created = await apiRequest<Contact>("/contact", {
-          method: "POST",
-          body: { name, phone: walkInPhone.trim() || undefined },
-        });
-        customerId = created.id;
-        void refetchContacts();
-        toast(`${created.name} saved as a customer`, "success");
-      } catch (err) {
-        toast(err instanceof Error ? err.message : "Couldn't save the customer", "error");
-        return;
+      if (name) {
+        try {
+          const created = await apiRequest<Contact>("/contact", {
+            method: "POST",
+            body: { name, phone: walkInPhone.trim() || undefined },
+          });
+          customerId = created.id;
+          void refetchContacts();
+          toast(`${created.name} saved as a customer`, "success");
+        } catch (err) {
+          toast(err instanceof Error ? err.message : "Couldn't save the customer", "error");
+          return;
+        }
+      } else {
+        const generic = (contacts ?? []).find((c) => c.name.toLowerCase() === "walk-in customer" || c.name.toLowerCase() === "walk-in");
+        if (generic) customerId = generic.id;
+        else {
+          try {
+            const created = await apiRequest<Contact>("/contact", {
+              method: "POST",
+              body: { name: "Walk-in Customer", phone: walkInPhone.trim() || undefined },
+            });
+            customerId = created.id;
+            void refetchContacts();
+          } catch {
+            toast("Could not create walk-in customer", "error");
+            return;
+          }
+        }
       }
     }
     if (!customerId) {
@@ -776,7 +831,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
           })),
           payments: filteredPayments,
           discount: invoiceDisc,
-          date: saleDate ? (saleDate === toISODate(new Date()) ? new Date().toISOString() : new Date(`${saleDate}T00:00:00`).toISOString()) : undefined,
+          date: saleDate ? new Date(saleDate.includes("T") ? saleDate : `${saleDate}T00:00:00`).toISOString() : undefined,
         },
       });
       setReceipt(txn);
@@ -812,14 +867,14 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     setBankSheetOpen(false);
     setWalkInName("");
     setWalkInPhone("");
-    setContactId(contacts?.[0]?.id ?? null);
+    setContactId(WALK_IN);
   }
 
   function loadForModify(txn: TransactionDetail) {
     setModifyId(txn.id);
     setReceipt(null);
     setContactId(txn.contact.id);
-    setSaleDate(txn.createdAt.slice(0, 10));
+    setSaleDate(txn.createdAt.slice(0, 16));
     setInvoiceNo(txn.number);
     setInvoiceDiscount(parseFloat(txn.discount) > 0 ? String(parseFloat(txn.discount)) : "");
     setInvoiceDiscountPct(0);
@@ -869,11 +924,17 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
       label: "Walk-in (new)",
       trailing: <span className="text-xs text-ink-400">save as new customer</span>,
     },
-    ...(contacts ?? []).map((c) => ({
-      value: c.id,
-      label: c.name,
-      trailing: c.phone ? <span className="text-xs text-ink-400">{c.phone}</span> : null,
-    })),
+    ...((contacts ?? [])
+      .filter((c) => {
+        const n = c.name.toLowerCase();
+        if (n === "walk-in" || n === "walk-in customer" || n === "opening stock" || n.includes("historical") || n === "walkin-historical") return false;
+        return true;
+      })
+      .map((c) => ({
+        value: c.id,
+        label: c.name,
+        trailing: c.phone ? <span className="text-xs text-ink-400">{c.phone}</span> : null,
+      }))),
   ];
 
   const productOptions = (products ?? [])
@@ -890,25 +951,180 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
 
   const isWalkIn = contactId === WALK_IN;
 
-  if (receipt) {
+  useEffect(() => {
+    if (contactId === null) setContactId(WALK_IN);
+  }, [contacts]);
+
+  useEffect(() => {
+    if (!contactId || contactId === WALK_IN) { setLastSale(null); return; }
+    let cancel = false;
+    (async () => {
+      try {
+        const getId = (res: any) => {
+          const arr = Array.isArray(res) ? res : res?.data ?? [];
+          return arr?.[0]?.id ?? null;
+        };
+        const findByContact = async (res: any) => {
+          const arr: any[] = Array.isArray(res) ? res : res?.data ?? [];
+          return arr.find((t: any) => (t.contact?.id ?? t.contactId) === contactId)?.id ?? null;
+        };
+        let tid: string | null = null;
+        try {
+          const list: any = await apiRequest<any>(`/transaction?contactId=${encodeURIComponent(contactId)}&type=SALE&limit=1`);
+          tid = getId(list);
+          if (!tid) {
+            const all: any = await apiRequest<any>(`/transaction?limit=50&type=SALE`);
+            tid = await findByContact(all);
+          }
+        } catch {
+          const all: any = await apiRequest<any>(`/transaction?limit=50&type=SALE`);
+          tid = await findByContact(all);
+        }
+        if (cancel || !tid) { if (!cancel) setLastSale(null); return; }
+        const detail: any = await apiRequest<any>(`/transaction/${tid}`);
+        if (!cancel) setLastSale(detail?.data ?? detail);
+      } catch { if (!cancel) setLastSale(null); }
+    })();
+    return () => { cancel = true; };
+  }, [contactId]);
+
+  const lastHint = !isWalkIn && lastSale && cart.length > 0 ? (() => {
+    const priceByPid = new Map<string, number>();
+    for (const it of lastSale.items as any[]) {
+      const pid = it.productId ?? it.product?.id;
+      if (pid && !priceByPid.has(pid)) priceByPid.set(pid, Number(it.unitPrice));
+    }
+    const rows: { key: string; label: string; cur: number; last: number; productId: string; isGroup: boolean }[] = [];
+    for (const g of cartGroups.groups) {
+      const pid = g.lines[0].productId;
+      const last = priceByPid.get(pid);
+      if (last !== undefined && last !== g.unitPrice) rows.push({ key: g.key, label: g.label, cur: g.unitPrice, last, productId: pid, isGroup: true });
+    }
+    for (const l of cartGroups.plain) {
+      const last = priceByPid.get(l.productId);
+      if (last !== undefined && last !== l.unitPrice) rows.push({ key: l.key, label: l.label, cur: l.unitPrice, last, productId: l.productId, isGroup: false });
+    }
+    if (rows.length === 0) return (
+      <div className="rounded-2xl border border-dashed border-ink-200 bg-white p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Last price</p>
+        <p className="mt-1 text-xs text-ink-400">No previous price for these items.</p>
+      </div>
+    );
     return (
-      <TransactionReceipt
-        type="SALE"
-        detail={receipt}
-        onModify={loadForModify}
-        onNew={reset}
-      />
+      <div className="rounded-2xl bg-white p-3 space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Last price for this customer</p>
+        {rows.map((r) => (
+          <div key={r.key} className="flex items-center justify-between gap-2 rounded-xl bg-ink-50 px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-ink-900">{r.label}</p>
+              <p className="text-xs text-ink-500">{formatPKR(r.cur)} → <span className="font-semibold text-brand-600">{formatPKR(r.last)}</span> <span className="text-ink-400">· {lastSale.number}</span></p>
+            </div>
+            <Button variant="secondary" className="h-7 shrink-0 px-2.5 text-xs" onClick={() => r.isGroup ? updateGroupPrice(r.key, r.last) : updateLine(r.key, { unitPrice: r.last })}>Use {formatPKR(r.last)}</Button>
+          </div>
+        ))}
+      </div>
+    );
+  })() : !isWalkIn && lastSale ? (
+    <div className="rounded-2xl bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Last bought</p>
+        <span className="text-xs text-ink-400">{new Date(lastSale.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} · {lastSale.number}</span>
+      </div>
+      <p className="mt-1 truncate text-xs text-ink-500">Add an item to see its last price for this customer.</p>
+    </div>
+  ) : !isWalkIn ? (
+    <div className="rounded-2xl border border-dashed border-ink-200 bg-white p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Last price</p>
+      <p className="mt-1 text-xs text-ink-400">No previous sales for this customer yet.</p>
+    </div>
+  ) : null;
+
+  if (isNewLayout) {
+    const paymentSection = (
+      <div className="flex h-full flex-col gap-3">
+        {lastHint}
+        <div className="flex-1 rounded-2xl bg-white p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">Payment</h3>
+            <p className="text-xs text-ink-400">Due <span className="font-semibold text-ink-900">{formatPKR(due)}</span></p>
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, due - (parseFloat(card) || 0) - (parseFloat(credit) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(due - (parseFloat(card) || 0) - (parseFloat(credit) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill cash</Button></div>
+            <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Card</p><Input value={card} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, due - (parseFloat(cash) || 0) - (parseFloat(credit) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCard(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCard(clampMoneyInput(String(due - (parseFloat(cash) || 0) - (parseFloat(credit) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill card</Button></div>
+            <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={credit} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, due - (parseFloat(cash) || 0) - (parseFloat(card) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCredit(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCredit(clampMoneyInput(String(due - (parseFloat(cash) || 0) - (parseFloat(card) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill credit</Button></div>
+          </div>
+          <div className="mt-3"><BankPaymentRow bankRows={bankRows} bankAccounts={bankAccounts} onBankSheetOpen={() => setBankSheetOpen(true)} onAddBank={() => { if (bankRows.length === 0) { const next = bankAccounts[0]; setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]); } setBankSheetOpen(true); }} /></div>
+          {loadedReservation && (<div className="mt-3 flex flex-wrap items-center gap-2 text-xs"><Badge className="rounded-lg px-2 py-1" variant={loadedReservation.type === "CONSIGNMENT" ? "info" : "warning"}>{loadedReservation.number}</Badge>{loadedReservation.type === "CONSIGNMENT" ? (<span className="text-ink-500">Agreed total <span className="font-semibold text-ink-900">{formatPKR(total)}</span></span>) : (<><span className="text-ink-500">Advance <span className="font-semibold text-ink-900">{formatPKR(loadedReservation.advance)}</span></span><span className="text-ink-500">Balance due <span className="font-semibold text-ink-900">{formatPKR(advanceApplies > 0 ? due : total)}</span></span></>)}<button type="button" onClick={() => setLoadedReservation(null)} className="rounded-lg p-1 text-ink-400 hover:bg-ink-100 hover:text-error"><XIcon className="h-3.5 w-3.5" /></button></div>)}
+        </div>
+        <div className="sticky bottom-0 rounded-2xl bg-white p-4">
+          <div className="flex items-baseline justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Total · {totalQuantity} item{totalQuantity !== 1 ? "s" : ""}</p><p className="text-3xl font-bold tracking-tight text-brand-600">{formatPKR(total)}</p></div>
+          <div className="mt-2 space-y-1 text-xs text-ink-500">
+            {([{ label: "Discount", amount: invoiceDisc },{ label: "Tax", amount: tax },...((parseFloat(cash) || 0) > 0 ? [{ label: "Cash", amount: parseFloat(cash) || 0 }] : []),...((parseFloat(card) || 0) > 0 ? [{ label: "Card", amount: parseFloat(card) || 0 }] : []),...((parseFloat(credit) || 0) > 0 ? [{ label: "Credit", amount: parseFloat(credit) || 0 }] : []),...(bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) > 0 ? [{ label: "Bank", amount: bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) }] : []),...(cardFee > 0 ? [{ label: "Card fee", amount: cardFee }] : []),...(change > 0 ? [{ label: "Change", amount: change, accent: true as const }] : [])] as { label: string; amount: number; accent?: boolean }[]).map((line) => (
+              line.accent ? (
+                <p key={line.label} className="flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2 text-sm font-bold text-brand-600"><span>{line.label}</span><span className="tabular-nums text-base font-extrabold">{formatPKR(line.amount)}</span></p>
+              ) : (
+                <p key={line.label} className="flex items-center justify-between"><span>{line.label}</span><span className="font-medium tabular-nums text-ink-700">{formatPKR(line.amount)}</span></p>
+              )
+            ))}
+          </div>
+          <Button className="mt-3 h-12 w-full text-[15px] font-semibold active:scale-[0.98] transition-transform duration-100" type="button" onClick={() => void pay()} disabled={submitting || cart.length === 0}>{submitting ? "Processing…" : modifyId ? `Update sale` : `Charge ${formatPKR(due)}`}</Button>
+        </div>
+      </div>
+    );
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Invoice" : "Sale Invoice"}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <ScannerButton label="Scan IMEI" variant="ghost" />
+            <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>Modify</Button>
+            <Link href="/sale-returns"><Button variant="ghost"><RefundIcon className="h-4 w-4" />Sale Return</Button></Link>
+            <Button variant="ghost" onClick={() => void openReservationPicker()}><ReservationIcon className="h-4 w-4" />Process Reservation</Button>
+            <Link href="/reservations"><Button><PlusIcon className="h-4 w-4" />New Reservation</Button></Link>
+            <Button variant="destructive" onClick={reset}>Clear</Button>
+          </div>
+        </div>
+        <div className="mt-3 flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+            <div className="shrink-0">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>{contactOptions.length > 0 && (<Dropdown value={contactId} options={contactOptions} onChange={setContactId} searchable placeholder="Select customer" />)}</div>
+                <div className="w-28 shrink-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Invoice #</p><Input value={invoiceNo} readOnly variant="white" className="bg-white text-center px-2" /></div>
+                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date & time</p><DatePicker value={saleDate} onChange={setSaleDate} withTime /></div>
+                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Invoice discount</p><div className="flex items-center gap-2"><PriceInput value={invoiceDiscountPct} max={100} onChange={(n) => setInvoiceDiscountPct(n)} className="flex-1 min-w-0 bg-white" suffix="%" /><PriceInput value={parseFloat(invoiceDiscount) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => setInvoiceDiscount(n > 0 ? String(n) : "")} className="flex-1 min-w-0 bg-white" suffix="Rs" /></div></div>
+              </div>
+              {isWalkIn && (<div className="mt-3 grid gap-3 md:grid-cols-2"><div><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer name</p><Input value={walkInName} onChange={(e) => setWalkInName(e.target.value)} placeholder="Enter customer name" className="bg-white" /></div><div><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Phone number</p><Input value={walkInPhone} onChange={(e) => setWalkInPhone(e.target.value)} placeholder="e.g. 0300-1234567" inputMode="tel" className="bg-white" /></div></div>)}
+            </div>
+            <section className="shrink-0"><div className="flex flex-wrap items-end gap-3"><div ref={searchWrapRef} className="relative min-w-48 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p><SearchInput data-scanner-input="pos-search" value={q} onChange={setQ} onFocus={() => { setSearchFocused(true); if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q); }} onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); if (flatItems.length > 0) setHighlightedIndex((i) => (i + 1) % flatItems.length); } else if (e.key === "ArrowUp") { e.preventDefault(); if (flatItems.length > 0) setHighlightedIndex((i) => (i <= 0 ? flatItems.length - 1 : i - 1)); } else if (e.key === "Enter") { e.preventDefault(); if (flatItems.length > 0 && highlightedIndex >= 0 && highlightedIndex < flatItems.length) { activateFlatItem(flatItems[highlightedIndex]); } else { void handleSearchEnter(); } } else if (e.key === "Escape") { setSearchFocused(false); } }} placeholder="Scan IMEI / Barcode…" variant="white" className="bg-ink-100 h-10 text-sm rounded-[12px]" iconClassName="h-4 w-4" />{panelPos && results.length === 0 && (<div style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"><p className="text-sm text-ink-400">{searching ? "Searching…" : q.trim().length >= 2 ? "No units found for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}</p></div>)}{panelPos && results.length > 0 && (<div ref={listRef} style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5">{flatItems.map((item, idx) => { const isActive = idx === highlightedIndex; if (item.kind === "product") { return (<button key={`prod-${item.result.id}`} data-flat={idx} type="button" onClick={() => activateFlatItem(item)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{item.result.category.type === "ACCESSORY" && item.result.barcode ? item.result.barcode : [item.result.brand, item.result.model, item.result.storage, item.result.ram, item.result.screenSize, item.result.color].filter(Boolean).join(" ")}</p><p className="truncate text-xs text-ink-500">{formatPKR(item.result.sellPrice)} · {item.result.category.name}{item.result.category.type === "ACCESSORY" && item.result.barcode ? ` · ${item.result.barcode}` : ""}</p></div><span className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${item.added ? "bg-brand-100 text-brand-600" : "bg-white text-ink-600"}`}>{item.added ? "✓ Added" : "Add"}</span></button>); } return (<button key={item.unit.id} data-flat={idx} type="button" onClick={() => activateFlatItem(item)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{[item.result.brand, item.result.model, item.result.storage, item.result.ram, item.result.screenSize].filter(Boolean).join(" ")} <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span></p><p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500"><span>{formatPKR(item.result.sellPrice)}</span>{item.unit.status === "RESERVED" && <Badge variant="warning">Reserved</Badge>}<Badge variant="neutral">{item.unit.condition}</Badge><Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge></p></div><span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span></button>); })}</div>)}</div><div className="min-w-64 max-w-[320px] flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p><Dropdown value={selProductId} options={productOptions} onChange={(v) => { setSelProductId(v); const p = (products ?? []).find((x) => x.id === v); if (p?.sellPrice) setAddPrice(String(parseFloat(p.sellPrice) || "")); }} searchable placeholder="Select accessory…" /></div><div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={addQty} onChange={(e) => setAddQty(e.target.value.replace(/\D/g, ""))} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddClick(); } }} placeholder="1" inputMode="numeric" className="bg-white text-center" /></div><div className="w-28"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p><Input value={addPrice} onChange={(e) => setAddPrice(clampMoneyInput(e.target.value))} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddClick(); } }} placeholder="Auto" inputMode="decimal" className="bg-white" /></div><Button type="button" variant="secondary" onClick={handleAddClick} className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div></section>
+            <div className="mt-3 flex-1 min-h-0 w-full min-w-0 overflow-y-auto overscroll-none rounded-2xl bg-white"><table className="min-w-[480px] w-full table-fixed text-sm"><thead className="sticky top-0 z-10 bg-white"><tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500"><th className="w-[180px] px-4 py-3 text-center">Item</th><th className="w-14 px-4 py-3 text-center">Qty</th><th className="w-20 px-4 py-3 text-center">Price</th><th className="w-32 px-4 py-3 text-center">Disc</th><th className="w-24 px-4 py-3 text-center">Amount</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{cartGroups.groups.map((g) => (<Fragment key={g.key}><tr className="bg-ink-50/80 transition-colors duration-150"><td className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{g.label}</span></div></td><td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-900">{g.lines.reduce((s, l) => s + l.quantity, 0)}</td><td className="px-4 py-2.5 text-right"><div className="w-28"><PriceInput value={g.unitPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupPrice(g.key, n)} className="bg-ink-100 px-2 text-right" /></div></td><td className="px-4 py-2.5 text-right"><DiscountFields pct={g.lines[0].discountPct} flat={g.lines[0].discountFlat} maxFlat={g.lines[0].unitPrice} onChange={({ pct, flat }) => updateGroupDiscount(g.key, { discountPct: pct, discountFlat: flat })} /></td><td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">{formatPKR(roundMoney(g.lines.reduce((s, l) => s + (l.unitPrice - lineDiscount(l)) * l.quantity, 0)))}</td><td className="px-4 py-2.5" /></tr>{g.lines.map((line) => (<tr key={line.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-4 py-2.5 pl-9"><div className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-medium text-ink-900">{line.imei}</span>{line.color && <Badge variant="neutral">{line.color}</Badge>}{line.condition && (<TypePill tone={line.condition === "NEW" ? "brand" : "grey"}>{line.condition}</TypePill>)}{line.carrier && <Badge variant="neutral">{line.carrier}</Badge>}</div></td><td className="px-4 py-2.5 text-center text-ink-700">{line.quantity}</td><td className="px-4 py-2.5 text-right"><div className="w-28"><PriceInput value={line.unitPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateLine(line.key, { unitPrice: n })} className="px-2 text-right" /></div></td><td className="px-4 py-2.5"><DiscountFields pct={line.discountPct} flat={line.discountFlat} maxFlat={line.unitPrice} onChange={({ pct, flat }) => updateLine(line.key, { discountPct: pct, discountFlat: flat })} /></td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(roundMoney((line.unitPrice - lineDiscount(line)) * line.quantity))}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeLine(line.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>))}{cartGroups.plain.map((line) => (<tr key={line.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-ink-300" /><div className="min-w-0"><p className="truncate font-medium text-ink-900">{line.label}{line.color && <span className="text-ink-500"> · {line.color}</span>}</p><p className="text-[11px] text-ink-400">{`${line.quantity} × ${formatPKR(line.unitPrice)}`}</p></div></div></td><td className="px-4 py-3 text-center text-ink-700">{line.quantity}</td><td className="px-4 py-3 text-right"><div className="w-28"><PriceInput value={line.unitPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateLine(line.key, { unitPrice: n })} className="px-2 text-right" /></div></td><td className="px-4 py-3"><DiscountFields pct={line.discountPct} flat={line.discountFlat} maxFlat={line.unitPrice} onChange={({ pct, flat }) => updateLine(line.key, { discountPct: pct, discountFlat: flat })} /></td><td className="px-4 py-3 text-right font-semibold text-ink-900">{formatPKR(roundMoney((line.unitPrice - lineDiscount(line)) * line.quantity))}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => removeLine(line.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}{cart.length === 0 && (<tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-ink-400">Cart is empty. Search and add items.</td></tr>)}</tbody></table></div>
+          </div>
+          <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[340px] lg:max-w-[400px]">
+            {paymentSection}
+          </div>
+        </div>
+        <ModifyPicker open={modifyPickerOpen} onClose={() => setModifyPickerOpen(false)} type="SALE" onSelect={(txn) => { void (async () => { try { const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`); loadForModify(detail); } catch { toast("Could not load the sale", "error"); } })(); }} />
+        <Sheet open={reservationPickOpen} title="Process reservation" onClose={() => setReservationPickOpen(false)}><div className="max-h-[60vh] space-y-2 overflow-y-auto overscroll-none">{pickLoading ? (<p className="p-4 text-sm text-ink-400">Loading reservations…</p>) : pickReservations?.length === 0 ? (<p className="p-4 text-sm text-ink-400">No active reservations.</p>) : ((pickReservations ?? []).map((reservation) => (<button key={reservation.id} type="button" onClick={() => loadReservation(reservation)} className="w-full rounded-xl bg-ink-50 p-3 text-left transition hover:bg-brand-50"><p className="text-sm font-semibold text-ink-900">{reservation.number} · {reservation.contact.name}<Badge className="ml-2" variant={reservation.type === "CONSIGNMENT" ? "info" : "warning"}>{reservation.type === "CONSIGNMENT" ? "Out" : "Hold"}</Badge></p><p className="mt-0.5 text-xs text-ink-500">{reservation.type === "CONSIGNMENT" ? `Agreed ${formatPKR(parseFloat(reservation.total))}` : `Total ${formatPKR(parseFloat(reservation.total))} · Advance ${formatPKR(parseFloat(reservation.advance))} · Due ${formatPKR(Math.max(0, parseFloat(reservation.total) - parseFloat(reservation.advance)))}`}</p><p className="mt-0.5 text-xs text-ink-400">{reservation.items.map((i) => i.unit ? `${brandOf(i.product)} ${i.product.model} · ${i.unit.imei.slice(-6)}` : `${brandOf(i.product)} ${i.product.model} ×${i.quantity}`).join(", ")}</p></button>)))}</div></Sheet>
+        <BankDepositSheet open={bankSheetOpen} onClose={() => setBankSheetOpen(false)} bankRows={bankRows} onBankRowsChange={setBankRows} bankAccounts={bankAccounts} />
+        <Dialog open={conflicts !== null} title="Reserved items, different customer" message={<div className="space-y-3"><p>These units are reserved for someone else. Selling them to <span className="font-semibold text-ink-900">{(contacts?.find((c) => c.id === contactId)?.name ?? "this customer")}</span> will complete the reservation(s).</p>{conflicts?.map((conflict) => (<div key={conflict.reservationId} className="rounded-xl bg-warning/10 p-3"><p className="text-sm font-semibold text-ink-900">{conflict.reservationNumber} · {conflict.contactName}{conflict.contactPhone ? ` · ${conflict.contactPhone}` : ""}</p><p className="mt-0.5 text-xs text-ink-500">Total {formatPKR(parseFloat(conflict.total))} · Advance {formatPKR(parseFloat(conflict.advance))}</p><p className="mt-1 font-mono text-[11px] text-ink-500">{conflict.units.map((u) => u.imei).join(", ")}</p></div>))}</div>} confirmLabel="Sell anyway" destructive onCancel={() => setConflicts(null)} onConfirm={() => { confirmedRef.current = true; setConflicts(null); void pay(); }} />
+        <Dialog open={stockDialog !== null} title="Not enough stock" message={<p className="text-sm text-ink-600">{stockDialog}</p>} confirmLabel="OK" onCancel={() => setStockDialog(null)} onConfirm={() => setStockDialog(null)} />
+        <Dialog open={lowPriceDialog !== null} title="Cannot sell below purchase cost" message={<p className="text-sm text-ink-600">{lowPriceDialog?.label} — cannot sell below purchase cost.</p>} confirmLabel="OK" onCancel={() => setLowPriceDialog(null)} onConfirm={() => setLowPriceDialog(null)} />
+        {receipt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/20 p-4 backdrop-blur-md">
+            <div className="relative flex max-h-[90vh] w-[min(92vw,560px)] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+              <button type="button" onClick={() => setReceipt(null)} className="absolute right-3 top-3 z-10 rounded-xl bg-white/80 p-2 text-ink-400 backdrop-blur hover:bg-ink-100 hover:text-ink-700">
+                <XIcon className="h-4 w-4" />
+              </button>
+              <div className="flex-1 overflow-y-auto p-6">
+                <TransactionReceipt type="SALE" detail={receipt} onModify={loadForModify} onNew={reset} />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
-
   return (
-    <form
-      className="flex h-full flex-col"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void pay();
-      }}
-    >
+    <div className="flex h-full flex-col">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Invoice" : "Sale Invoice"}</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -952,14 +1168,14 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
           )}
         </div>
 
-        <div className="flex-1 min-w-0">
+        <div className="w-28 shrink-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Invoice #</p>
-          <Input value={invoiceNo} readOnly variant="white" />
+          <Input value={invoiceNo} readOnly variant="white" className="bg-white text-center px-2" />
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date</p>
-          <DatePicker value={saleDate} onChange={setSaleDate} />
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date & time</p>
+          <DatePicker value={saleDate} onChange={setSaleDate} withTime />
         </div>
 
         <div className="flex-1 min-w-0">
@@ -1172,7 +1388,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
         <span className="text-xs text-ink-500">{totalQuantity} item(s)</span>
       </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-none rounded-2xl bg-white">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-white">
               <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
@@ -1415,7 +1631,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
                   </Button>
                 </div>
               </div>
-
+              {lastHint}
               <BankPaymentRow
                 bankRows={bankRows}
                 bankAccounts={bankAccounts}
@@ -1615,6 +1831,18 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
         onCancel={() => setLowPriceDialog(null)}
         onConfirm={() => setLowPriceDialog(null)}
       />
-    </form>
+        {receipt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/20 p-4 backdrop-blur-md">
+            <div className="relative flex max-h-[90vh] w-[min(92vw,560px)] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+              <button type="button" onClick={() => setReceipt(null)} className="absolute right-3 top-3 z-10 rounded-xl bg-white/80 p-2 text-ink-400 backdrop-blur hover:bg-ink-100 hover:text-ink-700">
+                <XIcon className="h-4 w-4" />
+              </button>
+              <div className="flex-1 overflow-y-auto p-6">
+                <TransactionReceipt type="SALE" detail={receipt} onModify={loadForModify} onNew={reset} />
+              </div>
+            </div>
+          </div>
+        )}
+    </div>
   );
 }

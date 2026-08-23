@@ -34,8 +34,8 @@ export function BankDepositSheet({
   }
 
   return (
-    <Sheet open={open} title="Bank deposits" onClose={onClose} width="max-w-lg">
-      <p className=" -mt-2 text-xs text-ink-500">Split payment across banks. Each bank can be used once.</p>
+    <Sheet open={open} title="Bank deposits" onClose={onClose} width="max-w-2xl">
+      <p className="text-xs text-ink-500">Split payment across banks. Each bank can be used once.</p>
 
       {bankAccounts.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-ink-200 bg-ink-50/50 px-6 py-10 text-center">
@@ -72,28 +72,13 @@ export function BankDepositSheet({
           </div>
         </div>
       ) : (
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 flex max-h-[52vh] flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-none pr-1">
           {bankRows.map((row, idx) => {
             const selected = bankAccounts.find((b) => b.id === row.bankId);
             return (
-              <div key={row.id} className="rounded-2xl border border-ink-100 bg-white p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-xs font-semibold text-ink-500">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-600">
-                      {idx + 1}
-                    </span>
-                    Bank #{idx + 1}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Remove bank"
-                    className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-100 hover:text-error"
-                    onClick={() => onBankRowsChange((r) => r.filter((x) => x.id !== row.id))}
-                  >
-                    <XIcon className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-[1.35fr_0.85fr]">
+              <div key={row.id} className="flex items-center gap-2 rounded-2xl border border-ink-100 bg-white p-3">
+                <div className="grid flex-1 gap-2 sm:grid-cols-[1.35fr_0.85fr]">
                   <div>
                     <p className="mb-1 text-xs font-medium text-ink-500">Bank</p>
                     <Dropdown
@@ -120,41 +105,46 @@ export function BankDepositSheet({
                     <p className="mb-1 text-xs font-medium text-ink-500">Amount (Rs)</p>
                     <Input
                       value={row.amount}
-                      onChange={(e) => onBankRowsChange((r) => r.map((x) => (x.id === row.id ? { ...x, amount: clampMoneyInput(e.target.value) } : x)))}
+                      onChange={(e) => onBankRowsChange((r) => r.map((x) => (x.id === row.id ? { ...x, amount: clampMoneyInput(e.target.value.replace(/[^0-9.]/g, "")) } : x)))}
                       placeholder="0"
                       inputMode="decimal"
+                      pattern="[0-9]*"
                       prefix="Rs"
                       variant="filled"
                     />
                   </div>
                 </div>
+                <button
+                  type="button"
+                  aria-label="Remove bank"
+                  className="shrink-0 rounded-xl p-2 text-ink-400 transition hover:bg-ink-100 hover:text-error"
+                  onClick={() => onBankRowsChange((r) => r.filter((x) => x.id !== row.id))}
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
               </div>
             );
           })}
 
+          </div>
           {bankRows.length < bankAccounts.length ? (
             <button
               type="button"
               onClick={addRow}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 px-4 py-3 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
+              className="mt-3 flex w-full shrink-0 items-center justify-center gap-2 rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-50"
             >
               <PlusIcon className="h-4 w-4" />
               Add another bank
             </button>
-          ) : (
-            <p className="rounded-xl bg-ink-50 px-3 py-2 text-center text-xs text-ink-500">All {bankAccounts.length} bank account(s) added.</p>
-          )}
+          ) : null}
 
-          <div className="flex items-center justify-between rounded-2xl bg-ink-900 px-4 py-3 text-white">
+          <div className="mt-3 flex shrink-0 items-center justify-between rounded-2xl bg-ink-900 px-4 py-3 text-white">
             <span className="text-xs font-medium text-white/70">Total bank</span>
             <span className="text-sm font-bold">{formatPKR(total)}</span>
           </div>
         </div>
       )}
 
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>Done</Button>
-      </div>
     </Sheet>
   );
 }

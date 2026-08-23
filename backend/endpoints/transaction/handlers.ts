@@ -20,7 +20,7 @@ import type {
 } from "./schemas";
 
 export async function listHandler(req: Request, res: Response) {
-  const { type, q, limit, from, to, tz } = req.query;
+  const { type, q, limit, from, to, tz, contactId } = req.query;
   res.json({
     data: await listTransactions({
       type: typeof type === "string" ? type : undefined,
@@ -29,6 +29,7 @@ export async function listHandler(req: Request, res: Response) {
       from: typeof from === "string" ? from : undefined,
       to: typeof to === "string" ? to : undefined,
       tz: typeof tz === "string" ? tz : undefined,
+      contactId: typeof contactId === "string" ? contactId : undefined,
     }),
   });
 }

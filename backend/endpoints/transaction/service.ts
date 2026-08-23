@@ -846,6 +846,7 @@ export async function listTransactions({
   from,
   to,
   tz,
+  contactId,
 }: {
   type?: string;
   q?: string;
@@ -853,6 +854,7 @@ export async function listTransactions({
   from?: string;
   to?: string;
   tz?: string;
+  contactId?: string;
 }) {
   const timezone = tz ?? DEFAULT_TIMEZONE;
   const dateFilter: { gte?: Date; lte?: Date } = {};
@@ -860,6 +862,7 @@ export async function listTransactions({
   if (to) dateFilter.lte = dateAtZone(to, "23:59:59", timezone);
   return prisma.transaction.findMany({
     where: {
+      ...(contactId ? { contactId } : {}),
       ...(type ? { type: type as TransactionType } : {}),
       ...(q
         ? {

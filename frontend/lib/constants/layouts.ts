@@ -2,7 +2,7 @@ export type DashboardLayoutId = "classic" | "new";
 
 export const DASHBOARD_LAYOUT_STORAGE_KEY = "fig.dashboardLayout";
 
-export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayoutId = "classic";
+export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayoutId = "new";
 
 export const DASHBOARD_LAYOUTS = [
   {

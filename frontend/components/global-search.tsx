@@ -2,11 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { Dropdown, type DropdownOption } from "@/components/ui/dropdown";
 import { Sheet } from "@/components/ui/sheet";
-import { EyeIcon, PrinterIcon, RefreshIcon, SearchIcon } from "@/components/icons";
+import {
+  EyeIcon,
+  InventoryIcon,
+  PosIcon,
+  PrinterIcon,
+  ProductsIcon,
+  PurchasesIcon,
+  RefundIcon,
+  SearchIcon,
+  VoucherIcon,
+  WalletIcon,
+} from "@/components/icons";
 import { TRANSACTION_TYPE_LABELS } from "@/lib/constants/transactions";
 
 type SearchResult = {
@@ -27,6 +37,8 @@ function kindBadge(kind: string): string {
       return "Unit";
     case "CONTACT":
       return "Contact";
+    case "PRODUCT":
+      return "Product";
     case "PURCHASE_ORDER":
       return "PO";
     case "RESERVATION":
@@ -44,45 +56,73 @@ function actionsFor(r: SearchResult): Action[] {
   switch (r.kind) {
     case "SALE":
       return [
-        { label: "Modify sale", icon: RefreshIcon, href: `/pos?modify=${r.id}` },
+        { label: "Modify sale", icon: PosIcon, href: `/pos?modify=${r.id}` },
+        { label: "Create return", icon: RefundIcon, href: `/sale-returns?fromSale=${r.id}` },
         { label: "Print / view receipt", icon: PrinterIcon, href: `/print?type=SALE&id=${r.id}` },
+        { label: "View all sales", icon: EyeIcon, href: "/reports/sales-list" },
       ];
     case "PURCHASE":
       return [
-        { label: "Modify purchase", icon: RefreshIcon, href: `/purchases?modify=${r.id}` },
+        { label: "Modify purchase", icon: PurchasesIcon, href: `/purchases?modify=${r.id}` },
+        { label: "Create purchase return", icon: RefundIcon, href: `/purchase-returns?fromPurchase=${r.id}` },
         { label: "Print invoice", icon: PrinterIcon, href: `/print?type=PURCHASE&id=${r.id}` },
+        { label: "View all purchases", icon: EyeIcon, href: "/reports/purchase-list" },
       ];
     case "SALE_RETURN":
       return [
-        { label: "Modify return", icon: RefreshIcon, href: `/sale-returns?modify=${r.id}` },
+        { label: "Modify return", icon: RefundIcon, href: `/sale-returns?modify=${r.id}` },
         { label: "Print return", icon: PrinterIcon, href: `/print?type=SALE_RETURN&id=${r.id}` },
+        { label: "View sale returns", icon: EyeIcon, href: "/sale-returns" },
       ];
     case "PURCHASE_RETURN":
       return [
-        { label: "Modify return", icon: RefreshIcon, href: `/purchase-returns?modify=${r.id}` },
+        { label: "Modify return", icon: RefundIcon, href: `/purchase-returns?modify=${r.id}` },
         { label: "Print return", icon: PrinterIcon, href: `/print?type=PURCHASE_RETURN&id=${r.id}` },
+        { label: "View purchase returns", icon: EyeIcon, href: "/purchase-returns" },
       ];
     case "VOUCHER":
       return [
         { label: "Print voucher", icon: PrinterIcon, href: `/print?type=VOUCHER&id=${r.id}` },
-        { label: "View in vouchers", icon: EyeIcon, href: "/vouchers" },
+        { label: "View in vouchers", icon: VoucherIcon, href: "/vouchers" },
+        { label: "View ledger", icon: EyeIcon, href: "/reports/ledger" },
       ];
     case "EXPENSE":
       return [
         { label: "Print voucher", icon: PrinterIcon, href: `/print?type=EXPENSE&id=${r.id}` },
-        { label: "View in expenses", icon: EyeIcon, href: "/expenses" },
+        { label: "View in expenses", icon: WalletIcon, href: "/expenses" },
       ];
     case "RESERVATION":
       return [
-        { label: "Modify reservation", icon: RefreshIcon, href: `/reservations?modify=${r.id}` },
+        { label: "Modify reservation", icon: InventoryIcon, href: `/reservations?modify=${r.id}` },
         { label: "View in reservations", icon: EyeIcon, href: "/reservations" },
+        { label: "Create sale from reservation", icon: PosIcon, href: `/pos?reservationId=${r.id}` },
       ];
     case "PURCHASE_ORDER":
-      return [{ label: "View purchase order", icon: EyeIcon, href: "/purchase-orders" }];
+      return [
+        { label: "View purchase order", icon: EyeIcon, href: "/purchase-orders" },
+        { label: "Create purchase", icon: PurchasesIcon, href: `/purchases?orderId=${r.id}` },
+      ];
     case "UNIT":
-      return [{ label: "View in inventory", icon: EyeIcon, href: "/inventory" }];
+      return [
+        { label: "View in inventory", icon: InventoryIcon, href: `/inventory?imei=${encodeURIComponent(r.number)}` },
+        { label: "Sell this unit", icon: PosIcon, href: `/pos?imei=${encodeURIComponent(r.number)}` },
+        { label: "Print / history", icon: PrinterIcon, href: `/reports/device-lookup?imei=${encodeURIComponent(r.number)}` },
+      ];
+    case "PRODUCT":
+      return [
+        { label: "View product", icon: ProductsIcon, href: `/products?search=${encodeURIComponent(r.number)}` },
+        { label: "View in inventory", icon: InventoryIcon, href: `/inventory?productId=${r.id}` },
+        { label: "New purchase", icon: PurchasesIcon, href: `/purchases?productId=${r.id}` },
+        { label: "New sale", icon: PosIcon, href: `/pos?productId=${r.id}` },
+      ];
     case "CONTACT":
-      return [{ label: "View contact", icon: EyeIcon, href: "/contacts" }];
+      return [
+        { label: "View contact", icon: EyeIcon, href: `/contacts?search=${encodeURIComponent(r.number || r.title)}` },
+        { label: "New sale for customer", icon: PosIcon, href: `/pos?contactId=${r.id}` },
+        { label: "New purchase from vendor", icon: PurchasesIcon, href: `/purchases?contactId=${r.id}` },
+        { label: "View ledger", icon: VoucherIcon, href: `/reports/ledger?contactId=${r.id}` },
+        { label: "Create voucher", icon: WalletIcon, href: `/vouchers?contactId=${r.id}` },
+      ];
     default:
       return [];
   }
@@ -100,29 +140,33 @@ function GlobalSearchField({
   onChange,
   onFocus,
   onBlur,
+  variant = "light",
 }: {
   value: string;
   onChange: (value: string) => void;
   onFocus?: () => void;
   onBlur?: () => void;
+  variant?: "light" | "dark";
 }) {
+  const isDark = variant === "dark";
   return (
-    <span className="flex h-9 items-center gap-2 rounded-2xl bg-ink-100 pl-3 pr-6">
-      <SearchIcon className="h-4 w-4 shrink-0 text-ink-400" />
+    <span
+      className={`flex h-9 items-center gap-2 rounded-2xl pl-3 pr-6 ${isDark ? "bg-white/10" : "bg-ink-100"}`}
+    >
+      <SearchIcon className={`h-4 w-4 shrink-0 ${isDark ? "text-white/60" : "text-ink-400"}`} />
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}
         placeholder="Search IMEI, sale / purchase / voucher number…"
-        className="h-full min-w-0 flex-1 bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
+        className={`h-full min-w-0 flex-1 bg-transparent text-sm outline-none ${isDark ? "text-white placeholder:text-white/50" : "text-ink-900 placeholder:text-ink-400"}`}
       />
     </span>
   );
 }
 
-export function GlobalSearch() {
-  const router = useRouter();
+export function GlobalSearch({ variant = "light" }: { variant?: "light" | "dark" }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -183,12 +227,7 @@ export function GlobalSearch() {
     if (!r) return;
     setQuery("");
     setResults(null);
-    if (results?.length === 1) {
-      setActiveResult(r);
-    } else {
-      const first = actionsFor(r)[0];
-      if (first) router.push(first.href);
-    }
+    setActiveResult(r);
   }
 
   return (
@@ -207,6 +246,7 @@ export function GlobalSearch() {
               onChange={setQuery}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+              variant={variant}
             />
           </span>
         )}

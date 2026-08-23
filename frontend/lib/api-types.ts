@@ -523,8 +523,9 @@ export type ReservationConflict = {
   units: { unitId: string; imei: string }[];
 };
 
-export function brandOf(p: { brand: string | { id: string; name: string } }): string {
-  return typeof p.brand === "string" ? p.brand : p.brand.name;
+export function brandOf(p: any): string {
+  if (!p?.brand) return "";
+  return typeof p.brand === "string" ? p.brand : (p.brand.name ?? "");
 }
 
 export type StockMovement = {

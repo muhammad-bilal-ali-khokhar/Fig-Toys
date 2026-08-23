@@ -821,7 +821,6 @@ export default function ReservationsPage() {
       )}
 
       <section className="mt-6 shrink-0">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Add items</p>
         <div className="flex flex-wrap items-end gap-3">
           <div ref={searchWrapRef} className="relative min-w-48 flex-1">
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>

@@ -1,9 +1,4 @@
 @import "tailwindcss";
-@import "@fontsource/montserrat/400.css";
-@import "@fontsource/montserrat/500.css";
-@import "@fontsource/montserrat/600.css";
-@import "@fontsource/montserrat/700.css";
-@import "@fontsource/montserrat/800.css";
 
 html,
 body {
@@ -39,8 +34,17 @@ svg *:focus {
   outline: none;
 }
 
+@keyframes posFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes posSlideIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 @theme {
-  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
 
   /* Fig Fruit Primary */
   --color-brand-50: #faf5f7;

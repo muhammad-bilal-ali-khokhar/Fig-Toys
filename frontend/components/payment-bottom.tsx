@@ -41,17 +41,17 @@ export function BankPaymentRow({
       </div>
 
       {bankRows.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="space-y-2">
           {bankRows.map((row) => {
             const bank = bankAccounts.find((b) => b.id === row.bankId);
             return (
-              <span
+              <div
                 key={row.id}
-                className="inline-flex items-center gap-1.5 rounded-full border border-ink-100 bg-white px-2.5 py-1 text-xs font-medium text-ink-700"
+                className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2"
               >
-                <span className="max-w-[90px] truncate">{bank?.bankName ?? "Bank"}{bank?.accountNo ? ` · ${bank.accountNo.slice(-4)}` : ""}</span>
-                <span className="font-semibold text-ink-900">{row.amount ? formatPKR(parseFloat(row.amount)) : "—"}</span>
-              </span>
+                <span className="truncate text-xs font-medium text-ink-700">{bank?.bankName ?? "Bank"}{bank?.accountNo ? ` · ${bank.accountNo.slice(-4)}` : ""}</span>
+                <span className="shrink-0 text-xs font-semibold text-ink-900">{row.amount ? formatPKR(parseFloat(row.amount)) : "—"}</span>
+              </div>
             );
           })}
         </div>

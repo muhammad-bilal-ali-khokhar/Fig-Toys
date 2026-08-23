@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
 import type { Expense, ReservationDetail, TransactionDetail, Voucher } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
@@ -8,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { BadgeVariant } from "@/components/ui/badge";
 import { DirectPrint, type DirectDocType } from "@/components/print/direct-print";
-import { PrinterIcon, PlusIcon } from "@/components/icons";
+import { EyeIcon, PrinterIcon, PlusIcon } from "@/components/icons";
 import { doPrint } from "@/lib/print";
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
@@ -30,9 +32,19 @@ export function TransactionReceipt({
   onNew?: () => void;
 }) {
   const label = TRANSACTION_TYPE_LABELS[detail.type] ?? detail.type;
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        document.getElementById("receipt-print-btn")?.click();
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []);
 
   return (
-    <div className="mx-auto w-full max-w-lg">
+    <div className="mx-auto w-full max-w-[560px]">
       <div className="rounded-3xl bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -124,22 +136,28 @@ export function TransactionReceipt({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap justify-center gap-2">
+      <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center">
         <DirectPrint type={type} id={detail.id} render={(open, busy) => (
-          <Button variant="secondary" onClick={open} disabled={busy}>
+          <Button id="receipt-print-btn" variant="primary" className="h-11 w-full sm:w-auto" onClick={open} disabled={busy}>
             <PrinterIcon className="h-4 w-4" />
             {busy ? "Preparing…" : "Print"}
           </Button>
         )} />
+        <Link href={`/print?type=${type}&id=${detail.id}`} className="w-full sm:w-auto">
+          <Button variant="secondary" className="h-11 w-full">
+            <EyeIcon className="h-4 w-4" />
+            View Preview
+          </Button>
+        </Link>
         {onModify && (
-          <Button variant="secondary" onClick={() => onModify(detail)}>
+          <Button variant="secondary" className="h-11 w-full sm:w-auto" onClick={() => onModify(detail)}>
             Modify
           </Button>
         )}
         {onNew && (
-          <Button onClick={onNew}>
+          <Button className="h-11 w-full sm:w-auto" onClick={onNew}>
             <PlusIcon className="h-4 w-4" />
-            New
+            New Sale
           </Button>
         )}
       </div>

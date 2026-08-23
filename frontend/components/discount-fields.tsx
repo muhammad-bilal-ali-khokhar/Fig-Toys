@@ -21,14 +21,14 @@ export function DiscountFields({
         value={pct}
         max={100}
         onChange={(n) => onChange({ pct: n, flat })}
-        className="px-2 text-right"
+        className="min-w-0 flex-[0.45] px-1.5 text-right text-xs"
         suffix="%"
       />
       <PriceInput
         value={flat}
         max={maxFlat ?? MAX_MONEY_AMOUNT}
         onChange={(n) => onChange({ pct, flat: n })}
-        className="px-2 text-right"
+        className="min-w-0 flex-[0.55] px-1.5 text-right text-xs"
         suffix="Rs"
       />
     </div>

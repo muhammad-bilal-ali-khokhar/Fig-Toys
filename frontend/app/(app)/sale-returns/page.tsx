@@ -19,6 +19,7 @@ import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
+import { useDashboardLayout } from "@/lib/dashboard-layout-context";
 import { SearchInput } from "@/components/ui/search-input";
 import { ScannerButton } from "@/components/scanner/scanner-button";
 import { useScannerScan } from "@/components/scanner/global-scanner";
@@ -56,6 +57,8 @@ type ReturnLine = {
 
 export default function SaleReturnsPage() {
   const { toast } = useToast();
+  const { layout } = useDashboardLayout();
+  const isNewLayout = layout === "new";
   const searchParams = useSearchParams();
   const { data: bankData } = useApi<BankAccount[]>("/bank-account");
   const { data: contacts } = useApi<Contact[]>("/contact");
@@ -67,12 +70,17 @@ export default function SaleReturnsPage() {
   const [note, setNote] = useState("");
   const [cash, setCash] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
+  const [card, setCard] = useState("");
+  const [lastSale, setLastSale] = useState<any>(null);
   const [bankRows, setBankRows] = useState<{ id: string; amount: string; bankId: string }[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [returnNo, setReturnNo] = useState("RET-0001");
-  const [returnDate, setReturnDate] = useState(() => toISODate(new Date()));
+  const [returnDate, setReturnDate] = useState(() => {
+    const d = new Date();
+    return `${toISODate(d)}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  });
 
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -150,11 +158,17 @@ export default function SaleReturnsPage() {
       trailing: <span className="text-xs text-ink-400">{formatPKR(p.sellPrice)}</span>,
     }));
 
-  const contactOptions = (contacts ?? []).map((c) => ({
-    value: c.id,
-    label: c.name,
-    trailing: c.phone ? <span className="text-xs text-ink-400">{c.phone}</span> : null,
-  }));
+  const contactOptions = (contacts ?? [])
+    .filter((c) => {
+      const n = c.name.toLowerCase();
+      if (n === "walk-in" || n === "walk-in customer" || n === "opening stock" || n.includes("historical") || n === "walkin-historical") return false;
+      return true;
+    })
+    .map((c) => ({
+      value: c.id,
+      label: c.name,
+      trailing: c.phone ? <span className="text-xs text-ink-400">{c.phone}</span> : null,
+    }));
 
   useEffect(() => {
     let cancelled = false;
@@ -217,12 +231,12 @@ export default function SaleReturnsPage() {
   }, [q, runSearch]);
 
   const flatUnits = useMemo(() => {
-    const units: { unit: SearchResult["units"][number]; productIndex: number }[] = [];
+    const units: { unit: SearchResult["units"][number]; productIndex: number; added: boolean }[] = [];
     results.forEach((r, i) => {
-      r.units.forEach((u) => units.push({ unit: u, productIndex: i }));
+      r.units.forEach((u) => units.push({ unit: u, productIndex: i, added: cart.some((l) => l.unitId === u.id) }));
     });
     return units;
-  }, [results]);
+  }, [results, cart]);
 
   useEffect(() => {
     setHighlightedIndex(-1);
@@ -354,10 +368,57 @@ export default function SaleReturnsPage() {
 
   const refundTotal = useMemo(() => cart.reduce((sum, l) => sum + l.refund * l.quantity, 0), [cart]);
 
+  useEffect(() => {
+    if (!customerId) { setLastSale(null); return; }
+    let cancel = false;
+    (async () => {
+      try {
+        const getId = (res: any) => {
+          const arr = Array.isArray(res) ? res : res?.data ?? [];
+          return arr?.[0]?.id ?? null;
+        };
+        const findByContact = async (res: any) => {
+          const arr: any[] = Array.isArray(res) ? res : res?.data ?? [];
+          return arr.find((t: any) => (t.contact?.id ?? t.contactId) === customerId)?.id ?? null;
+        };
+        let tid: string | null = null;
+        try {
+          const list: any = await apiRequest<any>(`/transaction?contactId=${encodeURIComponent(customerId)}&type=SALE&limit=1`);
+          tid = getId(list);
+          if (!tid) {
+            const all: any = await apiRequest<any>(`/transaction?limit=50&type=SALE`);
+            tid = await findByContact(all);
+          }
+        } catch {
+          const all: any = await apiRequest<any>(`/transaction?limit=50&type=SALE`);
+          tid = await findByContact(all);
+        }
+        if (cancel || !tid) { if (!cancel) setLastSale(null); return; }
+        const detail: any = await apiRequest<any>(`/transaction/${tid}`);
+        if (!cancel) setLastSale(detail?.data ?? detail);
+      } catch { if (!cancel) setLastSale(null); }
+    })();
+    return () => { cancel = true; };
+  }, [customerId]);
+
+  const returnGroups = useMemo(() => {
+    const map = new Map<string, ReturnLine[]>();
+    for (const line of cart) {
+      const key = line.productId;
+      const arr = map.get(key) ?? [];
+      arr.push(line);
+      map.set(key, arr);
+    }
+    return Array.from(map.entries()).map(([key, lines]) => ({ key, label: lines[0].productLabel, lines, quantity: lines.reduce((s, l) => s + l.quantity, 0) }));
+  }, [cart]);
+
+  const lastHint = null;
+
   const cashAmt = parseFloat(cash) || 0;
+  const cardAmt = parseFloat(card) || 0;
   const creditAmt = parseFloat(creditAmount) || 0;
   const bankAmt = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
-  const totalPaid = cashAmt + creditAmt + bankAmt;
+  const totalPaid = cashAmt + cardAmt + creditAmt + bankAmt;
 
   useEffect(() => {
     if (refundTotal > 0 && !creditAmount.trim() && bankRows.length === 0) {
@@ -386,7 +447,7 @@ export default function SaleReturnsPage() {
     setContactName(txn.contact.name);
     setContactPhone(txn.contact.phone ?? "");
     setReturnNo(txn.number);
-    setReturnDate(txn.createdAt.slice(0, 10));
+    setReturnDate(txn.createdAt.slice(0, 16));
     setCart(
       txn.items.map((item) => ({
         id: crypto.randomUUID(),
@@ -460,7 +521,7 @@ export default function SaleReturnsPage() {
             note: note.trim() || undefined,
             payments,
             number: returnNo,
-            date: returnDate ? (returnDate === toISODate(new Date()) ? new Date().toISOString() : new Date(`${returnDate}T00:00:00`).toISOString()) : undefined,
+            date: returnDate ? new Date(returnDate.includes("T") ? returnDate : `${returnDate}T00:00:00`).toISOString() : undefined,
           },
         });
         toast(`Return modified`, "success");
@@ -511,7 +572,7 @@ export default function SaleReturnsPage() {
               note: note.trim() || undefined,
               payments: groupPayments,
               number: `RET-${String(nextNo++).padStart(4, "0")}`,
-              date: returnDate ? (returnDate === toISODate(new Date()) ? new Date().toISOString() : new Date(`${returnDate}T00:00:00`).toISOString()) : undefined,
+              date: returnDate ? new Date(returnDate.includes("T") ? returnDate : `${returnDate}T00:00:00`).toISOString() : undefined,
               clientRef: crypto.randomUUID(),
             },
           });
@@ -551,6 +612,133 @@ export default function SaleReturnsPage() {
       </div>
     );
   }
+
+  if (isNewLayout) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Return" : "Sale Return"}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>Modify</Button>
+            <ScannerButton label="Scan IMEI" variant="ghost" />
+            <Link href="/pos"><Button variant="ghost"><PrinterIcon className="h-4 w-4" />Sale Invoice</Button></Link>
+            <Button variant="destructive" onClick={reset}>Clear</Button>
+          </div>
+        </div>
+        <div className="mt-3 flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+            <div className="shrink-0">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
+                  <Dropdown value={customerId} options={contactOptions} onChange={(v) => { setCustomerId(v); const c = (contacts ?? []).find((x) => x.id === v); if (c) { setContactName(c.name); setContactPhone(c.phone ?? ""); } }} searchable placeholder="Select customer…" />
+                  <p className="mt-1 text-xs text-ink-400">{contactName ? `${contactName}${contactPhone ? ` · ${contactPhone}` : ""}` : "Or auto-assigns from unit"}</p>
+                </div>
+                <div className="w-28 shrink-0">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Return #</p>
+                  <Input value={returnNo} readOnly variant="white" className="bg-white text-center px-2" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date & time</p>
+                  <DatePicker value={returnDate} onChange={setReturnDate} withTime />
+                </div>
+              </div>
+            </div>
+            <section className="shrink-0">
+              <div className="flex flex-wrap items-end gap-3">
+                <div ref={searchWrapRef} className="relative min-w-48 flex-1">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
+                  <SearchInput data-scanner-input="sale-return-search" value={q} onChange={setQ} onFocus={() => { setSearchFocused(true); if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q); }} onKeyDown={(e) => { const hasResults = flatUnits.length > 0; if (e.key === "ArrowDown") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i + 1) % flatUnits.length); } else if (e.key === "ArrowUp") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i <= 0 ? flatUnits.length - 1 : i - 1)); } else if (e.key === "Enter") { e.preventDefault(); if (hasResults && highlightedIndex >= 0 && highlightedIndex < flatUnits.length) { pickUnit(flatUnits[highlightedIndex].unit); } else { void handleEnterOrScan(q); } } else if (e.key === "Escape") { setSearchFocused(false); } }} placeholder="Scan IMEI / Barcode…" variant="white" className="bg-ink-100 h-10 text-sm rounded-[12px]" iconClassName="h-4 w-4" />
+                  {panelPos && results.length === 0 && (<div style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"><p className="text-sm text-ink-400">{searching ? "Searching…" : q.trim().length >= 2 ? "No sold units for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}</p></div>)}
+                  {panelPos && results.length > 0 && (<div ref={listRef} style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5">{flatUnits.map((item, idx) => { const product = results[item.productIndex]; const isActive = idx === highlightedIndex; return (<button key={item.unit.id} data-flat={idx} type="button" onClick={() => pickUnit(item.unit)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{[brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ")} <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span></p><p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500"><Badge variant="neutral">{item.unit.condition}</Badge><Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge></p></div><span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span></button>); })}</div>)}
+                </div>
+                <div className="min-w-64 max-w-[320px] flex-1">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
+                  <Dropdown value={selProductId} options={productOptions} onChange={(v) => { setSelProductId(v); const p = (products ?? []).find((x) => x.id === v); if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || "")); }} searchable placeholder="Select accessory…" />
+                </div>
+                <div className="w-20">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
+                  <Input value={returnQty} onChange={(e) => setReturnQty(e.target.value.replace(/\D/g, ""))} placeholder="1" inputMode="numeric" className="bg-white text-center" />
+                </div>
+                <div className="w-28">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p>
+                  <Input value={returnPrice} onChange={(e) => setReturnPrice(clampMoneyInput(e.target.value))} placeholder="Auto" inputMode="decimal" className="bg-white" />
+                </div>
+                <Button type="button" variant="secondary" onClick={() => { if (selProductId) { const p = (products ?? []).find((x) => x.id === selProductId); if (p) { if (p.categoryType === "PHONE") { toast("Phones require IMEI — scan the serial", "error"); return; } const qty = Math.max(1, parseInt(returnQty, 10) || 1); const price = returnPrice.trim() ? parseFloat(returnPrice) : parseFloat(p.sellPrice) || 0; const existing = cart.find((l) => l.productId === p.id && !l.unitId); if (existing) { setCart((prev) => prev.map((l) => (l.productId === p.id && !l.unitId ? { ...l, quantity: l.quantity + qty, refund: price || l.refund } : l))); } else { const saleId = cart[0]?.saleId ?? ""; const saleNumber = cart[0]?.saleNumber ?? ""; setCart((prev) => [...prev, { id: crypto.randomUUID(), productId: p.id, unitId: undefined, imei: undefined, productLabel: `${p.brand} ${p.model}`, saleId, saleNumber, refund: price, quantity: qty }]); } return; } } void handleEnterOrScan(q); }} className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button>
+              </div>
+            </section>
+            <div className="mt-3 flex-1 min-h-0 w-full min-w-0 overflow-y-auto overscroll-none rounded-2xl bg-white">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10 bg-white">
+                  <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
+                    <th className="px-4 py-3">Item</th>
+                    <th className="w-32 px-4 py-3">Sale #</th>
+                    <th className="w-28 px-4 py-3 text-right">Refund</th>
+                    <th className="w-12 px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+              {returnGroups.map((g) => (
+                <Fragment key={g.key}>
+                  <tr className="bg-ink-50/80">
+                    <td className="px-4 py-2.5" colSpan={4}>
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
+                        <span className="truncate text-sm font-semibold text-ink-900">{g.label}</span>
+                        <span className="text-xs text-ink-500">{g.quantity} pcs</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {g.lines.map((line) => (
+                    <tr key={line.id} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                      <td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{line.imei ?? `${line.quantity} pcs`}</span></td>
+                      <td className="px-4 py-2.5 text-ink-700">{line.saleNumber || "—"}</td>
+                      <td className="px-4 py-2.5 text-right"><PriceInput value={line.refund} onChange={(n) => setCart((prev) => prev.map((l) => (l.id === line.id ? { ...l, refund: n } : l)))} className="h-8 w-28 text-right text-sm" /></td>
+                      <td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeLine(line.id)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+              {cart.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">Cart is empty. Scan or search for sold units.</td>
+                </tr>
+              )}
+            </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[340px] lg:max-w-[400px]">
+            <div className="flex h-full flex-col gap-3">
+              <div className="flex-1 rounded-2xl bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">Refund</h3>
+                  <p className="text-xs text-ink-400">Total <span className="font-semibold text-ink-900">{formatPKR(refundTotal)}</span></p>
+                </div>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotal - (parseFloat(creditAmount) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(refundTotal - (parseFloat(creditAmount) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill cash</Button></div>
+                <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={creditAmount} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotal - (parseFloat(cash) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCreditAmount(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCreditAmount(clampMoneyInput(String(refundTotal - (parseFloat(cash) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill credit</Button></div>
+              </div>
+              <div className="mt-3"><BankPaymentRow bankRows={bankRows} bankAccounts={bankAccounts} onBankSheetOpen={() => setBankSheetOpen(true)} onAddBank={() => { if (bankRows.length === 0) { const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0]; setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]); } setBankSheetOpen(true); }} /></div>
+            </div>
+            <div className="sticky bottom-0 rounded-2xl bg-white p-4">
+              <div className="flex items-baseline justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Total refund</p><p className="text-3xl font-bold tracking-tight text-brand-600">{formatPKR(refundTotal)}</p></div>
+              <div className="mt-2 space-y-1 text-xs text-ink-500">
+                {cashAmt > 0 && <p className="flex items-center justify-between"><span>Cash</span><span className="font-medium tabular-nums text-ink-700">{formatPKR(cashAmt)}</span></p>}
+                {creditAmt > 0 && <p className="flex items-center justify-between"><span>Credit</span><span className="font-medium tabular-nums text-ink-700">{formatPKR(creditAmt)}</span></p>}
+                {bankAmt > 0 && <p className="flex items-center justify-between"><span>Bank</span><span className="font-medium tabular-nums text-ink-700">{formatPKR(bankAmt)}</span></p>}
+              </div>
+              <Button className="mt-3 h-12 w-full text-[15px] font-semibold active:scale-[0.98] transition-transform duration-100" type="button" onClick={() => void submit()} disabled={submitting || cart.length === 0}>{submitting ? "Returning…" : `Refund ${formatPKR(refundTotal)}`}</Button>
+            </div>
+            </div>
+          </div>
+        </div>
+        <ModifyPicker open={modifyPickerOpen} onClose={() => setModifyPickerOpen(false)} type="SALE_RETURN" onSelect={(txn) => { void (async () => { try { const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`); loadForModify(detail); } catch { toast("Could not load the return", "error"); } })(); }} />
+        <BankDepositSheet open={bankSheetOpen} onClose={() => setBankSheetOpen(false)} bankRows={bankRows} onBankRowsChange={setBankRows} bankAccounts={bankAccounts} />
+      </div>
+    );
+  }
+
 
   return (
     <form
@@ -611,7 +799,6 @@ export default function SaleReturnsPage() {
       </div>
 
       <section className="mt-6 shrink-0">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Add items</p>
         <div className="flex flex-wrap items-end gap-3">
           <div ref={searchWrapRef} className="relative min-w-48 flex-1">
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
@@ -675,7 +862,7 @@ export default function SaleReturnsPage() {
                       type="button"
                       onClick={() => pickUnit(item.unit)}
                       onMouseEnter={() => setHighlightedIndex(idx)}
-                      className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}
+                      className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-ink-900">
@@ -687,7 +874,7 @@ export default function SaleReturnsPage() {
                           <Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge>
                         </p>
                       </div>
-                      <PlusIcon className="h-4 w-4 shrink-0 text-ink-400" />
+                      <span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span>
                     </button>
                   );
                 })}
@@ -792,7 +979,7 @@ export default function SaleReturnsPage() {
         <span className="text-xs text-ink-500">{cart.reduce((s, l) => s + l.quantity, 0)} pcs</span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none rounded-2xl bg-white">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-white">
             <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
@@ -803,52 +990,33 @@ export default function SaleReturnsPage() {
             </tr>
           </thead>
           <tbody>
-            {cart.map((line) => (
-              <Fragment key={line.id}>
-                <tr className="bg-ink-50/80">
-                  <td className="px-4 py-2.5" colSpan={4}>
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
-                      <span className="truncate text-sm font-semibold text-ink-900">{line.productLabel}</span>
-                      {line.quantity > 1 && <span className="text-xs text-ink-400">×{line.quantity} pcs</span>}
-                    </div>
-                  </td>
+              {returnGroups.map((g) => (
+                <Fragment key={g.key}>
+                  <tr className="bg-ink-50/80">
+                    <td className="px-4 py-2.5" colSpan={4}>
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
+                        <span className="truncate text-sm font-semibold text-ink-900">{g.label}</span>
+                        <span className="text-xs text-ink-500">{g.quantity} pcs</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {g.lines.map((line) => (
+                    <tr key={line.id} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
+                      <td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{line.imei ?? `${line.quantity} pcs`}</span></td>
+                      <td className="px-4 py-2.5 text-ink-700">{line.saleNumber || "—"}</td>
+                      <td className="px-4 py-2.5 text-right"><PriceInput value={line.refund} onChange={(n) => setCart((prev) => prev.map((l) => (l.id === line.id ? { ...l, refund: n } : l)))} className="h-8 w-28 text-right text-sm" /></td>
+                      <td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeLine(line.id)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+              {cart.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">Cart is empty. Scan or search for sold units.</td>
                 </tr>
-                <tr className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
-                  <td className="px-4 py-2.5 pl-9">
-                    <span className="text-[13px] font-medium text-ink-900">{line.imei ?? `${line.quantity} pcs`}</span>
-                  </td>
-                  <td className="px-4 py-2.5 text-ink-700">{line.saleNumber || "—"}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <PriceInput
-                      value={line.refund}
-                      onChange={(n) => {
-                        setCart((prev) => prev.map((l) => (l.id === line.id ? { ...l, refund: n } : l)));
-                      }}
-                      className="h-8 w-28 text-right text-sm"
-                    />
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => removeLine(line.id)}
-                      title="Remove"
-                      className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
-                    >
-                      <XIcon className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              </Fragment>
-            ))}
-            {cart.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">
-                  Cart is empty. Scan or search for sold units.
-                </td>
-              </tr>
-            )}
-          </tbody>
+              )}
+            </tbody>
         </table>
       </div>
 
@@ -865,11 +1033,11 @@ export default function SaleReturnsPage() {
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash paid</p>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
                     <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
                   </div>
                   <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">On credit</p>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
                     <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
                   </div>
                 </div>

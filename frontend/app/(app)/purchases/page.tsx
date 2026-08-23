@@ -22,6 +22,7 @@ import { useToast } from "@/components/ui/toast";
 import { BankPaymentRow, PaymentSummaryCard } from "@/components/payment-bottom";
 import { BankDepositSheet } from "@/components/bank-deposit-sheet";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
+import { useDashboardLayout } from "@/lib/dashboard-layout-context";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playPop, playSuccess } from "@/lib/sound";
@@ -60,6 +61,8 @@ let keyCounter = 0;
 export default function PurchasesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { layout } = useDashboardLayout();
+  const isNewLayout = layout === "new";
   const searchParams = useSearchParams();
   const { data: contacts } = useApi<Contact[]>("/contact");
   const { data: products } = useApi<ProductSummary[]>("/product");
@@ -422,6 +425,11 @@ export default function PurchasesPage() {
       return;
     }
     const next = barcodes.map((v, idx) => (idx === i ? value : v));
+    setBarcodes(next);
+    if (next.every((v) => v.trim() !== "")) {
+      commitBarcodes(next);
+      return;
+    }
     focusNextBarcodeField(next, i);
   }
 
@@ -772,6 +780,76 @@ export default function PurchasesPage() {
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (isNewLayout) {
+    const cashAmtNL = parseFloat(cash) || 0;
+    const creditAmtNL = parseFloat(creditAmount) || 0;
+    const bankAmtNL = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
+            <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Purchase" : "Purchase"}<span className="ml-2 text-sm font-medium text-ink-400">{flow === "ACCESSORY" ? "· Accessories" : flow === "USED" ? "· Used Phone" : "· New Phone"}</span></h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ScannerButton label="Scan IMEI" variant="ghost" />
+            <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>Modify</Button>
+            <Link href="/purchase-returns"><Button variant="ghost">Purchase Returns</Button></Link>
+            <Link href="/reports/purchases"><Button variant="ghost"><ReportsIcon className="h-4 w-4" />Reports</Button></Link>
+            <Button variant="destructive" onClick={clearAll}>Clear</Button>
+          </div>
+        </div>
+        {po && (
+          <div className="mt-3 rounded-2xl border border-brand-200 bg-brand-50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-ink-900">Receiving <span className="font-mono">{po.number}</span> · {po.contact.name}{parseFloat(po.advance) > 0 && <span className="ml-2 text-xs font-normal text-ink-600">Advance {formatPKR(po.advance)} already paid</span>}</p><Link href="/purchase-orders" className="text-xs text-brand-700 hover:underline">Back to orders</Link></div>
+            <p className="mt-1 text-xs text-ink-500">Pick each item to enter {flow === "ACCESSORY" ? "barcodes" : "IMEIs"} — it will be saved as a real purchase with stock.</p>
+            <div className="mt-3 grid gap-2">{po.items.map((it) => { const remaining = it.quantity - it.receivedQuantity; if (remaining <= 0) return null; const added = rows.filter((r) => r.productId === it.product.id).reduce((s, r) => s + r.quantity, 0); const label = `${it.product.brand?.name ?? ""} ${it.product.model} ${it.product.storage ?? ""} ${it.product.ram ?? ""}`.trim() || it.product.model; const isAcc = it.product.category?.type === "ACCESSORY"; const done = added >= remaining; return (<div key={it.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink-900">{label}</p><p className="text-xs text-ink-500">Qty {remaining} · {formatPKR(it.costPrice)} each {added > 0 && `· Added ${added}/${remaining}`}</p></div><Button size="sm" variant={done ? "ghost" : "secondary"} disabled={done} onClick={() => (isAcc ? promptPoBarcode(it) : promptPoImei(it))}>{done ? "Added" : flow === "ACCESSORY" ? "Add barcodes" : "Add IMEIs"}</Button></div>); })}</div>
+          </div>
+        )}
+        <div className="mt-3 flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+            <div className="shrink-0">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">{tab === "NEW" ? "Vendor" : "Seller"}</p>{contactOptions.length > 0 && (<Dropdown value={contactId} options={contactOptions} onChange={setContactId} searchable placeholder="Select…" />)}</div>
+                <div className="w-28 shrink-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Purchase #</p><Input value={purchaseNo} readOnly variant="white" className="bg-white text-center px-2" /></div>
+                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date & time</p><DatePicker value={purchaseDate} onChange={setPurchaseDate} withTime /></div>
+                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Discount</p><div className="flex items-center gap-2"><PriceInput value={discountPct} max={100} onChange={setDiscountPct} className="flex-1 min-w-0 bg-white" suffix="%" /><PriceInput value={parseFloat(discount) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => setDiscount(n > 0 ? String(n) : "")} className="flex-1 min-w-0 bg-white" suffix="Rs" /></div></div>
+              </div>
+            </div>
+            <section className="shrink-0"><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">{flow === "ACCESSORY" ? "Add accessories" : "Add units"}</p><form onSubmit={(e) => { e.preventDefault(); if (flow === "ACCESSORY") openBarcodePopup(); else openImeiPopup(); }}><div className="flex flex-wrap items-end gap-3"><div className="min-w-64 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} searchable placeholder="Select product…" /></div><div className="w-32"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div><div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div>{flow !== "ACCESSORY" && (<div className="w-40"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p><Dropdown value={colorId} options={colorOptions} onChange={setColorId} searchable placeholder="Select…" /></div>)}{flow === "USED" && (<><div className="w-36"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Carrier</p><Dropdown value={carrier} options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))} onChange={(value) => setCarrier(value)} /></div><div className="w-28"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p><Input value={batteryHealth} onChange={(e) => setBatteryHealth(e.target.value)} inputMode="numeric" placeholder="Optional" className="bg-white" /></div><div className="w-24"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p><Dropdown value={grade} options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))} onChange={setGrade} /></div></>)}<Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div></form></section>
+            <div className="mt-3 flex-1 min-h-0 w-full min-w-0 overflow-y-auto overscroll-none rounded-2xl bg-white"><table className="w-full text-sm"><thead className="sticky top-0 z-10 bg-white"><tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500"><th className="px-4 py-3">Item</th>{flow === "ACCESSORY" ? (<><th className="px-4 py-3">Barcode</th><th className="w-20 px-4 py-3 text-center">Qty</th><th className="w-28 px-4 py-3 text-right">Cost</th></>) : (<><th className="px-4 py-3">IMEI</th><th className="px-4 py-3">Color</th>{flow === "USED" && <th className="px-4 py-3">Carrier</th>}{flow === "USED" && <th className="px-4 py-3">Battery</th>}{flow === "USED" && <th className="px-4 py-3">Grade</th>}<th className="w-28 px-4 py-3 text-right">Cost</th></>)}<th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => { const grouped = new Map<string, typeof rows>(); for (const row of rows) { const key = row.productId; const arr = grouped.get(key) ?? []; arr.push(row); grouped.set(key, arr); } return Array.from(grouped.entries()).map(([productId, groupRows]) => (<Fragment key={productId}><tr className="bg-ink-50/80"><td colSpan={flow === "ACCESSORY" ? 4 : (flow === "USED" ? 8 : 5)} className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span><span className="text-xs text-ink-400">{groupRows.length} × {formatPKR(parseFloat(groupRows[0].costPrice) || 0)}</span></div></td></tr>{groupRows.map((row) => (<tr key={row.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60"><>{flow === "ACCESSORY" ? (<><td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{row.barcode || "—"}</span></td><td className="px-4 py-2.5 text-center"><Input value={String(row.quantity)} onChange={(e) => updateRowQty(row.key, e.target.value)} inputMode="numeric" className="w-16 py-1 text-center" /></td><td className="px-4 py-2.5 text-right"><Input value={row.costPrice} onChange={(e) => updateRowCost(row.key, e.target.value)} inputMode="numeric" className="w-28 py-1 text-right" /></td></>) : (<><td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{row.imei}</span></td><td className="px-4 py-2.5 text-ink-700">{row.colorLabel ?? "—"}</td>{flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{CARRIER_LABELS[row.carrier]}</td>}{flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{row.batteryHealth ? `${row.batteryHealth}%` : "—"}</td>}{flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{row.grade}</td>}<td className="px-4 py-2.5 text-right"><Input value={row.costPrice} onChange={(e) => updateRowCost(row.key, e.target.value)} inputMode="numeric" className="w-28 py-1 text-right" /></td></>)}</><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>)); })()}{rows.length === 0 && (<tr><td colSpan={flow === "ACCESSORY" ? 4 : (flow === "USED" ? 8 : 5)} className="px-4 py-8 text-center text-sm text-ink-400">No items added yet. Pick a product above and press Add.</td></tr>)}</tbody></table></div>
+          </div>
+          <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[340px] lg:max-w-[400px]">
+            <div className="flex h-full flex-col gap-3">
+              <div className="flex-1 rounded-2xl bg-white p-4">
+                <div className="flex items-center justify-between"><h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">Payment</h3><p className="text-xs text-ink-400">Total <span className="font-semibold text-ink-900">{formatPKR(total)}</span></p></div>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, total - (parseFloat(creditAmount) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(total - (parseFloat(creditAmount) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill cash</Button></div>
+                  <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={creditAmount} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, total - (parseFloat(cash) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCreditAmount(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCreditAmount(clampMoneyInput(String(total - (parseFloat(cash) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill credit</Button></div>
+                </div>
+                <div className="mt-3"><BankPaymentRow bankRows={bankRows} bankAccounts={bankAccounts} onBankSheetOpen={() => setBankSheetOpen(true)} onAddBank={() => { if (bankRows.length === 0) { const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0]; setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]); } setBankSheetOpen(true); }} /></div>
+              </div>
+              <div className="sticky bottom-0 rounded-2xl bg-white p-4">
+                <div className="flex items-baseline justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Total</p><p className="text-3xl font-bold tracking-tight text-brand-600">{formatPKR(total)}</p></div>
+                <div className="mt-2 space-y-1 text-xs text-ink-500">
+                  {(discountPct > 0 || (parseFloat(discount) || 0) > 0) && <p className="flex items-center justify-between"><span>Discount</span><span className="font-medium tabular-nums text-ink-700">{formatPKR((subtotal * discountPct) / 100 + (parseFloat(discount) || 0))}</span></p>}
+                  {cashAmtNL > 0 && <p className="flex items-center justify-between"><span>Cash</span><span className="font-medium tabular-nums text-ink-700">{formatPKR(cashAmtNL)}</span></p>}
+                  {creditAmtNL > 0 && <p className="flex items-center justify-between"><span>Credit</span><span className="font-medium tabular-nums text-ink-700">{formatPKR(creditAmtNL)}</span></p>}
+                  {bankAmtNL > 0 && <p className="flex items-center justify-between"><span>Bank</span><span className="font-medium tabular-nums text-ink-700">{formatPKR(bankAmtNL)}</span></p>}
+                </div>
+                <Button className="mt-3 h-12 w-full text-[15px] font-semibold active:scale-[0.98] transition-transform duration-100" onClick={submit} disabled={submitting || rows.length === 0}>{submitting ? (modifyId ? "Updating…" : "Recording…") : modifyId ? `Update purchase · ${formatPKR(total)}` : `Pay ${formatPKR(total)}`}</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <ModifyPicker open={modifyPickerOpen} onClose={() => setModifyPickerOpen(false)} type="PURCHASE" onSelect={(txn) => { void (async () => { try { const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`); loadForModify(detail); } catch { toast("Could not load the purchase to modify", "error"); } })(); }} />
+        <BankDepositSheet open={bankSheetOpen} onClose={() => setBankSheetOpen(false)} bankRows={bankRows} onBankRowsChange={setBankRows} bankAccounts={bankAccounts} />
+        {popup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{popup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{[popup.colorLabel, popup.batteryHealth ? `Battery ${popup.batteryHealth}%` : null].filter(Boolean).join(" · ")}{" · "}{formatPKR(popup.price)} each</p><div className="my-4 flex items-center justify-center gap-1 text-4xl font-bold"><span className={popupImeis.filter((v) => v.length === 15).length === popup.qty ? "text-brand-600" : "text-ink-900"}>{popupImeis.filter((v) => v.length === 15).length}</span><span className="text-ink-400">/</span><span className="text-ink-400">{popup.qty}</span></div><div className="-mr-1 mt-4 h-72 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{popupImeis.map((val, i) => (<div key={i} className="flex items-center gap-2"><span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span><Input ref={(el) => { imeiFieldRefs.current[i] = el; }} data-scanner-input="imei" value={val} onChange={(e) => updatePopupImei(i, e.target.value.replace(/\D/g, "").slice(0, 15))} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handlePopupImeiEnter(i); } }} placeholder={`IMEI ${i + 1}`} variant="filled" className={`min-w-0 flex-1 rounded-xl py-1.5 font-mono text-xs ${val.length === 15 ? "border border-brand-500/50" : ""}`} />{val.length === 15 ? (<CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />) : (<button type="button" onClick={() => clearPopupImei(i)} className="shrink-0 text-ink-300 hover:text-error" aria-label="Clear IMEI">✕</button>)}</div>))}</div><div className="mt-5 flex shrink-0 justify-end gap-2"><ScannerButton label="Scan" variant="grey" /><Button variant="grey" onClick={closePopup}>Cancel</Button><Button onClick={() => commit(popupImeis.filter((v) => v.length === 15))} disabled={popupImeis.filter((v) => v.length === 15).length === 0}>{popupImeis.filter((v) => v.length === 15).length === popup.qty ? "Add all" : `Add ${popupImeis.filter((v) => v.length === 15).length} unit(s)`}</Button></div></div></div>)}
+        {barcodePopup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{barcodePopup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{formatPKR(barcodePopup.price)} each</p><div className="my-4"><Checkbox checked={sameBarcode} onChange={setSameBarcode} label={`Same barcode for all ${barcodePopup.qty} pcs`} /></div>{sameBarcode ? (<div className="flex items-center gap-2"><Input value={singleBarcode} onChange={(e) => setSingleBarcode(e.target.value)} placeholder="Scan or type barcode" className="flex-1" /><Button variant="grey" onClick={() => setSingleBarcode("")}>Clear</Button></div>) : (<div className="-mr-1 h-64 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{barcodes.map((val, i) => (<div key={i} className="flex items-center gap-2"><span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span><Input ref={(el) => { barcodeFieldRefs.current[i] = el; }} value={val} onChange={(e) => updateBarcode(i, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleBarcodeEnter(i); } }} placeholder={`Barcode ${i + 1}`} className="min-w-0 flex-1" />{val.trim() ? (<CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />) : (<button type="button" onClick={() => clearBarcode(i)} className="shrink-0 text-ink-300 hover:text-error">✕</button>)}</div>))}</div>)}<div className="mt-5 flex shrink-0 justify-end gap-2"><Button variant="grey" onClick={closeBarcodePopup}>Cancel</Button><Button onClick={() => commitBarcodes()}>{sameBarcode ? `Add ${barcodePopup.qty} pcs` : `Add ${barcodes.filter((v) => v.trim()).length} pcs`}</Button></div></div></div>)}
       </div>
     );
   }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-api";
 import type { DeviceLedger, ProductSummary, Unit } from "@/lib/api-types";
 import { formatDateTime } from "@/lib/dates";
@@ -48,16 +49,33 @@ function productLabel(p: ProductSummary) {
 }
 
 export function DeviceLookup() {
-  const [imei, setImei] = useState("");
-  const [search, setSearch] = useState("");
-  const [productId, setProductId] = useState("");
-  const [selectedImei, setSelectedImei] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const [imei, setImei] = useState(() => searchParams.get("imei") ?? searchParams.get("search") ?? searchParams.get("q") ?? "");
+  const [search, setSearch] = useState(() => searchParams.get("imei") ?? searchParams.get("search") ?? searchParams.get("q") ?? "");
+  const [productId, setProductId] = useState(() => searchParams.get("productId") ?? "");
+  const [selectedImei, setSelectedImei] = useState<string | null>(() => {
+    const v = searchParams.get("imei");
+    return v && /^\d{14,15}$/.test(v.trim()) ? v.trim() : null;
+  });
 
   const { data: products, loading: loadingProducts } = useApi<ProductSummary[]>("/product");
-  const { data: units, loading } = useApi<Unit[]>(unitPath({ search, productId }));
+  const isAccessoryProduct = (products ?? []).find((p) => p.id === productId)?.categoryType === "ACCESSORY";
+  const { data: units, loading } = useApi<Unit[]>(!isAccessoryProduct ? unitPath({ search, productId }) : null);
   const { data: ledger, loading: loadingLedger } = useApi<DeviceLedger>(
     selectedImei ? `/unit/ledger/${encodeURIComponent(selectedImei)}` : null,
   );
+  const selectedProduct = (products ?? []).find((p) => p.id === productId) ?? null;
+
+  useEffect(() => {
+    const paramImei = searchParams.get("imei") ?? searchParams.get("search") ?? searchParams.get("q");
+    const paramPid = searchParams.get("productId");
+    if (paramImei && paramImei !== search) {
+      setImei(paramImei);
+      setSearch(paramImei);
+      if (/^\d{14,15}$/.test(paramImei.trim())) setSelectedImei(paramImei.trim());
+    }
+    if (paramPid && paramPid !== productId) setProductId(paramPid);
+  }, [searchParams]);
 
   function submitSearch() {
     const trimmed = imei.trim();
@@ -89,7 +107,7 @@ export function DeviceLookup() {
         <SearchInput
           value={imei}
           onChange={setImei}
-          placeholder="Search IMEI…"
+          placeholder="Search IMEI or barcode…"
           className="w-64 bg-white"
           onKeyDown={(e) => {
             if (e.key === "Enter") submitSearch();
@@ -125,13 +143,25 @@ export function DeviceLookup() {
             onBack={() => setSelectedImei(null)}
           />
         )
+      ) : isAccessoryProduct && selectedProduct ? (
+        <div className="min-h-0 flex-1 space-y-3">
+          <ReportCard title={productLabel(selectedProduct)} sub={`${selectedProduct.categoryName} · ${selectedProduct.sku}${(selectedProduct as any).barcode ? ` · ${(selectedProduct as any).barcode}` : ""}`}>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <KpiCard label="In stock" value={String(selectedProduct.inStock)} sub={`${selectedProduct.inStock > 0 ? "available" : "out of stock"}`} />
+              <KpiCard label="Sale price" value={formatPKR(selectedProduct.sellPrice)} sub={`Cost ${formatPKR(selectedProduct.costPrice)} · Profit ${formatPKR(Number(selectedProduct.sellPrice) - Number(selectedProduct.costPrice))}`} />
+              <KpiCard label="Low stock at" value={String(selectedProduct.lowStockThreshold)} sub={selectedProduct.inStock <= selectedProduct.lowStockThreshold ? "Reorder soon" : "Stock OK"} />
+              <KpiCard label="Barcode" value={String((selectedProduct as any).barcode || "—")} sub={selectedProduct.sku ?? undefined} />
+            </div>
+            <p className="mt-3 text-xs text-ink-500">Accessories have no IMEI. Stock is tracked by quantity, not by device ledger. Use Inventory or the new Sale LookUp for full history.</p>
+          </ReportCard>
+        </div>
       ) : loading ? (
         <p className="min-h-0 flex-1 text-sm text-ink-400">Loading…</p>
       ) : (
         <div className="min-h-0 flex-1 space-y-3">
           <ReportCard
             title={search ? `Matching IMEIs for “${search}”` : productId ? "All IMEIs for this product" : "Search results"}
-            sub="Every device, regardless of status — sold, reserved, in stock and more."
+            sub="Every device, regardless of status — sold, reserved, in stock and more. For accessories or barcode items, pick the product above or use Sale LookUp."
           >
             <ReportTable
               columns={[
@@ -189,8 +219,8 @@ export function DeviceLookup() {
               rowKey={(u) => u.id}
               empty={
                 hasQuery
-                  ? "No devices matched. Try a full or partial IMEI, or pick a product."
-                  : "Search an IMEI or pick a product to list its devices."
+                  ? "No devices matched. Try a full or partial IMEI, or pick a product. Accessories and barcode items have no IMEI — pick the product to see stock, or use Sale LookUp."
+                  : "Search an IMEI or pick a product to list its devices. For accessories/barcode, pick the product or use Sale LookUp."
               }
             />
           </ReportCard>

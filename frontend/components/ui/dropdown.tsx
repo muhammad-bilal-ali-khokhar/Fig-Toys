@@ -280,20 +280,14 @@ export function Dropdown<T extends string>({
                   setOpen(false);
                 }}
                 className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition ${
-                  activeIndex === i ? "bg-brand-50" : isSelected ? "bg-brand-50/50" : "hover:bg-ink-50"
+                  isSelected ? "bg-brand-600 text-white [&_span]:!text-white/80" : activeIndex === i ? "bg-brand-50" : "hover:bg-ink-50"
                 } ${option.disabled ? "opacity-40" : ""}`}
               >
                 {option.leading}
-                <span className="min-w-0 flex-1 truncate text-sm text-ink-900">
+                <span className={`min-w-0 flex-1 truncate text-sm ${isSelected ? "text-white" : "text-ink-900"}`}>
                   {option.label}
                 </span>
-                {isSelected ? (
-                  <span className="shrink-0 text-sm font-bold text-brand-600">
-                    ✓
-                  </span>
-                ) : (
-                  option.trailing
-                )}
+                {option.trailing}
               </button>
             );
           }              )

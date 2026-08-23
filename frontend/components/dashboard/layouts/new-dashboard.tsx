@@ -96,20 +96,18 @@ export function NewDashboard({ data, activity, profile, loading, range, setRange
 
   return (
     <div className="space-y-5">
-      <div className="rounded-3xl bg-ink-900 p-5 text-white">
+      <div className="rounded-3xl bg-ink-900 p-5 text-white overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-xl font-bold tracking-tight">Welcome back, {user?.name}</h1>
             <p className="mt-1 text-sm text-white/70">{rangeLabel} · {profile?.name ?? "Your store"}</p>
           </div>
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-            <div className="w-full sm:w-72">
-              <div className="[&>div]:!bg-white/10 [&_input]:!bg-transparent [&_input]:!text-white [&_input]:placeholder:!text-white/50 [&_svg]:!text-white/60">
-                <GlobalSearch />
-              </div>
+          <div className="flex w-full min-w-0 flex-col gap-3 lg:w-auto lg:flex-row lg:items-center">
+            <div className="w-full min-w-0 lg:w-72">
+              <GlobalSearch variant="dark" />
             </div>
-            <div className="[&>button]:!bg-white [&>button]:!text-ink-900">
-              <PeriodPicker value={range} onChange={setRange} />
+            <div className="min-w-0">
+              <PeriodPicker value={range} onChange={setRange} variant="dark" />
             </div>
           </div>
         </div>
