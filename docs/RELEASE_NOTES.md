@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **Separate updater window with silent auto-install** — `desktop/main.js:1080` `/318` `installUpdate()` now spawns a detached updater (`--updater` + `desktop/updater.html` / `desktop/updater-preload.js`) instead of a card inside the main process. Updater shows `Installing vX…` with spinner, runs `installer /S --force-run` hidden and relaunches the app — visible progress, zero clicks. `desktop/electron-builder.yml:9` now bundles updater files.
+
 ## v0.1.100
 
 - **Update notes now render as formatted text with markdown** — `frontend/components/settings/update-tab.tsx:114` showed `releaseNotes` raw in a `max-h-48 overflow-auto whitespace-pre-wrap` scroll box so `**bold**`/`code` appeared literally. Now `ReleaseNotes` parses markdown (`**bold**` → bold, `` `code` `` → code badge, `-` → bullet list) in a normal flow `rounded-2xl py-3` block. `desktop/about.html:433` `setNotes()` updated similarly — no `pre-wrap`/`max-height` scroll, proper `<ul>`/`<code>` rendering.

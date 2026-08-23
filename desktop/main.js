@@ -328,56 +328,28 @@ function installUpdate() {
     } catch {}
     return;
   }
-  const { spawn } = require("node:child_process");
   const installerPath = updateState.installerPath;
-  logging.write(`OTA: installing ${installerPath}`);
+  const ver = updateState.version || "";
+  logging.write(`OTA: handing off to updater for ${installerPath} v${ver}`);
   try {
-    const win = new BrowserWindow({
-      width: 420,
-      height: 200,
-      resizable: false,
-      minimizable: false,
-      maximizable: false,
-      frame: false,
-      transparent: true,
-      hasShadow: false,
-      alwaysOnTop: true,
-      backgroundColor: "#00000000",
-      webPreferences: { contextIsolation: true, sandbox: true },
-    });
-    win.loadURL(
-      `data:text/html,${encodeURIComponent(`<html><head><meta charset="UTF-8"><style>html,body{margin:0;height:100%;background:transparent;font-family:Montserrat,system-ui,sans-serif} .card{margin:20px;background:#fff;border-radius:20px;padding:24px;box-shadow:0 20px 40px rgba(0,0,0,0.15);text-align:center} .spinner{width:28px;height:28px;border:3px solid #f3efe7;border-top-color:#9b3f68;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px} @keyframes spin{to{transform:rotate(360deg)}} h1{margin:0;font-size:15px;color:#1c1916} p{margin:6px 0 0;font-size:12px;color:#7d7467}</style></head><body><div class="card"><div class="spinner"></div><h1>Installing update v${updateState.version || ""}…</h1><p>The app will restart automatically. Please wait.</p></div></body></html>`)}`,
-    );
-    win.show();
-    setTimeout(() => {
-      try {
-        const child = spawn(installerPath, [], { detached: true, stdio: "ignore" });
-        child.on("error", (err) => logging.error(`OTA: spawn failed: ${err.message}`));
-        child.unref();
-        logging.write(`OTA: spawned visible installer ${installerPath} (pid ${child.pid})`);
-      } catch (e) {
-        logging.error(`OTA: spawn failed: ${e.message}`);
-        try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: "Could not start installer.", detail: String(e.message || e) }).catch(() => {}); } catch {}
-        return;
-      }
-      setTimeout(() => {
-        app.removeAllListeners("window-all-closed");
-        app.quit();
-        setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
-      }, 500);
-    }, 900);
-    return;
-  } catch (e) {
-    logging.error(`OTA: install window failed: ${e.message}`);
-  }
-  try {
-    const child = spawn(installerPath, [], { detached: true, stdio: "ignore" });
-    child.on("error", (err) => logging.error(`OTA: spawn fallback failed: ${err.message}`));
+    const exe = app.getPath("exe");
+    const updaterArgs = app.isPackaged
+      ? ["--updater", installerPath, ver]
+      : [ROOT, "--updater", installerPath, ver];
+    const child = spawn(process.execPath, updaterArgs, { detached: true, stdio: "ignore" });
+    child.on("error", (e) => logging.error(`OTA: updater spawn failed: ${e.message}`));
     child.unref();
-  } catch {}
-  app.removeAllListeners("window-all-closed");
-  app.quit();
-  setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
+    logging.write(`OTA: updater spawned pid ${child.pid}`);
+  } catch (e) {
+    logging.error(`OTA: updater spawn failed: ${e.message}`);
+    try { dialog.showMessageBox(mainWindow, { type: "error", title: "Update failed", message: String(e.message || e) }).catch(() => {}); } catch {}
+    return;
+  }
+  setTimeout(() => {
+    app.removeAllListeners("window-all-closed");
+    app.quit();
+    setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
+  }, 400);
 }
 
 // ---------------------------------------------------------------------------
@@ -1069,10 +1041,62 @@ function waitForHealth(url, timeoutMs) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// App lifecycle
-// ---------------------------------------------------------------------------
-if (!app.requestSingleInstanceLock()) {
+const isUpdater = process.argv.includes("--updater");
+
+async function runUpdater() {
+  const idx = process.argv.indexOf("--updater");
+  const installerPath = process.argv[idx + 1] || updateState.installerPath || "";
+  const ver = process.argv[idx + 2] || updateState.version || "";
+  const exePath = app.getPath("exe");
+  try { logging.init(path.join(userDataDir(), "logs")); } catch {}
+  logging.write(`Updater: starting for ${installerPath} v${ver}`);
+  const win = new BrowserWindow({
+    width: 460,
+    height: 220,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    alwaysOnTop: true,
+    backgroundColor: "#00000000",
+    webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, "updater-preload.js") },
+  });
+  win.loadFile(path.join(__dirname, "updater.html"), { query: { v: ver } });
+  win.show();
+  win.webContents.on("did-finish-load", () => {
+    setTimeout(() => {
+      if (!installerPath || !fs.existsSync(installerPath)) {
+        logging.error(`Updater: installer not found at ${installerPath}`);
+        try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: "Installer not found." }).catch(() => {}); } catch {}
+        return;
+      }
+      logging.write(`Updater: spawning silent installer ${installerPath} /S --force-run`);
+      const child = spawn(installerPath, ["/S", "--force-run"], { detached: false, stdio: "ignore" });
+      child.on("error", (e) => {
+        logging.error(`Updater: spawn failed: ${e.message}`);
+        try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: String(e.message) }).catch(() => {}); } catch {}
+      });
+      child.on("close", (code) => {
+        logging.write(`Updater: installer exited with code ${code}`);
+        setTimeout(() => {
+          try {
+            const c2 = spawn(exePath, [], { detached: true, stdio: "ignore" });
+            c2.unref();
+            logging.write(`Updater: relaunched ${exePath} pid ${c2.pid}`);
+          } catch (e) { logging.error(`Updater: relaunch failed: ${e.message}`); }
+          app.quit();
+          setTimeout(() => { try { app.exit(0); } catch {} }, 500);
+        }, 800);
+      });
+    }, 800);
+  });
+}
+
+if (isUpdater) {
+  app.whenReady().then(() => runUpdater());
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => {

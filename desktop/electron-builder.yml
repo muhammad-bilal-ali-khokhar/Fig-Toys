@@ -8,10 +8,12 @@ directories:
 files:
   - main.js
   - preload.js
+  - updater-preload.js
   - logging.js
   - report.js
   - loading.html
   - about.html
+  - updater.html
   - icon.png
   - license-public.pem
   - spalsh_1.png
