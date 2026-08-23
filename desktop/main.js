@@ -330,8 +330,7 @@ function installUpdate() {
   }
   const { spawn } = require("node:child_process");
   const installerPath = updateState.installerPath;
-  const exePath = app.getPath("exe");
-  logging.write(`OTA: installing ${installerPath} (current exe: ${exePath})`);
+  logging.write(`OTA: installing ${installerPath}`);
   try {
     const win = new BrowserWindow({
       width: 420,
@@ -352,36 +351,31 @@ function installUpdate() {
     win.show();
     setTimeout(() => {
       try {
-        const helper = path.join(app.getPath("temp"), `fig-install-${Date.now()}.bat`);
-        const bat = `@echo off\r\n` +
-          `ping 127.0.0.1 -n 3 > nul\r\n` +
-          `start "" /wait "${installerPath.replace(/"/g, '""')}" /S\r\n` +
-          `ping 127.0.0.1 -n 3 > nul\r\n` +
-          `start "" "${exePath.replace(/"/g, '""')}"\r\n` +
-          `(del "%~f0")\r\n`;
-        fs.writeFileSync(helper, bat, "utf8");
-        spawn("cmd.exe", ["/c", helper], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-        logging.write(`OTA: helper batch spawned at ${helper}`);
+        const child = spawn(installerPath, [], { detached: true, stdio: "ignore" });
+        child.on("error", (err) => logging.error(`OTA: spawn failed: ${err.message}`));
+        child.unref();
+        logging.write(`OTA: spawned visible installer ${installerPath} (pid ${child.pid})`);
       } catch (e) {
-        logging.error(`OTA: helper spawn failed: ${e.message} — falling back to direct spawn`);
-        try {
-          spawn(installerPath, ["/S"], { detached: true, stdio: "ignore" }).unref();
-        } catch (err2) {
-          logging.error(`OTA: direct spawn failed: ${err2.message}`);
-        }
+        logging.error(`OTA: spawn failed: ${e.message}`);
+        try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: "Could not start installer.", detail: String(e.message || e) }).catch(() => {}); } catch {}
+        return;
       }
       setTimeout(() => {
+        app.removeAllListeners("window-all-closed");
         app.quit();
         setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
-      }, 800);
+      }, 500);
     }, 900);
     return;
   } catch (e) {
     logging.error(`OTA: install window failed: ${e.message}`);
   }
   try {
-    spawn(installerPath, ["/S"], { detached: true, stdio: "ignore" }).unref();
+    const child = spawn(installerPath, [], { detached: true, stdio: "ignore" });
+    child.on("error", (err) => logging.error(`OTA: spawn fallback failed: ${err.message}`));
+    child.unref();
   } catch {}
+  app.removeAllListeners("window-all-closed");
   app.quit();
   setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
 }

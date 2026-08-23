@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **Update now shows installer window instead of silent close** — `desktop/main.js:318` `installUpdate()` previously ran `installer /S --force-run` silently with `detached` spawn, so the app quit and nothing appeared. Now spawns the installer **visible** (`spawn(installer, [], detached)`) so you see the NSIS progress wizard after the `Installing vX…` card instead of a silent background close.
+
 ## v0.1.98
 
 - **Maintenance release** — internal housekeeping and stability improvements. No breaking changes.
