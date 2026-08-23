@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.3
+
 - **Tidier new layouts. Extra Beta banners are gone from Dashboard and Help. Your new designs now feel calmer and more focused while Classic stays your default.**
 - **Updates screen tidied. Recent releases are back so you can see what is new, without extra links cluttering the view.**
 
