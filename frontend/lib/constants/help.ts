@@ -12,6 +12,7 @@ export type HelpSectionId =
   | "printing"
   | "settings"
   | "backup-data"
+  | "security"
   | "troubleshooting"
   | "contact-support";
 
@@ -29,6 +30,7 @@ export const HELP_SECTIONS: { id: HelpSectionId; label: string; hint?: string }[
   { id: "printing", label: "Printing", hint: "Receipts & slips" },
   { id: "settings", label: "Settings", hint: "Configure the app" },
   { id: "backup-data", label: "Backup & data", hint: "Backup, restore, offline" },
+  { id: "security", label: "Security & encryption", hint: "Local, online, USB key" },
   { id: "troubleshooting", label: "Troubleshooting", hint: "Common issues" },
   { id: "contact-support", label: "Contact & support", hint: "Reach the team" },
 ];

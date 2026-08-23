@@ -781,6 +781,133 @@ export default function HelpPage() {
           </>
         )}
 
+        {section === "security" && (
+          <>
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-ink-900">Security & encryption</h2>
+              <p className="text-sm text-ink-500">How Fig POS keeps your shop data safe — local, online and encrypted.</p>
+            </div>
+
+            <SectionTitle>Local version security</SectionTitle>
+            <Group>
+              <Heading>On this machine only</Heading>
+              <Body>
+                The local (desktop) version stores everything in a SQLite database under your Windows user profile
+                <span className="font-mono text-xs"> %APPDATA%\Fig POS</span>. No data leaves the machine unless you
+                export or back it up. Access is gated by preregistered staff accounts with 4-digit PINs and
+                role-based permissions — Cashiers never see cost or profit.
+              </Body>
+              <Bullets
+                items={[
+                  "Brute-force protection: escalating lockouts after wrong PINs (15s → 1h), stored in DB and shared across terminals.",
+                  "Role isolation: Admin / Manager / Cashier with strict permission checks on every API endpoint.",
+                  "No public sign-up: only Admin can create accounts, so strangers cannot self-register.",
+                  "Audit log: every important action (sale, refund, stock move, user change) is recorded with who and when.",
+                  "File permissions follow your Windows user — keep Windows password protected and don't share the OS login.",
+                ]}
+              />
+              <Heading>What to do locally</Heading>
+              <Bullets
+                items={[
+                  "Set a Windows login password and lock the PC when you step away.",
+                  "Give each staff member their own PIN — never share one PIN across the counter.",
+                  "Review Activity Log weekly for unusual refunds or stock adjustments.",
+                ]}
+              />
+            </Group>
+
+            <SectionTitle>Online version security</SectionTitle>
+            <Group>
+              <Heading>Hosted / sync mode</Heading>
+              <Body>
+                When you run the online/hosted build, the same app and database run on your server but are reached over
+                HTTPS. Data in transit is TLS-encrypted, and every request carries a short-lived JWT issued at login. The
+                server validates role permissions server-side, not just in the UI.
+              </Body>
+              <Bullets
+                items={[
+                  "TLS everywhere: all API and sync traffic is HTTPS; plain HTTP is rejected.",
+                  "JWT + PIN: PIN is verified server-side, token expires quickly and is re-checked on every call.",
+                  "Server-side RBAC: costs and profit are stripped for Cashier even if someone inspects the network.",
+                  "Rate-limited login with same brute-force guard as local, plus structured request logging for forensics.",
+                  "Backups still local to the server — download and store a copy off-server regularly.",
+                ]}
+              />
+              <Heading>Online hygiene</Heading>
+              <Bullets
+                items={[
+                  "Use a strong Admin PIN and change it after staff turnover.",
+                  "Only open the server port you intend to (firewall the DB port).",
+                  "Keep the host OS and Node/Electron builds updated — Fig POS ships updates for this reason.",
+                ]}
+              />
+              <Note>
+                Whether local or online, Fig POS never sends IMEIs, prices or customer data to a third party. Analytics
+                are calculated from your own DB only.
+              </Note>
+            </Group>
+
+            <SectionTitle>Encrypted database — USB key option</SectionTitle>
+            <Group>
+              <Heading>What it is</Heading>
+              <Body>
+                You can enable <strong>Encrypted Database</strong> from Settings → Backup &amp; restore → Encryption. When
+                enabled, the entire SQLite DB (including backups) is AES-256 encrypted at rest. The encryption key is
+                generated once and written to a small file on a USB drive you provide — the USB <em>is</em> the key.
+              </Body>
+              <Heading>How to enable</Heading>
+              <Bullets
+                items={[
+                  "Insert a dedicated USB stick (any size, FAT32/exFAT), keep only the key file on it if possible.",
+                  "Go to Settings → Backup & restore → Enable Encryption → Choose USB drive → Confirm PIN.",
+                  "Fig POS generates fig-encryption.key on the USB and re-encrypts the DB — do not remove USB until it says done.",
+                  "Test a restart: close Fig POS, re-insert the same USB, then open Fig POS and enter your PIN. It should unlock.",
+                ]}
+              />
+              <Heading>Why the USB matters</Heading>
+              <Body>
+                Without that exact key file, the database and all backups made after encryption cannot be decrypted — not
+                by support, not by anyone. Keep the USB safe, labelled, and stored away from the PC (e.g. in a locker).
+                Make a second copy of <span className="font-mono text-xs">fig-encryption.key</span> on another USB and
+                store it off-site if you can.
+              </Body>
+              <Bullets
+                items={[
+                  "Keep the USB with you for any future migration, reinstall or PC change — you will need it to restore.",
+                  "If you lose the USB and have no copy of the key, your encrypted backups are unrecoverable.",
+                  "Do not format the USB or delete the key file; if you need the USB for other files, keep the key file untouched.",
+                  "You can rotate the key from Settings → Encryption → Rotate Key (needs old USB + new USB).",
+                  "Support cannot recover data without the key by design — this is your shop's private vault.",
+                ]}
+              />
+              <Note>
+                Tip: label the stick “FIG-KEY — DO NOT FORMAT” and note the date you encrypted. Store it like you would
+                a shop key. If you ever need to move to a new PC, install Fig POS, insert the USB at first run and
+                choose “Restore from encrypted backup”.
+              </Note>
+            </Group>
+
+            <SectionTitle>History</SectionTitle>
+            <Group>
+              <Heading>What changed</Heading>
+              <Body>
+                Security hardening is ongoing. Recent additions: encrypted DB with USB key, brute-force PIN lockouts with
+                DB persistence, role-checked APIs, audit log, TLS for online mode and local encrypted backups. See
+                <span className="font-mono text-xs"> docs/RELEASE_NOTES.md</span> for the version-by-version timeline and
+                the “Security & encryption” section in this Help for current guidance.
+              </Body>
+              <Bullets
+                items={[
+                  "v0.1.98+: Encrypted Database (USB key) option, local vs online security documented, Contact & Support expanded.",
+                  "v0.1.97: OTA update reliability and title-bar fix with visible installer.",
+                  "v0.1.54: Brute-force PIN protection and audit-log alerts.",
+                  "Earlier: Full role isolation, preregistered-only accounts, offline-safe backups.",
+                ]}
+              />
+            </Group>
+          </>
+        )}
+
         {section === "troubleshooting" && (
           <>
             <div className="mb-4">
@@ -916,23 +1043,62 @@ export default function HelpPage() {
               />
             </Group>
 
+            <SectionTitle>Support hours & response</SectionTitle>
+            <Group>
+              <Heading>When we are available</Heading>
+              <Body>
+                Support is available Mon–Sat, 10am–8pm PKT (Asia/Karachi). Messages sent outside hours are answered
+                next working morning. Urgent “shop blocked / cannot sell” cases on WhatsApp are triaged first.
+              </Body>
+              <Bullets
+                items={[
+                  "Email / WhatsApp: first response within 4 working hours; urgent within 1 hour in hours.",
+                  "Phone: best for quick guidance; for data issues we will ask for screenshots or logs.",
+                  "Provide app version (Help → About / Settings → Desktop app), shop name and a short video if possible.",
+                ]}
+              />
+              <Heading>What’s covered</Heading>
+              <Bullets
+                items={[
+                  "Setup, activation, user & role setup, printer/receipt help, backup & restore guidance.",
+                  "Bug fixes and update help — we ship a new installer and track it in Help → Security → History.",
+                  "Data recovery guidance if you have the backup or USB encryption key; without the key we cannot decrypt.",
+                  "Not covered: hardware repair, Windows reinstall, third-party printer drivers.",
+                ]}
+              />
+            </Group>
+
+            <SectionTitle>Before you contact</SectionTitle>
+            <Group>
+              <Heading>Quick checks</Heading>
+              <Bullets
+                items={[
+                  "Try Help → Troubleshooting steps for that screen and restart the app once.",
+                  "Check Settings → Backup & restore that a recent backup exists before major changes.",
+                  "If encrypted DB: confirm the USB key is inserted; without it the app shows “Encryption key missing”.",
+                  "Note the exact error text — copy from the red banner or from %APPDATA%\\Fig POS\\logs\\fig.log.",
+                ]}
+              />
+            </Group>
+
             <SectionTitle>How to describe a problem</SectionTitle>
             <Group>
               <Heading>Helpful information to share</Heading>
               <Bullets
                 items={[
                   "What you were doing when the problem happened.",
-                  "Any error message you saw on screen.",
-                  "Which screen or report you were on.",
-                  "Your app version, if you can find it in the About window.",
-                  "The date and approximate time of the problem.",
+                  "Any error message you saw on screen (exact text or screenshot).",
+                  "Which screen or report you were on and the steps to reproduce.",
+                  "Your app version (About window), shop name and Windows version.",
+                  "The date and approximate time, and whether you are on local or online build.",
+                  "If encrypted: whether the USB key was inserted at the time.",
                 ]}
               />
               <Heading>What to expect</Heading>
               <Body>
                 Once you contact the team, they will reply with guidance or a fix. Please include as much detail as
                 possible so you do not have to go back and forth. For urgent issues, WhatsApp is often the fastest way
-                to reach us.
+                to reach us. Fixes are published as versioned releases — see Security → History for what shipped when.
               </Body>
             </Group>
 
@@ -949,9 +1115,12 @@ export default function HelpPage() {
                 IMEI, separates new and used stock, supports credit sales and gives you clear reports so you always know
                 how your shop is doing.
               </Body>
-              <Heading>Updates</Heading>
+              <Heading>Updates & history</Heading>
               <Body>
-                Fig POS updates are installed by downloading the latest installer from the releases page.
+                Fig POS updates are installed by downloading the latest installer from the releases page. Every version’s
+                notes live in <span className="font-mono text-xs">docs/RELEASE_NOTES.md</span> and are summarised in Help
+                → Security → History. If you use Encrypted Database, keep the USB key — it is required for every future
+                migration and restore.
               </Body>
             </Group>
           </>
