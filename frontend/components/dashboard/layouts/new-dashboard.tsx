@@ -99,9 +99,8 @@ export function NewDashboard({ data, activity, profile, loading, range, setRange
       <div className="rounded-3xl bg-ink-900 p-5 text-white">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-white/60">Dashboard · New layout — beta</p>
-            <h1 className="mt-1 text-xl font-bold tracking-tight">Welcome back, {user?.name}</h1>
-            <p className="mt-1 text-sm text-white/70">{rangeLabel} · {profile?.name ?? "Your store"} · We will update everything to this layout in future.</p>
+            <h1 className="text-xl font-bold tracking-tight">Welcome back, {user?.name}</h1>
+            <p className="mt-1 text-sm text-white/70">{rangeLabel} · {profile?.name ?? "Your store"}</p>
           </div>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             <div className="w-full sm:w-72">
@@ -220,10 +219,6 @@ export function NewDashboard({ data, activity, profile, loading, range, setRange
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-2 rounded-2xl bg-ink-900 px-4 py-3 text-xs text-white/70">
-        <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white">New layout · Beta</span>
-        <span>Classic is kept as default. Switch anytime from Dashboard or Settings → Theme. Full rollout coming later.</span>
-      </div>
     </div>
   );
 }

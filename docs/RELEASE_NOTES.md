@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **Tidier new layouts. Extra Beta banners are gone from Dashboard and Help. Your new designs now feel calmer and more focused while Classic stays your default.**
+- **Updates screen tidied. Recent releases are back so you can see what is new, without extra links cluttering the view.**
+
 ## v0.2.2
 
 - **Meet your new Help centre. Modern, fast and easy to search. It matches the new dashboard style with a dark hero, quick links and a clean bento layout. Try it in Settings, Appearance, Beta. Classic stays your default.**

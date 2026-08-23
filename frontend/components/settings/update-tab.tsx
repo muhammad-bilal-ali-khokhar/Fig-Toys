@@ -315,19 +315,13 @@ export function UpdateTab() {
           {state?.error && (
             <Button variant="secondary" size="sm" onClick={() => void check()}>{UPDATE.retry}</Button>
           )}
-          {!state?.available && !state?.error && (
-            <a href={UPDATE.downloadSite} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-full border border-ink-200 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50">Open download site</a>
-          )}
         </div>
         {state?.available && isTimeoutError && <p className="mt-3 text-xs text-ink-400">{UPDATE.downloadTimeoutHint} If it keeps failing, use Direct download.</p>}
       </div>
 
       {history.length > 0 && (
         <div className="rounded-3xl bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-semibold text-ink-900">Recent releases</p>
-            <a href={UPDATE.downloadSite} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand-600 hover:text-brand-700">See all</a>
-          </div>
+          <p className="mb-3 text-sm font-semibold text-ink-900">Recent releases</p>
           <div className="space-y-2">
             {history.slice(0, 3).map((v) => (
               <div key={v.version} className="flex items-center justify-between gap-3 rounded-2xl border border-ink-100 px-3 py-3">

@@ -84,8 +84,7 @@ export function NewHelp({ section, onSectionChange }: { section: HelpSectionId; 
       <div className="rounded-3xl bg-ink-900 p-5 text-white">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-white/60">Help centre · New layout — beta</p>
-            <h1 className="mt-1 text-xl font-bold tracking-tight">How can we help, {activeMeta?.label ?? "you"}?</h1>
+            <h1 className="text-xl font-bold tracking-tight">How can we help, {activeMeta?.label ?? "you"}?</h1>
             <p className="mt-1 text-sm text-white/70">Search guides, watch your shop run smoother. Everything is offline ready and in PKR.</p>
           </div>
           <div className="w-full sm:w-80">
@@ -165,12 +164,9 @@ export function NewHelp({ section, onSectionChange }: { section: HelpSectionId; 
 
         <main ref={mainRef} className="min-w-0 lg:col-span-9 space-y-4">
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-lg font-bold tracking-tight text-ink-900">{activeMeta?.label}</h2>
-                <p className="text-sm text-ink-500">{activeMeta?.hint}</p>
-              </div>
-              <span className="rounded-full bg-brand-500/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand-600">New help · Beta</span>
+            <div>
+              <h2 className="text-lg font-bold tracking-tight text-ink-900">{activeMeta?.label}</h2>
+              <p className="text-sm text-ink-500">{activeMeta?.hint}</p>
             </div>
           </div>
 
@@ -594,10 +590,6 @@ export function NewHelp({ section, onSectionChange }: { section: HelpSectionId; 
             </>
           )}
 
-          <div className="flex items-center justify-center gap-2 rounded-2xl bg-ink-900 px-4 py-3 text-xs text-white/70">
-            <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white">New help · Beta</span>
-            <span>Classic stays default. Switch anytime in Settings, Appearance.</span>
-          </div>
         </main>
       </div>
     </div>
