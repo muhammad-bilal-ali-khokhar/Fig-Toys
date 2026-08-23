@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **Maintenance release** — internal housekeeping and stability improvements. No breaking changes.
+
 ## v0.1.97
 
 - **OTA update no longer leaves app closed after restart** — `desktop/main.js:318` `installUpdate()` used `exec` without `detached` and quit after 600ms, so the silent NSIS installer was killed before it could overwrite locked files and `runAfterFinish` never fired in `/S` mode (app stayed closed on “Updating…” card). Now spawns a detached helper `.bat` that waits for Electron to exit, runs `installer /S /wait`, then `start` relaunches `app.getPath("exe")` and self-deletes. Shows error dialog if installer missing.
