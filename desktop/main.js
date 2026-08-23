@@ -154,22 +154,24 @@ function getDesktopSecret() {
   return desktopSecret;
 }
 
-// ---------------------------------------------------------------------------
-// OTA self-update via Cloudflare R2. Fetches latest.json from the same R2
-// bucket used for content updates, compares versions, downloads the installer,
-// and installs on quit. State is tracked here so the Settings → Update panel
-// can show current version, check for updates, and trigger download/install.
-// ---------------------------------------------------------------------------
 const updateState = {
   available: false,
   checking: false,
   downloading: false,
   downloaded: false,
+  installing: false,
   version: "",
   releaseNotes: "",
   progress: 0,
+  bytesPerSecond: 0,
+  transferred: 0,
+  total: 0,
   error: "",
   installerPath: "",
+  size: "",
+  publishedAt: "",
+  url: "",
+  lastCheckedAt: "",
 };
 
 function updateSnapshot() {
@@ -179,10 +181,20 @@ function updateSnapshot() {
     checking: updateState.checking,
     downloading: updateState.downloading,
     downloaded: updateState.downloaded,
+    installing: updateState.installing,
     version: updateState.version,
     releaseNotes: updateState.releaseNotes,
     progress: updateState.progress,
+    bytesPerSecond: updateState.bytesPerSecond,
+    transferred: updateState.transferred,
+    total: updateState.total,
     error: updateState.error,
+    size: updateState.size || "",
+    publishedAt: updateState.publishedAt || "",
+    url: updateState.url || "",
+    lastCheckedAt: updateState.lastCheckedAt || "",
+    channel: app.isPackaged ? "stable" : "dev",
+    platform: process.platform,
   };
 }
 
@@ -190,6 +202,9 @@ function pushUpdateState() {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send("update:status", updateSnapshot());
   }
+  try {
+    if (aboutWindow && !aboutWindow.isDestroyed()) aboutWindow.webContents.send("update:status", updateSnapshot());
+  } catch {}
 }
 
 function isNewerVersion(remote, local) {
@@ -204,93 +219,294 @@ function isNewerVersion(remote, local) {
   return false;
 }
 
-async function fetchLatestManifest() {
-  const res = await fetch(`${URLS.downloadBase}/latest.json`, {
-    signal: AbortSignal.timeout(15000),
+function friendlyUpdateError(err) {
+  const raw = err && err.message ? String(err.message) : String(err || "");
+  const name = err && err.name ? String(err.name) : "";
+  if (/ERR_UPDATER_CHANNEL_NOT_FOUND|channel.*not found/i.test(raw)) return "No update found for this channel.";
+  if (name === "AbortError" || /aborted.*timeout|timeout|aborted/i.test(raw)) return "Slow connection — check timed out. Please check your internet and tap Check again.";
+  if (/HTTP\s*\d+/.test(raw)) return raw;
+  if (/ERR_UPDATER_INVALID_SIGNATURE/i.test(raw)) return "Update signature check failed — please use Direct download from the download site.";
+  return raw || "Could not check for updates.";
+}
+
+async function fetchLatestManifest({ retries = 2, timeoutMs = 30000 } = {}) {
+  let lastErr = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${URLS.downloadBase}/latest.json`, {
+        signal: AbortSignal.timeout(timeoutMs),
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      lastErr = err;
+      const raw = err && err.message ? String(err.message) : String(err);
+      const isTimeout = err && err.name === "AbortError" || /aborted.*timeout|timeout/i.test(raw);
+      const isNetwork = isTimeout || /fetch failed|network|ECONNRESET|ENOTFOUND/i.test(raw);
+      if (attempt < retries && isNetwork) {
+        const wait = 1200 * (attempt + 1);
+        logging.write(`OTA: fetch manifest attempt ${attempt + 1} failed (${raw}) — retrying in ${wait}ms`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
+let autoUpdater = null;
+let autoUpdaterReady = false;
+try {
+  const upd = require("electron-updater");
+  autoUpdater = upd.autoUpdater;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.allowDowngrade = false;
+  autoUpdater.requestHeaders = { "Cache-Control": "no-cache" };
+  const auLogger = {
+    info: (m) => logging.write(`[updater] ${m}`),
+    warn: (m) => logging.write(`[updater:warn] ${m}`),
+    error: (m) => logging.error(`[updater] ${m}`),
+    debug: (m) => logging.write(`[updater:debug] ${m}`),
+  };
+  autoUpdater.logger = auLogger;
+  if (app.isPackaged) {
+    try { autoUpdater.setFeedURL({ provider: "generic", url: URLS.downloadBase + "/", channel: "latest", requestHeaders: { "Cache-Control": "no-cache" } }); } catch {}
+  }
+  autoUpdater.on("checking-for-update", () => {
+    updateState.checking = true;
+    updateState.error = "";
+    pushUpdateState();
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
+  autoUpdater.on("update-available", (info) => {
+    updateState.available = true;
+    updateState.checking = false;
+    updateState.version = info.version || updateState.version;
+    updateState.size = info.files && info.files[0] && info.files[0].size ? `${(info.files[0].size / (1024 * 1024)).toFixed(1)} MB` : updateState.size;
+    updateState.publishedAt = info.releaseDate || updateState.publishedAt;
+    updateState.releaseNotes = (info.releaseNotes && typeof info.releaseNotes === "string" ? info.releaseNotes : Array.isArray(info.releaseNotes) ? info.releaseNotes.map((r) => r.note).join("\n") : "") || updateState.releaseNotes;
+    updateState.url = `${URLS.downloadBase}/v${info.version}/Fig-POS-Setup-${info.version}.exe`;
+    updateState.lastCheckedAt = new Date().toISOString();
+    logging.write(`OTA: update available ${info.version} (differential via blockmap, ~few MB not full 122 MB)`);
+    pushUpdateState();
+  });
+  autoUpdater.on("update-not-available", () => {
+    updateState.available = false;
+    updateState.checking = false;
+    updateState.version = "";
+    updateState.size = "";
+    updateState.publishedAt = "";
+    updateState.url = "";
+    updateState.lastCheckedAt = new Date().toISOString();
+    logging.write("OTA: no update available.");
+    pushUpdateState();
+  });
+  autoUpdater.on("download-progress", (p) => {
+    updateState.downloading = true;
+    updateState.progress = Math.round(p.percent || 0);
+    updateState.bytesPerSecond = p.bytesPerSecond || 0;
+    updateState.transferred = p.transferred || 0;
+    updateState.total = p.total || 0;
+    pushUpdateState();
+  });
+  autoUpdater.on("update-downloaded", (info) => {
+    updateState.downloading = false;
+    updateState.downloaded = true;
+    updateState.installing = false;
+    updateState.progress = 100;
+    updateState.bytesPerSecond = 0;
+    updateState.version = info.version || updateState.version;
+    if (autoUpdater.downloadedUpdateHelper) {
+      try {
+        const helper = autoUpdater.downloadedUpdateHelper;
+        const cache = helper.cacheDir || helper._cacheDir || "";
+        const file = helper.file || helper._file || "";
+        const cand = file && path.isAbsolute(file) ? file : cache && file ? path.join(cache, file) : "";
+        if (cand && fs.existsSync(cand)) updateState.installerPath = cand;
+        else if (cache && fs.existsSync(cache)) {
+          const exes = fs.readdirSync(cache).filter((f) => f.endsWith(".exe"));
+          if (exes.length) updateState.installerPath = path.join(cache, exes.sort().pop());
+        }
+      } catch {}
+    }
+    logging.write(`OTA: downloaded ${info.version} via differential — ready to install.`);
+    pushUpdateState();
+    try {
+      dialog.showMessageBox(mainWindow, {
+        type: "info",
+        buttons: ["Restart & update now", "Later"],
+        defaultId: 0,
+        cancelId: 1,
+        title: "Fig POS — Update ready",
+        message: `Version ${info.version} is ready to install.`,
+        detail: "Restart now to apply the update. The installer will run in a separate window so you can see progress — do not turn off your PC. Choose Later to install when you quit the app.",
+      }).then(({ response }) => { if (response === 0) installUpdate(); }).catch(() => {});
+    } catch {}
+  });
+  autoUpdater.on("error", (err) => {
+    updateState.checking = false;
+    updateState.downloading = false;
+    updateState.installing = false;
+    updateState.error = friendlyUpdateError(err);
+    logging.error(`OTA: ${err && err.stack ? err.stack : err}`);
+    pushUpdateState();
+  });
+  autoUpdaterReady = true;
+} catch (e) {
+  logging.write(`OTA: electron-updater not available (${e.message}) — falling back to full download`);
 }
 
 function checkForUpdates() {
-  if (process.platform !== "win32") return;
+  if (process.platform !== "win32") {
+    updateState.error = "Updates are available for Windows only.";
+    pushUpdateState();
+    return;
+  }
   updateState.checking = true;
   updateState.error = "";
+  updateState.lastCheckedAt = new Date().toISOString();
   pushUpdateState();
-
-  fetchLatestManifest().then((manifest) => {
-    if (!manifest || !manifest.version) return;
-    if (!isNewerVersion(manifest.version, app.getVersion())) {
-      updateState.available = false;
-      updateState.version = "";
-      logging.write("OTA: no update available.");
-      return;
-    }
-    updateState.available = true;
-    updateState.version = manifest.version;
-    updateState.releaseNotes = manifest.description || "";
-    logging.write(`OTA: update available (${manifest.version}). Manual download required via Settings → Update.`);
-  }).catch((err) => {
-    updateState.error = err && err.message ? err.message : String(err);
-    logging.error(`OTA: check failed: ${updateState.error}`);
-  }).finally(() => {
-    updateState.checking = false;
-    pushUpdateState();
-  });
+  if (autoUpdaterReady && app.isPackaged) {
+    autoUpdater.checkForUpdates().catch((err) => {
+      const raw = err && err.message ? String(err.message) : String(err);
+      if (/dev-app-update\.yml|ENOENT/i.test(raw)) {
+        logging.write("OTA: packaged check failed — falling back to latest.json");
+        fallbackCheck();
+        return;
+      }
+      updateState.checking = false;
+      updateState.error = friendlyUpdateError(err);
+      logging.error(`OTA: check failed: ${raw}`);
+      pushUpdateState();
+    });
+    return;
+  }
+  fallbackCheck();
+  function fallbackCheck() {
+    fetchLatestManifest().then((manifest) => {
+      if (!manifest || !manifest.version) throw new Error("No version in manifest");
+      if (!isNewerVersion(manifest.version, app.getVersion())) {
+        updateState.available = false;
+        updateState.version = "";
+        updateState.size = "";
+        updateState.publishedAt = "";
+        updateState.url = "";
+        logging.write("OTA: no update available (fallback).");
+        return;
+      }
+      updateState.available = true;
+      updateState.version = manifest.version;
+      updateState.releaseNotes = manifest.description || "";
+      updateState.size = manifest.size || "";
+      updateState.publishedAt = manifest.publishedAt || "";
+      updateState.url = (manifest.url && manifest.url.setup) || "";
+      logging.write(`OTA: update available ${manifest.version} (fallback — full download, differential unavailable in dev)`);
+    }).catch((err) => {
+      updateState.error = friendlyUpdateError(err);
+      logging.error(`OTA: check failed: ${err && err.message ? err.message : String(err)}`);
+    }).finally(() => {
+      updateState.checking = false;
+      updateState.lastCheckedAt = new Date().toISOString();
+      pushUpdateState();
+    });
+  }
 }
 
-async function downloadUpdate(manifest) {
-  if (updateState.downloading || updateState.downloaded) return;
-  if (!manifest) {
-    try { manifest = await fetchLatestManifest(); } catch { return; }
+async function downloadUpdate() {
+  if (updateState.downloading || updateState.downloaded) return updateSnapshot();
+  if (!updateState.available || !updateState.version) {
+    try {
+      const m = await fetchLatestManifest();
+      if (m && m.version && isNewerVersion(m.version, app.getVersion())) {
+        updateState.available = true;
+        updateState.version = m.version;
+        updateState.releaseNotes = m.description || "";
+        updateState.size = m.size || "";
+        updateState.publishedAt = m.publishedAt || "";
+        updateState.url = (m.url && m.url.setup) || "";
+      }
+    } catch {}
+    if (!updateState.available) {
+      updateState.error = "No update available to download.";
+      pushUpdateState();
+      return updateSnapshot();
+    }
   }
-  if (!manifest.url || !manifest.url.setup) return;
-
   updateState.downloading = true;
+  updateState.downloaded = false;
+  updateState.installing = false;
   updateState.progress = 0;
+  updateState.bytesPerSecond = 0;
+  updateState.error = "";
   pushUpdateState();
-
+  if (autoUpdaterReady && app.isPackaged) {
+    try {
+      logging.write(`OTA: starting differential download for v${updateState.version} (only changed blocks, not full installer)`);
+      await autoUpdater.downloadUpdate();
+      return updateSnapshot();
+    } catch (err) {
+      updateState.downloading = false;
+      updateState.error = friendlyUpdateError(err);
+      logging.error(`OTA: differential download failed: ${err && err.stack ? err.stack : err}`);
+      pushUpdateState();
+      try { dialog.showMessageBox(mainWindow, { type: "error", title: "Download failed", message: updateState.error, detail: "Try again, or use Direct download from the download site." }).catch(() => {}); } catch {}
+      return updateSnapshot();
+    }
+  }
+  let manifest = null;
+  try { manifest = await fetchLatestManifest(); } catch (e) {
+    updateState.downloading = false;
+    updateState.error = friendlyUpdateError(e);
+    pushUpdateState();
+    return updateSnapshot();
+  }
+  if (!manifest.url || !manifest.url.setup) {
+    updateState.downloading = false;
+    updateState.error = "Download link is missing. Please try checking for updates again.";
+    pushUpdateState();
+    return updateSnapshot();
+  }
   let dest = "";
   try {
     const tmpDir = path.join(app.getPath("temp"), "fig-pos-update");
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
     const setupName = (manifest.url.setup.split("/").pop() || `Fig-POS-Setup-${manifest.version}.exe`).split("?")[0];
     dest = path.join(tmpDir, setupName);
-
-    const res = await fetch(manifest.url.setup, { signal: AbortSignal.timeout(300000) });
+    const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+    const res = await fetch(manifest.url.setup, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
     if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status}`);
-
     const total = Number(res.headers.get("content-length") || 0);
+    updateState.total = total;
     let received = 0;
     const file = fs.createWriteStream(dest);
     const reader = res.body.getReader();
+    let lastPush = 0;
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       received += value.byteLength;
       file.write(Buffer.from(value));
+      updateState.transferred = received;
       if (total) {
         const pct = Math.round((received / total) * 100);
-        if (pct !== updateState.progress) {
+        if (pct !== updateState.progress && Date.now() - lastPush > 120) {
           updateState.progress = pct;
+          lastPush = Date.now();
           pushUpdateState();
         }
-      } else {
-        const mb = (received / (1024 * 1024)).toFixed(1);
-        if (received % (2 * 1024 * 1024) < 65536) {
-          logging.write(`OTA: downloading… ${mb} MB`);
-        }
+      } else if (received % (1024 * 1024) < 65536) {
+        logging.write(`OTA: downloading… ${(received / (1024 * 1024)).toFixed(1)} MB`);
       }
     }
     await new Promise((resolve, reject) => file.end((err) => (err ? reject(err) : resolve())));
-
     updateState.installerPath = dest;
     updateState.downloading = false;
     updateState.downloaded = true;
     updateState.progress = 100;
-    logging.write(`OTA: update ${manifest.version} downloaded — will install on quit.`);
+    logging.write(`OTA: update ${manifest.version} downloaded (full fallback) — will install via separate updater window.`);
     pushUpdateState();
-
     try {
       dialog.showMessageBox(mainWindow, {
         type: "info",
@@ -299,50 +515,67 @@ async function downloadUpdate(manifest) {
         cancelId: 1,
         title: "Fig POS — Update ready",
         message: `Version ${manifest.version} is ready to install.`,
-        detail: "Restart now to apply the update, or choose Later to install it the next time you quit the app.",
-      }).then(({ response }) => {
-        if (response === 0) installUpdate();
-      }).catch(() => {});
-    } catch (e) {
-      logging.error("OTA: could not show update dialog: " + e.message);
-    }
+        detail: "Restart now to apply the update in a separate window, or choose Later to install when you quit the app. Do not turn off your PC during install.",
+      }).then(({ response }) => { if (response === 0) installUpdate(); }).catch(() => {});
+    } catch {}
   } catch (err) {
     updateState.downloading = false;
-    updateState.error = err && err.message ? err.message : String(err);
-    logging.error("OTA: download failed: " + updateState.error);
+    updateState.error = friendlyUpdateError(err);
+    logging.error("OTA: download failed: " + (err && err.message ? err.message : String(err)));
     try { if (dest && fs.existsSync(dest)) fs.rmSync(dest, { force: true }); } catch {}
     pushUpdateState();
   }
+  return updateSnapshot();
 }
 
 function installUpdate() {
+  const ver = updateState.version || "";
+  if (autoUpdaterReady && updateState.downloaded && autoUpdater.downloadedUpdateHelper) {
+    updateState.installing = true;
+    pushUpdateState();
+    logging.write(`OTA: installing v${ver} via separate updater window (differential build)`);
+    setTimeout(() => {
+      const cached = updateState.installerPath;
+      if (cached && fs.existsSync(cached)) {
+        const exe = app.getPath("exe");
+        const updaterArgs = app.isPackaged ? ["--updater", cached, ver] : [ROOT, "--updater", cached, ver];
+        try {
+          const child = spawn(process.execPath, updaterArgs, { detached: true, stdio: "ignore" });
+          child.on("error", (e) => logging.error(`OTA: updater spawn failed: ${e.message}`));
+          child.unref();
+        } catch (e) { logging.error(`OTA: updater spawn failed: ${e.message}`); }
+      } else {
+        try { autoUpdater.quitAndInstall(false, true); return; } catch (e) { logging.error(`OTA: quitAndInstall failed: ${e.message}`); }
+      }
+      setTimeout(() => {
+        app.removeAllListeners("window-all-closed");
+        app.quit();
+        setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
+      }, 350);
+    }, 250);
+    return;
+  }
   if (!updateState.installerPath || !fs.existsSync(updateState.installerPath)) {
     logging.error(`OTA: installer not found at ${updateState.installerPath}`);
-    try {
-      dialog.showMessageBox(mainWindow, {
-        type: "error",
-        title: "Update failed",
-        message: "Update installer not found.",
-        detail: "Please try downloading again from Settings → Update.",
-      }).catch(() => {});
-    } catch {}
+    try { dialog.showMessageBox(mainWindow, { type: "error", title: "Update failed", message: "Update installer not found.", detail: "Please try downloading again from Settings → Update." }).catch(() => {}); } catch {}
     return;
   }
   const installerPath = updateState.installerPath;
-  const ver = updateState.version || "";
-  logging.write(`OTA: handing off to updater for ${installerPath} v${ver}`);
+  updateState.installing = true;
+  pushUpdateState();
+  logging.write(`OTA: handing off to separate updater window for ${installerPath} v${ver} — main window will close, installer progress shows in new window`);
   try {
     const exe = app.getPath("exe");
-    const updaterArgs = app.isPackaged
-      ? ["--updater", installerPath, ver]
-      : [ROOT, "--updater", installerPath, ver];
+    const updaterArgs = app.isPackaged ? ["--updater", installerPath, ver] : [ROOT, "--updater", installerPath, ver];
     const child = spawn(process.execPath, updaterArgs, { detached: true, stdio: "ignore" });
     child.on("error", (e) => logging.error(`OTA: updater spawn failed: ${e.message}`));
     child.unref();
-    logging.write(`OTA: updater spawned pid ${child.pid}`);
+    logging.write(`OTA: updater window spawned pid ${child.pid}`);
   } catch (e) {
+    updateState.installing = false;
     logging.error(`OTA: updater spawn failed: ${e.message}`);
     try { dialog.showMessageBox(mainWindow, { type: "error", title: "Update failed", message: String(e.message || e) }).catch(() => {}); } catch {}
+    pushUpdateState();
     return;
   }
   setTimeout(() => {

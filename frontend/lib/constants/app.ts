@@ -18,6 +18,7 @@ export const UPDATE = {
   downloading: "Downloading update…",
   download: "Download update",
   downloaded: "Update ready to install.",
+  installing: "Installing — watch the separate updater window…",
   install: "Install & restart",
   later: "Later",
   changelog: "What's new",
@@ -25,6 +26,12 @@ export const UPDATE = {
   notElectron: "Updates are handled by the desktop app. In a browser, just download the latest installer from the website.",
   error: "Could not check for updates",
   app: "App",
+  downloadSite: "https://download.myko.pk",
+  releases: "https://download.myko.pk",
+  timeoutHint: "Slow connection — timed out. Tap Check again — we retry automatically and allow up to 30s on slow networks.",
+  downloadTimeoutHint: "Download uses differential updates now (only changed parts, a few MB). If it keeps failing, use Direct download.",
+  differentialHint: "Fast update — only changed parts download (a few MB, not the full ~100 MB).",
+  installingHint: "The app will close and a small Installing window will appear — please wait, your PC is updating, do not turn it off.",
 } as const;
 
 export const DEFAULT_LOCALE = "en-PK";

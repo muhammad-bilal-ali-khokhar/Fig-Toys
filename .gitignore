@@ -17,6 +17,8 @@ backups/
 .env
 .env.local
 .env*.local
+.r2.env
+*.pem
 
 # ts build cache
 *.tsbuildinfo
@@ -24,7 +26,9 @@ backups/
 # prisma / db
 *.db
 *.db-journal
+*.db.bak*
 prisma/dev.db*
+*.sql
 
 # os / editor
 .DS_Store
@@ -39,3 +43,8 @@ tools/keys/
 # convex (generated + local deployment config)
 convex/.convex/
 convex/convex/_generated/
+
+# app generated / one-off
+.wrangler/
+PRODUCTS_BY_BRAND.md
+PROMPT

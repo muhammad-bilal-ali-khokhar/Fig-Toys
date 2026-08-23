@@ -61,4 +61,46 @@ if (fs.existsSync(nm)) {
   await renameWithRetry(nm, deps);
 }
 
+if (fs.existsSync(deps)) {
+  const prunePaths = [
+    path.join(deps, "typescript"),
+    path.join(deps, "caniuse-lite"),
+    path.join(deps, "@img", "sharp-darwin-arm64"),
+    path.join(deps, "@img", "sharp-libvips-darwin-arm64"),
+    path.join(deps, "@img", "sharp-libvips-darwin-x64"),
+    path.join(deps, "@img", "sharp-wasm32"),
+    path.join(deps, "@img", "sharp-libvips-linux-arm64"),
+    path.join(deps, "@img", "sharp-libvips-linux-arm"),
+    path.join(deps, "@img", "sharp-libvips-linuxmusl-arm64"),
+    path.join(deps, "@img", "sharp-linux-arm64"),
+    path.join(deps, "@img", "sharp-linuxmusl-arm64"),
+  ];
+  let prunedBytes = 0;
+  for (const p of prunePaths) {
+    if (fs.existsSync(p)) {
+      try {
+        const stat = fs.statSync(p);
+        if (stat.isDirectory()) {
+          const du = (dir) => {
+            let s = 0;
+            for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, e.name);
+              if (e.isDirectory()) s += du(full);
+              else try { s += fs.statSync(full).size; } catch {}
+            }
+            return s;
+          };
+          prunedBytes += du(p);
+        } else prunedBytes += stat.size;
+      } catch {}
+      fs.rmSync(p, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
+    }
+  }
+  if (prunedBytes > 0) {
+    console.log(`Pruned ${(prunedBytes / (1024 * 1024)).toFixed(1)} MB of unused deps (typescript, darwin/wasm sharp).`);
+  }
+  const left = fs.readdirSync(path.join(deps, "@img")).filter((n) => n.startsWith("sharp")).join(", ");
+  console.log(`Remaining @img/sharp variants: ${left || "(none)"}`);
+}
+
 console.log("Production frontend built at " + out);

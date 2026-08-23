@@ -7,10 +7,20 @@ declare global {
     checking: boolean;
     downloading: boolean;
     downloaded: boolean;
+    installing?: boolean;
     version: string;
     releaseNotes: string;
     progress: number;
+    bytesPerSecond?: number;
+    transferred?: number;
+    total?: number;
     error: string;
+    size?: string;
+    publishedAt?: string;
+    url?: string;
+    lastCheckedAt?: string;
+    channel?: string;
+    platform?: string;
   };
 
   interface Window {

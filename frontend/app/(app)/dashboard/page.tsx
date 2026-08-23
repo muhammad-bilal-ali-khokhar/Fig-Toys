@@ -9,7 +9,7 @@ import { ClassicDashboard } from "@/components/dashboard/layouts/classic-dashboa
 import { NewDashboard } from "@/components/dashboard/layouts/new-dashboard";
 
 export default function DashboardPage() {
-  const { layout, setLayout } = useDashboardLayout();
+  const { layout } = useDashboardLayout();
   const [range, setRange] = useState<ReportRange>(() => {
     const to = new Date();
     const from = new Date(to);
@@ -27,27 +27,6 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-end gap-2">
-        <span className="text-xs font-medium text-ink-400">Dashboard layout:</span>
-        <div className="flex overflow-hidden rounded-full border border-ink-200 bg-white p-1">
-          <button
-            type="button"
-            onClick={() => setLayout("classic")}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${layout === "classic" ? "bg-ink-900 text-white" : "text-ink-600 hover:bg-ink-50"}`}
-          >
-            Classic
-          </button>
-          <button
-            type="button"
-            onClick={() => setLayout("new")}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${layout === "new" ? "bg-brand-500 text-white" : "text-ink-600 hover:bg-ink-50"}`}
-          >
-            New · Beta
-          </button>
-        </div>
-        {layout === "new" && <span className="rounded-full bg-brand-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-brand-600">Testing only — full rollout later</span>}
-      </div>
-
       {layout === "new" ? (
         <NewDashboard data={data} activity={activity} profile={profile} loading={loading} range={range} setRange={setRange} />
       ) : (

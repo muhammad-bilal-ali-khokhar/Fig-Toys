@@ -1005,7 +1005,7 @@ export default function SettingsPage() {
               </div>
             </Group>
             <div className="mt-4 rounded-2xl bg-ink-900 px-4 py-3 text-xs leading-relaxed text-white/80">
-              <span className="font-semibold text-white">Note:</span> You can also toggle directly on the Dashboard page (Classic / New · Beta pill). Choice is saved to this device and synced to your account.
+              <span className="font-semibold text-white">Note:</span> Choice is saved to this device and synced to your account. Classic stays default; New is Beta for testing.
             </div>
           </>
         )}

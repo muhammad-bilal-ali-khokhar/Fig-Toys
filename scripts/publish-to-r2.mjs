@@ -171,7 +171,16 @@ async function main() {
     await putObject(blockmapKey, readFileSync(path.join(SOURCE, blockmap)), "application/octet-stream");
   }
   if (latestYmlKey) {
-    await putObject(latestYmlKey, readFileSync(path.join(SOURCE, latestYml)), "application/octet-stream");
+    const ymlBuf = readFileSync(path.join(SOURCE, latestYml));
+    await putObject(latestYmlKey, ymlBuf, "application/octet-stream");
+    const ymlText = ymlBuf.toString("utf8");
+    const absoluteUrl = `${PUBLIC}/${setupKey}`;
+    const patchedYaml = ymlText
+      .replace(/^(\s*url:\s*).+$/m, `$1${absoluteUrl}`)
+      .replace(/^(\s*path:\s*).+$/m, `$1${absoluteUrl}`);
+    const finalYml = /^\s*url:/m.test(patchedYaml) ? patchedYaml : patchedYaml + `\nfiles:\n  - url: ${absoluteUrl}\n    sha512: ${createHash("sha512").update(setupBuf).digest("base64")}\n    size: ${setupBuf.length}\n`;
+    await putObject("latest.yml", Buffer.from(finalYml), "application/octet-stream", "no-cache");
+    console.log(`  patched latest.yml at root → ${PUBLIC}/latest.yml (url: ${absoluteUrl})`);
   }
   await putObject("latest.json", Buffer.from(JSON.stringify(latest, null, 2)), "application/json", "no-cache");
   await putObject("latest.js", Buffer.from(`window.FIG_LATEST=${JSON.stringify(latest)};`), "application/javascript", "no-cache");
