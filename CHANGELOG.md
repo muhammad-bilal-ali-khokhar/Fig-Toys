@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.101
+## v0.2.0
+
+- Released on: 2026-08-23
+
+- feat: dashboard layout switch (Classic ↔ New Beta) — testing on dashboard only
 
 - Released on: 2026-08-23
 
