@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.1.96
+## v0.1.97
+
+- Released on: 2026-08-23
+
+- fix: ota updater relaunch and titlebar overlay bg
+- docs: clean changelog for v0.1.96
 
 - Released on: 2026-08-23
 
