@@ -6,6 +6,78 @@ import { useToast } from "@/components/ui/toast";
 import { UpdaterIcon } from "@/components/icons";
 import { UPDATE } from "@/lib/constants";
 
+function renderInline(text: string) {
+  const codeSplit = text.split(/(`[^`]+`)/g);
+  return codeSplit.flatMap((part, i) => {
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 1) {
+      return [
+        <code
+          key={`c-${i}`}
+          className="rounded bg-ink-100 px-1 py-0.5 font-mono text-[11px] text-ink-700"
+        >
+          {part.slice(1, -1)}
+        </code>,
+      ];
+    }
+    const boldSplit = part.split(/(\*\*[^*]+\*\*)/g);
+    return boldSplit.map((bp, j) => {
+      if (bp.startsWith("**") && bp.endsWith("**") && bp.length > 3) {
+        return (
+          <strong key={`b-${i}-${j}`} className="font-semibold text-ink-900">
+            {bp.slice(2, -2)}
+          </strong>
+        );
+      }
+      return bp;
+    });
+  });
+}
+
+function ReleaseNotes({ notes }: { notes: string }) {
+  const lines = notes.split("\n");
+  const elements: React.ReactNode[] = [];
+  let bullets: string[] = [];
+  const flushBullets = () => {
+    if (bullets.length) {
+      elements.push(
+        <ul key={`ul-${elements.length}`} className="list-disc space-y-1 pl-5">
+          {bullets.map((b, idx) => (
+            <li key={idx}>{renderInline(b)}</li>
+          ))}
+        </ul>,
+      );
+      bullets = [];
+    }
+  };
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      flushBullets();
+      continue;
+    }
+    if (/^#{1,3}\s/.test(trimmed)) {
+      flushBullets();
+      const heading = trimmed.replace(/^#{1,3}\s*/, "");
+      elements.push(
+        <p key={`h-${elements.length}`} className="font-semibold text-ink-900">
+          {renderInline(heading)}
+        </p>,
+      );
+    } else if (/^[-*]\s/.test(trimmed)) {
+      bullets.push(trimmed.replace(/^[-*]\s*/, ""));
+    } else {
+      flushBullets();
+      elements.push(
+        <p key={`p-${elements.length}`} className="leading-relaxed">
+          {renderInline(trimmed)}
+        </p>,
+      );
+    }
+  }
+  flushBullets();
+  return <div className="space-y-2">{elements}</div>;
+}
+
 function StatusLine({
   checking,
   downloading,
@@ -111,8 +183,8 @@ export function UpdateTab() {
           </div>
         )}
         {state?.available && state.releaseNotes && (
-          <div className="mb-3 max-h-48 overflow-auto rounded-2xl bg-ink-50 px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-wrap text-ink-600">
-            {state.releaseNotes}
+          <div className="mb-3 rounded-2xl bg-ink-50 px-3.5 py-3 text-sm leading-relaxed text-ink-600">
+            <ReleaseNotes notes={state.releaseNotes} />
           </div>
         )}
         <div className="flex flex-wrap gap-2">

@@ -436,16 +436,16 @@
         padding: 10px 12px;
         border-radius: 12px;
         background: var(--ink-50);
-        max-height: 120px;
-        overflow: auto;
         font-size: 11px;
         line-height: 1.55;
         color: #565b68;
-        white-space: pre-wrap;
         word-break: break-word;
       }
       .update-notes.show { display: block; }
       .update-notes b { color: #1a1a1f; }
+      .update-notes ul { margin: 6px 0 0; padding-left: 18px; list-style: disc; }
+      .update-notes li { margin: 2px 0; }
+      .update-notes code { background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 10px; }
       .spinner {
         display: inline-block;
         width: 14px; height: 14px;
@@ -598,17 +598,36 @@
           updateBar.classList.add("show");
         }
 
+        function escapeHtml(s) {
+          return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+        function inlineMd(s) {
+          var esc = escapeHtml(s);
+          esc = esc.replace(/`([^`]+)`/g, "<code>$1</code>");
+          esc = esc.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+          return esc;
+        }
         function setNotes(notes) {
           if (notes && notes.trim()) {
-            var text = notes.trim();
+            var lines = notes.trim().split("\n");
             var html = "";
-            var lines = text.split("\n");
+            var inList = false;
             for (var i = 0; i < lines.length; i++) {
-              var l = lines[i];
-              if (/^#+\s/.test(l)) html += "<b>" + l.replace(/^#+\s*/, "") + "</b>\n";
-              else if (/^\s*[-*]\s/.test(l)) html += "• " + l.replace(/^\s*[-*]\s*/, "") + "\n";
-              else html += l + "\n";
+              var raw = lines[i];
+              var l = raw.trim();
+              if (!l) { if (inList) { html += "</ul>"; inList = false; } continue; }
+              if (/^#{1,3}\s/.test(l)) {
+                if (inList) { html += "</ul>"; inList = false; }
+                html += "<div style=\"margin-top:6px\"><b>" + inlineMd(l.replace(/^#{1,3}\s*/, "")) + "</b></div>";
+              } else if (/^[-*]\s/.test(l)) {
+                if (!inList) { html += "<ul>"; inList = true; }
+                html += "<li>" + inlineMd(l.replace(/^[-*]\s*/, "")) + "</li>";
+              } else {
+                if (inList) { html += "</ul>"; inList = false; }
+                html += "<div>" + inlineMd(l) + "</div>";
+              }
             }
+            if (inList) html += "</ul>";
             updateNotes.innerHTML = html;
             updateNotes.classList.add("show");
           } else {

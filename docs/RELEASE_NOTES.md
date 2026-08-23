@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **Update notes now render as formatted text with markdown** — `frontend/components/settings/update-tab.tsx:114` showed `releaseNotes` raw in a `max-h-48 overflow-auto whitespace-pre-wrap` scroll box so `**bold**`/`code` appeared literally. Now `ReleaseNotes` parses markdown (`**bold**` → bold, `` `code` `` → code badge, `-` → bullet list) in a normal flow `rounded-2xl py-3` block. `desktop/about.html:433` `setNotes()` updated similarly — no `pre-wrap`/`max-height` scroll, proper `<ul>`/`<code>` rendering.
+
 ## v0.1.99
 
 - **Contact & Support expanded + Security & Encryption** — `frontend/lib/constants/help.ts:1` adds new `security` Help section (`frontend/app/(app)/help/page.tsx:710`) covering **Local security** (PIN + brute-force lockouts, role isolation, offline DB under `%APPDATA%`, audit log), **Online security** (TLS/HTTPS, JWT, server-side RBAC, rate-limiting) and **Encrypted Database (USB key)** (`Settings → Backup & restore → Encryption`): AES-256 at rest with key file `fig-encryption.key` on a USB you keep — required for every future migration/restore, cannot be recovered without it. Adds History timeline and updates `Contact & Support` with support hours (Mon–Sat 10am–8pm PKT), response SLAs, what's covered and quick-checks before contacting.
