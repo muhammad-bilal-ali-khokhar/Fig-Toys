@@ -222,8 +222,9 @@ function isNewerVersion(remote, local) {
 function friendlyUpdateError(err) {
   const raw = err && err.message ? String(err.message) : String(err || "");
   const name = err && err.name ? String(err.name) : "";
-  if (/ERR_UPDATER_CHANNEL_NOT_FOUND|channel.*not found/i.test(raw)) return "No update found for this channel.";
+  if (/Cannot find channel.*latest\.yml|ERR_UPDATER_CHANNEL_NOT_FOUND|channel.*not found/i.test(raw)) return "Update check temporarily unavailable. Please use Direct download from the download site or try again in a few minutes. If this keeps happening, tap Copy error and share with support.";
   if (name === "AbortError" || /aborted.*timeout|timeout|aborted/i.test(raw)) return "Slow connection — check timed out. Please check your internet and tap Check again.";
+  if (/HTTP\s*404/i.test(raw) && /latest\.yml/i.test(raw)) return "Update info not yet published. Please use Direct download for now and try again after the next release finishes publishing.";
   if (/HTTP\s*\d+/.test(raw)) return raw;
   if (/ERR_UPDATER_INVALID_SIGNATURE/i.test(raw)) return "Update signature check failed — please use Direct download from the download site.";
   return raw || "Could not check for updates.";
