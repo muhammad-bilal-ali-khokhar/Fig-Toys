@@ -1,4 +1,8 @@
-## Unreleased
+## v0.2.5
+
+- **Dashboard charts now match your theme. Pick any look in Settings, Appearance and your graphs and pie charts recolor instantly to match. Your dashboard finally feels like one beautiful, coordinated app.**
+- **Meet the new layout. One switch now transforms your whole app: the dashboard, help and a brand new compact sidebar that expands when you hover it, giving your work more room on screen. Try it in Settings, Appearance. Classic remains your default.**
+- **A cleaner updates screen. Recent releases now only show a Download button when it makes sense. Your installed version is clearly marked so there is no confusion about what you are running.**
 
 ## v0.2.4
 

@@ -115,6 +115,15 @@ function StatusLine({
   return <span className="text-success">{UPDATE.upToDate}</span>;
 }
 
+function isNewerVersion(a: string, b: string) {
+  const pa = a.split(/[.-]/).map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(/[.-]/).map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0);
+  }
+  return false;
+}
+
 function formatDate(iso?: string) {
   if (!iso) return "";
   try {
@@ -323,15 +332,27 @@ export function UpdateTab() {
         <div className="rounded-3xl bg-white p-4">
           <p className="mb-3 text-sm font-semibold text-ink-900">Recent releases</p>
           <div className="space-y-2">
-            {history.slice(0, 3).map((v) => (
-              <div key={v.version} className="flex items-center justify-between gap-3 rounded-2xl border border-ink-100 px-3 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink-900">v{v.version} <span className="ml-2 text-xs font-normal text-ink-400">{v.publishedAt ? formatDate(v.publishedAt) : ""}{v.size ? ` · ${v.size}` : ""}</span></p>
-                  {v.description && <p className="mt-1 line-clamp-1 text-xs text-ink-500">{v.description.split("\n").find((l) => l.trim().startsWith("-"))?.replace(/^\s*-\s*/, "").replace(/\*\*/g, "") || ""}</p>}
+            {history.slice(0, 3).map((v) => {
+              const current = state?.currentVersion;
+              const knownCurrent = Boolean(current);
+              const isNewer = current ? isNewerVersion(v.version, current) : false;
+              const isCurrent = knownCurrent && !isNewer;
+              return (
+                <div key={v.version} className="flex items-center justify-between gap-3 rounded-2xl border border-ink-100 px-3 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-ink-900">v{v.version} <span className="ml-2 text-xs font-normal text-ink-400">{v.publishedAt ? formatDate(v.publishedAt) : ""}{v.size ? ` · ${v.size}` : ""}</span></p>
+                    {v.description && <p className="mt-1 line-clamp-1 text-xs text-ink-500">{v.description.split("\n").find((l) => l.trim().startsWith("-"))?.replace(/^\s*-\s*/, "").replace(/\*\*/g, "") || ""}</p>}
+                  </div>
+                  {!knownCurrent ? (
+                    <a href={v.url.setup} className="shrink-0 rounded-full bg-ink-900 px-4 py-2 text-xs font-medium text-white hover:bg-ink-800">Download</a>
+                  ) : isCurrent ? (
+                    <span className="shrink-0 rounded-full bg-ink-50 px-4 py-2 text-xs font-medium text-ink-500">Installed</span>
+                  ) : isNewer ? (
+                    <a href={v.url.setup} className="shrink-0 rounded-full bg-ink-900 px-4 py-2 text-xs font-medium text-white hover:bg-ink-800">Download</a>
+                  ) : null}
                 </div>
-                <a href={v.url.setup} className="shrink-0 rounded-full bg-ink-900 px-4 py-2 text-xs font-medium text-white hover:bg-ink-800">Download</a>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

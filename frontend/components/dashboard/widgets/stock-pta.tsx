@@ -1,14 +1,16 @@
 import { Card } from "@/components/dashboard/charts";
-import { DASHBOARD_WIDGET_SPANS, CHART } from "@/lib/constants";
+import { DASHBOARD_WIDGET_SPANS } from "@/lib/constants";
+import { useChartColors } from "@/lib/chart-colors";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardOverview } from "@/lib/api-types";
 
 export function StockPtaWidget({ data }: { data?: DashboardOverview | null }) {
+  const C = useChartColors();
   const carrierData = data
     ? [
-        { name: "PTA", value: data.carrierSplit.PTA, color: CHART.pta },
-        { name: "Non-PTA", value: data.carrierSplit.NON_PTA, color: CHART.nonPta },
-        { name: "SIM locked", value: data.carrierSplit.SIM_LOCKED, color: CHART.simLocked },
+        { name: "PTA", value: data.carrierSplit.PTA, color: C.pta },
+        { name: "Non-PTA", value: data.carrierSplit.NON_PTA, color: C.nonPta },
+        { name: "SIM locked", value: data.carrierSplit.SIM_LOCKED, color: C.simLocked },
       ].filter((c) => c.value > 0)
     : [];
   const carrierTotal = carrierData.reduce((sum, c) => sum + c.value, 0);

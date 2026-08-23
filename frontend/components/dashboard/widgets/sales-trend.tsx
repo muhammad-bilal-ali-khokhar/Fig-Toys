@@ -9,7 +9,8 @@ import {
   YAxis,
 } from "recharts";
 import { Card, ChartTooltip, AxisTick, TodayDot } from "@/components/dashboard/charts";
-import { DASHBOARD_WIDGET_SPANS, CHART } from "@/lib/constants";
+import { DASHBOARD_WIDGET_SPANS } from "@/lib/constants";
+import { useChartColors } from "@/lib/chart-colors";
 import type { DashboardOverview } from "@/lib/api-types";
 
 type Props = {
@@ -28,6 +29,7 @@ export function SalesTrendWidget({ data, viewCosts, rangeLabel, currencySymbol }
       }))
     : [];
   const todayKey = trendData.length > 0 ? trendData[trendData.length - 1].day : "";
+  const C = useChartColors();
 
   return (
     <div className={`${DASHBOARD_WIDGET_SPANS.salesTrend} h-full`}>
@@ -35,7 +37,7 @@ export function SalesTrendWidget({ data, viewCosts, rangeLabel, currencySymbol }
         <div className="min-h-64 flex-1 px-2 pb-2">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke={CHART.grid} strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid stroke={C.grid} strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="day"
                 tickLine={false}
@@ -48,15 +50,15 @@ export function SalesTrendWidget({ data, viewCosts, rangeLabel, currencySymbol }
                 tickLine={false}
                 axisLine={false}
                 width={70}
-                tick={{ fontSize: 11, fill: CHART.ink }}
+                tick={{ fontSize: 11, fill: C.ink }}
                 tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
               />
-              <Tooltip content={<ChartTooltip money symbol={currencySymbol} />} cursor={{ stroke: CHART.ink, strokeWidth: 1, strokeDasharray: "3 3" }} />
-              <ReferenceLine x={todayKey} stroke={CHART.sales} strokeDasharray="4 4" strokeOpacity={0.5} />
+              <Tooltip content={<ChartTooltip money symbol={currencySymbol} />} cursor={{ stroke: C.ink, strokeWidth: 1, strokeDasharray: "3 3" }} />
+              <ReferenceLine x={todayKey} stroke={C.sales} strokeDasharray="4 4" strokeOpacity={0.5} />
               <Line
                 type="monotone"
                 dataKey="Sales"
-                stroke={CHART.sales}
+                stroke={C.sales}
                 strokeWidth={2.5}
                 dot={<TodayDot todayKey={todayKey} />}
                 activeDot={{ r: 4.5, stroke: "#fff", strokeWidth: 2 }}
@@ -65,7 +67,7 @@ export function SalesTrendWidget({ data, viewCosts, rangeLabel, currencySymbol }
                 <Line
                   type="monotone"
                   dataKey="Profit"
-                  stroke={CHART.profit}
+                  stroke={C.profit}
                   strokeWidth={2}
                   strokeDasharray="5 4"
                   dot={false}

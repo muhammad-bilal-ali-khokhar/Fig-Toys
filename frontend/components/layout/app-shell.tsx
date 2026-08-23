@@ -14,13 +14,17 @@ import { hasPermission } from "@/lib/roles";
 import { useApi } from "@/lib/use-api";
 import type { CompanyProfile } from "@/lib/api-types";
 import { subscribeUnsaved } from "@/lib/unsaved-guard";
-import { APP, NAV_ITEMS, UI } from "@/lib/constants";
+import { APP, UI } from "@/lib/constants";
+import { NAV_GROUPS } from "@/lib/constants/nav";
 import { queueCount, isOnline } from "@/lib/offline-queue";
 import { flushOfflineQueue } from "@/lib/offline-sync";
+import { useDashboardLayout } from "@/lib/dashboard-layout-context";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const { data: profile } = useApi<CompanyProfile>("/settings/company");
+  const { layout: sidebarLayout } = useDashboardLayout();
+  const compact = sidebarLayout === "new";
   const pathname = usePathname();
   const router = useRouter();
   const isMac = typeof window !== "undefined" && window.fig?.platform === "darwin";
@@ -86,60 +90,115 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-ink-50 text-ink-900">
-      <aside className="flex w-52 shrink-0 flex-col overflow-y-auto overscroll-none bg-white print:hidden">
-        <div className={`flex items-center gap-2.5 px-4 ${isMac ? "pt-10 pb-4" : "py-4"}`} style={{ WebkitAppRegion: "drag" } as CSSProperties}>
-          <Logo size={34} src={profile?.logoUrl} />
-          <div className="min-w-0 flex-1 leading-tight">
+      <aside
+        className={`flex shrink-0 flex-col overscroll-none bg-white print:hidden ${
+          compact
+            ? "group/sb w-[68px] hover:w-52 overflow-y-auto overflow-x-hidden transition-[width] duration-200 ease-out"
+            : "w-52 overflow-y-auto"
+        }`}
+      >
+        <div className={`flex items-center gap-2.5 px-4 ${compact ? "group-hover/sb:justify-start" : ""} ${isMac ? "pt-10 pb-4" : "py-4"}`} style={{ WebkitAppRegion: "drag" } as CSSProperties}>
+          <div className="shrink-0">
+            <Logo size={34} src={profile?.logoUrl} />
+          </div>
+          <div className={`min-w-0 flex-1 leading-tight ${compact ? "hidden group-hover/sb:block" : ""}`}>
             <p className="truncate text-sm font-bold" title={profile?.name ?? APP.nameFull}>{profile?.name ?? APP.nameFull}</p>
             <p className="truncate text-[10px] text-ink-500" title={profile?.tagline ?? APP.storeSub}>{profile?.tagline ?? APP.storeSub}</p>
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-3">
-          {NAV_ITEMS.filter((item) => !item.permission || hasPermission(user, item.permission)).map(
-            (item) => {
-              const active = pathname.startsWith(item.href);
-              const Icon = NAV_ICONS[item.icon];
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={item.label}
-                  className={`group flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-sm font-medium transition ${
-                    active
-                      ? "bg-brand-50 text-brand-600"
-                      : "text-ink-500 hover:bg-ink-100 hover:text-ink-900"
-                  }`}
-                >
-                  <Icon className={active ? "text-brand-600" : "text-ink-400 group-hover:text-ink-600"} />
-                  {item.label}
-                </Link>
-              );
-            },
-          )}
+        <nav className={`flex-1 space-y-1 py-3 ${compact ? "px-2.5 group-hover/sb:px-3 transition-[padding] duration-200" : "px-3"}`}>
+          {NAV_GROUPS.map((group) => {
+            const items = group.items.filter(
+              (item) =>
+                (!item.permission || hasPermission(user, item.permission)) &&
+                !(compact && item.href === "/reports/money"),
+            );
+            if (items.length === 0) return null;
+            return (
+              <div key={group.title}>
+                <div className="space-y-1">
+                  {items.map((item) => {
+                    const active = pathname.startsWith(item.href);
+                    const Icon = NAV_ICONS[item.icon];
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        title={item.label}
+                        className={`group flex items-center gap-3 rounded-[14px] py-2.5 text-sm font-medium transition-colors ${
+                          compact
+                            ? "mx-auto w-11 justify-center px-0 group-hover/sb:mx-0 group-hover/sb:w-full group-hover/sb:justify-start group-hover/sb:px-3 [&>svg]:h-[22px] [&>svg]:w-[22px]"
+                            : "px-3"
+                        } ${
+                          active
+                            ? "bg-brand-50 text-brand-600"
+                            : "text-ink-500 hover:bg-ink-100 hover:text-ink-900"
+                        }`}
+                      >
+                        <Icon className={`shrink-0 ${active ? "text-brand-600" : "text-ink-400 group-hover:text-ink-600"}`} />
+                        <span className={`whitespace-nowrap ${compact ? "hidden group-hover/sb:inline" : ""}`}>
+                          {item.label}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
-        <div className="px-4 py-4">
-          <div className="flex items-center gap-3">
-            {user?.avatar ? (
-              <img src={user.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-            ) : (
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-sm font-bold text-brand-600">
-                {user?.name?.charAt(0).toUpperCase()}
+        <div className={`py-4 ${compact ? "group-hover/sb:px-4 transition-[padding] duration-200" : "px-4"}`}>
+          {compact ? (
+            <div className="flex items-center justify-center gap-3 group-hover/sb:justify-start">
+              <button
+                onClick={handleLogout}
+                title={UI.signOut}
+                className="shrink-0 rounded-full p-0.5 text-ink-400 transition-colors hover:opacity-80"
+              >
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="" className="h-9 w-9 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-500/10 text-sm font-bold text-brand-600">
+                    {user?.name?.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </button>
+              <div className="min-w-0 flex-1 leading-tight hidden group-hover/sb:block">
+                <p className="truncate text-sm font-semibold text-ink-900">{user?.name}</p>
+                <p className="text-xs capitalize text-ink-500">{user?.role.toLowerCase()}</p>
               </div>
-            )}
-            <div className="min-w-0 leading-tight">
-              <p className="truncate text-sm font-semibold text-ink-900">{user?.name}</p>
-              <p className="text-xs capitalize text-ink-500">{user?.role.toLowerCase()}</p>
+              <button
+                onClick={handleLogout}
+                title={UI.signOut}
+                className="shrink-0 rounded-xl p-2 text-ink-400 transition hover:bg-ink-100 hover:text-brand-600 hidden group-hover/sb:block"
+              >
+                <LogoutIcon />
+              </button>
             </div>
-            <button
-              onClick={handleLogout}
-              title={UI.signOut}
-              className="ml-auto rounded-xl p-2 text-ink-400 transition hover:bg-ink-100 hover:text-brand-600"
-            >
-              <LogoutIcon />
-            </button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              {user?.avatar ? (
+                <img src={user.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-sm font-bold text-brand-600">
+                  {user?.name?.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0 flex-1 leading-tight">
+                <p className="truncate text-sm font-semibold text-ink-900">{user?.name}</p>
+                <p className="text-xs capitalize text-ink-500">{user?.role.toLowerCase()}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                title={UI.signOut}
+                className="ml-auto rounded-xl p-2 text-ink-400 transition hover:bg-ink-100 hover:text-brand-600"
+              >
+                <LogoutIcon />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 

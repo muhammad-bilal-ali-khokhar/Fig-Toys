@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 import { formatMoney } from "@/lib/money";
-import { CHART } from "@/lib/constants";
+import { useChartColors } from "@/lib/chart-colors";
 
 export function Card({
   title,
@@ -111,6 +111,7 @@ export function AxisTick({
   payload?: { value?: string };
   today?: boolean;
 }) {
+  const C = useChartColors();
   return (
     <text
       x={x}
@@ -118,7 +119,7 @@ export function AxisTick({
       textAnchor="middle"
       fontSize={11}
       fontWeight={today ? 700 : 400}
-      fill={today ? CHART.sales : CHART.ink}
+      fill={today ? C.sales : C.ink}
     >
       {new Date(payload?.value ?? "").toLocaleDateString("en-PK", { weekday: "short" })}
     </text>
@@ -136,11 +137,12 @@ export function TodayDot({
   payload?: { day?: string };
   todayKey?: string;
 }) {
+  const C = useChartColors();
   if (!payload || payload.day !== todayKey) return null;
   return (
     <g>
-      <circle cx={cx} cy={cy} r={7} fill={CHART.sales} opacity={0.18} />
-      <circle cx={cx} cy={cy} r={3.5} fill={CHART.sales} stroke="#fff" strokeWidth={2} />
+      <circle cx={cx} cy={cy} r={7} fill={C.sales} opacity={0.18} />
+      <circle cx={cx} cy={cy} r={3.5} fill={C.sales} className="stroke-card" strokeWidth={2} />
     </g>
   );
 }

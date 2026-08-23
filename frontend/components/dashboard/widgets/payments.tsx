@@ -1,6 +1,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, ChartTooltip } from "@/components/dashboard/charts";
-import { DASHBOARD_WIDGET_SPANS, CHART } from "@/lib/constants";
+import { DASHBOARD_WIDGET_SPANS } from "@/lib/constants";
+import { useChartColors } from "@/lib/chart-colors";
 import type { DashboardOverview } from "@/lib/api-types";
 
 type Props = {
@@ -9,12 +10,13 @@ type Props = {
 };
 
 export function PaymentsWidget({ data, currencySymbol }: Props) {
+  const C = useChartColors();
   const paymentData = data
     ? [
-        { name: "Cash", value: data.paymentSplit.CASH, color: CHART.cash },
-        { name: "Card", value: data.paymentSplit.CARD, color: CHART.card },
-        { name: "Bank", value: data.paymentSplit.BANK_TRANSFER, color: CHART.transfer },
-        { name: "Credit", value: data.paymentSplit.CREDIT, color: CHART.credit },
+        { name: "Cash", value: data.paymentSplit.CASH, color: C.cash },
+        { name: "Card", value: data.paymentSplit.CARD, color: C.card },
+        { name: "Bank", value: data.paymentSplit.BANK_TRANSFER, color: C.transfer },
+        { name: "Credit", value: data.paymentSplit.CREDIT, color: C.credit },
       ].filter((p) => p.value > 0)
     : [];
 
