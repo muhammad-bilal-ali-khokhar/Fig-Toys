@@ -15,14 +15,14 @@ export function Providers({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ThemeProvider>
-      <DashboardLayoutProvider>
-        <AuthProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <DashboardLayoutProvider>
           <ToastProvider>
             <GlobalScannerProvider>{children}</GlobalScannerProvider>
           </ToastProvider>
-        </AuthProvider>
-      </DashboardLayoutProvider>
-    </ThemeProvider>
+        </DashboardLayoutProvider>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }

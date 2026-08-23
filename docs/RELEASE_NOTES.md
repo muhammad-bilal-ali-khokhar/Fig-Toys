@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **Meet your new Help centre. Modern, fast and easy to search. It matches the new dashboard style with a dark hero, quick links and a clean bento layout. Try it in Settings, Appearance, Beta. Classic stays your default.**
+- **Smoother and more reliable. Downloads and settings now load without blocked connections or repeated sign in prompts. Your layout choice stays saved and updates check faster.**
+- **Copy errors with one tap. When an update fails you will see a Copy error button. Tap to copy the full details and share with support on WhatsApp for faster help.**
+
 ## v0.2.1
 
 - **Lightning fast updates are here. Your app now updates in seconds with smart downloads. You will see live download speed and a clear Installing window so you always know your PC is updating. Plus the app download is now much smaller and installs faster.**

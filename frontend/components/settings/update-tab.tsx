@@ -106,7 +106,7 @@ function StatusLine({
   available: string;
   error: string;
 }) {
-  if (error) return <span className="text-error">{error}</span>;
+  if (error) return <span className="text-error">Update failed</span>;
   if (installing) return <span className="font-semibold text-brand-600">{UPDATE.installing}</span>;
   if (checking) return <>{UPDATE.checking}</>;
   if (downloading) return <>{UPDATE.downloading}</>;
@@ -129,6 +129,7 @@ export function UpdateTab() {
   const isElectron = typeof window !== "undefined" && Boolean(window.fig?.isElectron);
   const [state, setState] = useState<UpdateState | null>(null);
   const [history, setHistory] = useState<{ version: string; size?: string; publishedAt?: string; description?: string; url: { setup: string } }[]>([]);
+  const [copiedError, setCopiedError] = useState(false);
 
   useEffect(() => {
     if (!isElectron) return;
@@ -176,6 +177,18 @@ export function UpdateTab() {
       toast(UPDATE.error, "error");
     }
   }, [toast]);
+
+  const copyError = useCallback(async () => {
+    if (!state?.error) return;
+    try {
+      await navigator.clipboard.writeText(state.error);
+      setCopiedError(true);
+      toast("Copied error for support", "success");
+      setTimeout(() => setCopiedError(false), 2000);
+    } catch {
+      toast("Could not copy", "error");
+    }
+  }, [state?.error, toast]);
 
   if (!isElectron) {
     return (
@@ -252,6 +265,14 @@ export function UpdateTab() {
             error={state?.error ?? ""}
           />
         </p>
+        {state?.error && (
+          <div className="mb-3 flex items-center gap-2 rounded-2xl border border-error/20 bg-error/5 px-3 py-2.5">
+            <p className="flex-1 break-words text-xs leading-relaxed text-error">{state.error}</p>
+            <Button variant="secondary" size="sm" onClick={() => void copyError()} className="shrink-0">
+              {copiedError ? "Copied" : "Copy error"}
+            </Button>
+          </div>
+        )}
         {isTimeoutError && <p className="mb-3 rounded-2xl bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-700">{UPDATE.timeoutHint}</p>}
         {state?.available && state?.size && <p className="mb-2 text-xs text-ink-500">Size {state.size} · 64-bit · Windows 10 / 11 · Differential download — only changed blocks</p>}
         {Boolean((state as unknown as { installing?: boolean })?.installing) && (

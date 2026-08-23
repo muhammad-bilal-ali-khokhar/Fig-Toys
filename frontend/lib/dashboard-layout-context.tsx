@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
+import { useAuth } from "@/lib/auth-context";
 import {
   DASHBOARD_LAYOUT_STORAGE_KEY,
   DEFAULT_DASHBOARD_LAYOUT,
@@ -20,13 +21,26 @@ export function DashboardLayoutProvider({ children }: { children: ReactNode }) {
   const [layout, setLayoutState] = useState<DashboardLayoutId>(DEFAULT_DASHBOARD_LAYOUT);
   const [ready, setReady] = useState(false);
   const loadedRef = useRef(false);
+  const { user, status } = useAuth();
 
   useEffect(() => {
+    if (status === "loading") return;
     const apply = (v: string | null) => {
       if (v === "classic" || v === "new") setLayoutState(v);
     };
+    if (!user) {
+      const stored = window.localStorage.getItem(DASHBOARD_LAYOUT_STORAGE_KEY);
+      if (stored) apply(stored);
+      const fig = typeof window !== "undefined" ? (window as unknown as { fig?: { dashboardLayout?: { get: () => Promise<string | null> } } }).fig : undefined;
+      if (fig?.dashboardLayout) {
+        fig.dashboardLayout.get().then(apply).catch(() => {});
+      }
+      loadedRef.current = true;
+      setReady(true);
+      return;
+    }
 
-    apiRequest<string | null>("/settings/dashboard-layout")
+    apiRequest<string | null>("/settings/dashboard-layout", { suppressUnauthorizedEvent: true })
       .then((db) => {
         loadedRef.current = true;
         if (db) {
@@ -48,7 +62,7 @@ export function DashboardLayoutProvider({ children }: { children: ReactNode }) {
           fig.dashboardLayout.get().then(apply).catch(() => {});
         }
       });
-  }, []);
+  }, [status, user]);
 
   useEffect(() => {
     document.documentElement.dataset.dashboardLayout = layout;
@@ -59,7 +73,7 @@ export function DashboardLayoutProvider({ children }: { children: ReactNode }) {
     const fig = typeof window !== "undefined" ? (window as unknown as { fig?: { dashboardLayout?: { set: (v: string) => Promise<void> } } }).fig : undefined;
     if (fig?.dashboardLayout) void fig.dashboardLayout.set(next);
     setLayoutState(next);
-    void apiRequest("/settings/dashboard-layout", { method: "PUT", body: { layout: next } }).catch(() => {});
+    void apiRequest("/settings/dashboard-layout", { method: "PUT", body: { layout: next }, suppressUnauthorizedEvent: true }).catch(() => {});
   }, []);
 
   return <DashboardLayoutContext.Provider value={{ layout, setLayout, ready }}>{children}</DashboardLayoutContext.Provider>;

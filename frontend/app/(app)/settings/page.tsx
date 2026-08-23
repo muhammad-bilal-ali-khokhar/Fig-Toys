@@ -975,11 +975,11 @@ export default function SettingsPage() {
 
         {tab === "appearance" && (
           <>
-            <PaneTitle title="Appearance" subtitle="Try the new dashboard layout. Classic stays default — we will update everything to the new layout in future, but for now only dashboard is switched." />
+            <PaneTitle title="Appearance" subtitle="Try the new layouts. Classic stays default. We will update everything to the new style, but for now only Dashboard and Help are switched." />
             <Group>
               <div className="px-4 py-3">
-                <p className="text-sm font-semibold text-ink-900">Dashboard layout</p>
-                <p className="text-xs text-ink-500">Switch between Classic and New (beta). New layout is entirely redesigned — hero KPIs, bento grid, focus mode. Other pages stay Classic for now.</p>
+                <p className="text-sm font-semibold text-ink-900">Dashboard and Help layout</p>
+                <p className="text-xs text-ink-500">Switch between Classic and New Beta. New layouts are entirely redesigned. Dashboard has hero KPIs and bento grid, Help has dark hero and quick links. Other pages stay Classic for now.</p>
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {DASHBOARD_LAYOUTS.map((l) => {
                     const active = dashboardLayout === l.id;
@@ -997,7 +997,7 @@ export default function SettingsPage() {
                           </span>
                         </span>
                         <span className="mt-1 text-xs text-ink-500">{l.description}</span>
-                        {l.id === "new" && <span className="mt-2 text-[11px] font-medium text-brand-600">Future: all pages will use this style. Testing on dashboard only now.</span>}
+                        {l.id === "new" && <span className="mt-2 text-[11px] font-medium text-brand-600">Future: all pages will use this style. Testing on Dashboard and Help now.</span>}
                       </button>
                     );
                   })}

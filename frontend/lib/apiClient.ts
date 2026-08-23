@@ -17,6 +17,7 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
+  suppressUnauthorizedEvent?: boolean;
 };
 
 function apiUrl(path: string): string {
@@ -38,7 +39,7 @@ function tenantHeader(): Record<string, string> {
 
 export async function apiRequest<T>(
   path: string,
-  { method = "GET", body, signal }: RequestOptions = {},
+  { method = "GET", body, signal, suppressUnauthorizedEvent = false }: RequestOptions = {},
 ): Promise<T> {
   let res: Response;
   try {
@@ -67,7 +68,7 @@ export async function apiRequest<T>(
   }
 
   if (!res.ok) {
-    if (res.status === 401 && typeof window !== "undefined") {
+    if (res.status === 401 && typeof window !== "undefined" && !suppressUnauthorizedEvent) {
       window.dispatchEvent(new CustomEvent(AUTH.unauthorizedEvent));
     }
     const payload = (await res.json().catch(() => null)) as {
