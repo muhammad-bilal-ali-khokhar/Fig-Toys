@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.0
+## v0.2.1
+
+- Released on: 2026-08-23
+
+- feat: fast differential updates + honest installing feedback
 
 - Released on: 2026-08-23
 
