@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.1.96
+
 - **Maintenance release** — internal housekeeping and stability improvements. No breaking changes.
 
 ## v0.1.95
