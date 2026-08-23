@@ -59,7 +59,7 @@ jobs:
       # instead of the raw auto-generated commit dump.
       - name: Build curated release notes
         run: |
-          awk 'BEGIN{p=0} /^## /{if(p)exit; p=1} p' docs/RELEASE_NOTES.md > .release-notes.md
+          awk 'BEGIN{p=0} /^## Unreleased/{p=1; next} /^## /{if(p)exit} p' docs/RELEASE_NOTES.md > .release-notes.md
           echo "--- release notes preview ---"
           cat .release-notes.md
 
