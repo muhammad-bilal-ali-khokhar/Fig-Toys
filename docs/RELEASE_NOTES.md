@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.1.101
+
 - **Separate updater window with silent auto-install** — `desktop/main.js:1080` `/318` `installUpdate()` now spawns a detached updater (`--updater` + `desktop/updater.html` / `desktop/updater-preload.js`) instead of a card inside the main process. Updater shows `Installing vX…` with spinner, runs `installer /S --force-run` hidden and relaunches the app — visible progress, zero clicks. `desktop/electron-builder.yml:9` now bundles updater files.
 
 ## v0.1.100
