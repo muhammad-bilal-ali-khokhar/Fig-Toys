@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **Updates just work. Even older installs can now find new versions reliably. Your app will check correctly every time and download only what changed. No more missing update info.**
+
 ## v0.2.3
 
 - **Tidier new layouts. Extra Beta banners are gone from Dashboard and Help. Your new designs now feel calmer and more focused while Classic stays your default.**
