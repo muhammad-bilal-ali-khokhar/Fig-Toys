@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.2
+
 - **Meet your new Help centre. Modern, fast and easy to search. It matches the new dashboard style with a dark hero, quick links and a clean bento layout. Try it in Settings, Appearance, Beta. Classic stays your default.**
 - **Smoother and more reliable. Downloads and settings now load without blocked connections or repeated sign in prompts. Your layout choice stays saved and updates check faster.**
 - **Copy errors with one tap. When an update fails you will see a Copy error button. Tap to copy the full details and share with support on WhatsApp for faster help.**

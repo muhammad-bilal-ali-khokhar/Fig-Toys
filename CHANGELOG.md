@@ -4,7 +4,13 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.1
+## v0.2.2
+
+- Released on: 2026-08-23
+
+- feat: new help layout plus smoother downloads plus copy error
+- docs: make v0.2.1 notes promotional for customers
+- fix: release notes no longer show Unreleased heading in GitHub releases
 
 - Released on: 2026-08-23
 
