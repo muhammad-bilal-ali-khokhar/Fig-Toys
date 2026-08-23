@@ -5,31 +5,80 @@
 <style>
 html,body{margin:0;height:100%;background:transparent;font-family:Montserrat,system-ui,sans-serif;overflow:hidden}
 .canvas{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:transparent}
-.card{width:420px;background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 20px 40px rgba(0,0,0,0.15);text-align:center}
-.spinner{width:32px;height:32px;border:3px solid #f3efe7;border-top-color:#9b3f68;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 14px}
-@keyframes spin{to{transform:rotate(360deg)}}
+.card{width:420px;background:#fff;border-radius:20px;padding:28px 24px 22px;box-shadow:0 20px 40px rgba(0,0,0,0.15);text-align:center}
+.ring-wrap{position:relative;width:72px;height:72px;margin:0 auto 14px}
+.ring-wrap svg{width:72px;height:72px;transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:#f3efe7;stroke-width:6}
+.ring-fg{fill:none;stroke:#9b3f68;stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .4s ease}
+.pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#9b3f68;letter-spacing:-.02em}
+.bar{height:6px;background:#f3efe7;border-radius:999px;overflow:hidden;margin:14px 0 0}
+.bar-fill{height:100%;width:0%;background:linear-gradient(90deg,#9b3f68,#d07a9b);border-radius:999px;transition:width .4s ease}
 h1{margin:0;font-size:16px;color:#1c1916;font-weight:700}
 p{margin:8px 0 0;font-size:12px;color:#7d7467;line-height:1.5}
-.small{margin-top:10px;font-size:11px;color:#aaa08f}
+.small{margin-top:10px;font-size:11px;color:#aaa08f;min-height:14px}
 </style>
 </head>
 <body>
 <div class="canvas">
   <div class="card">
-    <div class="spinner"></div>
+    <div class="ring-wrap">
+      <svg viewBox="0 0 72 72"><circle class="ring-bg" cx="36" cy="36" r="30"/><circle id="ring" class="ring-fg" cx="36" cy="36" r="30" stroke-dasharray="188.5" stroke-dashoffset="188.5"/></svg>
+      <div class="pct" id="pct">0%</div>
+    </div>
     <h1 id="title">Installing update…</h1>
     <p id="subtitle">Please wait — Fig POS will restart automatically.<br>Do not turn off your computer.</p>
-    <p class="small" id="detail"></p>
+    <div class="bar"><div class="bar-fill" id="bar"></div></div>
+    <p class="small" id="detail">Starting installer…</p>
   </div>
 </div>
 <script>
 const q = new URLSearchParams(window.location.search);
 const v = q.get("v");
 if (v) document.getElementById("title").textContent = `Installing update v${v}…`;
+const ring = document.getElementById("ring");
+const pctEl = document.getElementById("pct");
+const bar = document.getElementById("bar");
+const detail = document.getElementById("detail");
+const CIRC = 2 * Math.PI * 30;
+function setProgress(p){
+  p = Math.max(0, Math.min(100, p));
+  pctEl.textContent = Math.round(p) + "%";
+  bar.style.width = p + "%";
+  ring.style.strokeDashoffset = String(CIRC - (CIRC * p / 100));
+}
+let pct = 0;
+setProgress(0);
+let iv = setInterval(() => {
+  if (pct < 72) pct += 0.9 + Math.random() * 0.7;
+  else if (pct < 88) pct += 0.25 + Math.random() * 0.35;
+  else if (pct < 95) pct += 0.08 + Math.random() * 0.12;
+  else { pct = 95; clearInterval(iv); detail.textContent = "Almost done…"; return; }
+  if (pct > 95) pct = 95;
+  setProgress(pct);
+  if (pct < 30) detail.textContent = "Copying files…";
+  else if (pct < 60) detail.textContent = "Installing… please wait";
+  else if (pct < 85) detail.textContent = "Finalizing…";
+  else detail.textContent = "Almost done…";
+}, 280);
+let realProgress = false;
 if (window.updater && window.updater.onStatus) {
   window.updater.onStatus((s) => {
-    const d = document.getElementById("detail");
-    if (s) d.textContent = s;
+    if (s == null) return;
+    if (typeof s === "object" && typeof s.p === "number") {
+      realProgress = true;
+      clearInterval(iv);
+      setProgress(s.p);
+      if (s.text) detail.textContent = s.text;
+      return;
+    }
+    if (typeof s === "string") {
+      if (/\d+%/.test(s)) {
+        const m = s.match(/(\d+)%/);
+        if (m) { realProgress = true; clearInterval(iv); setProgress(Number(m[1])); }
+      }
+      detail.textContent = s;
+      if (/100%|complete|done/i.test(s)) { clearInterval(iv); setProgress(100); }
+    }
   });
 }
 </script>

@@ -1,3 +1,8 @@
+## Unreleased
+
+- **Your update install now feels beautiful and clear. Watch progress live with a smooth ring, a big percentage and friendly status messages like Copying files and Almost done so you always know your update is moving forward. The new progress bar makes waiting calm and confident.**
+- **A simpler updates screen. We removed extra clutter so checking for updates is faster and easier. Just see your version, check for updates and install with one clear action.**
+
 ## v0.2.5
 
 - **Dashboard charts now match your theme. Pick any look in Settings, Appearance and your graphs and pie charts recolor instantly to match. Your dashboard finally feels like one beautiful, coordinated app.**

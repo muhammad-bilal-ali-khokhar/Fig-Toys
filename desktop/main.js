@@ -415,8 +415,34 @@ function checkForUpdates() {
   }
 }
 
+function spawnUpdater(installerPath, ver) {
+  const v = ver || updateState.version || "";
+  const p = installerPath || updateState.installerPath || "";
+  logging.write(`OTA: spawning updater window for v${v} installer=${p || "(will download)"}`);
+  try {
+    const updaterArgs = app.isPackaged ? ["--updater", p, v] : [ROOT, "--updater", p, v];
+    const child = spawn(process.execPath, updaterArgs, { detached: true, stdio: "ignore" });
+    child.on("error", (e) => logging.error(`OTA: updater spawn failed: ${e.message}`));
+    child.unref();
+    logging.write(`OTA: updater window spawned pid ${child.pid}`);
+  } catch (e) {
+    logging.error(`OTA: updater spawn failed: ${e.message}`);
+    try { dialog.showMessageBox(mainWindow, { type: "error", title: "Update failed", message: String(e.message || e) }).catch(() => {}); } catch {}
+    return false;
+  }
+  setTimeout(() => {
+    app.removeAllListeners("window-all-closed");
+    app.quit();
+    setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
+  }, 400);
+  return true;
+}
+
 async function downloadUpdate() {
-  if (updateState.downloading || updateState.downloaded) return updateSnapshot();
+  if (updateState.downloaded && updateState.installerPath && fs.existsSync(updateState.installerPath)) {
+    spawnUpdater(updateState.installerPath, updateState.version);
+    return updateSnapshot();
+  }
   if (!updateState.available || !updateState.version) {
     try {
       const m = await fetchLatestManifest();
@@ -436,154 +462,41 @@ async function downloadUpdate() {
     }
   }
   updateState.downloading = true;
-  updateState.downloaded = false;
   updateState.installing = false;
-  updateState.progress = 0;
-  updateState.bytesPerSecond = 0;
   updateState.error = "";
   pushUpdateState();
-  if (autoUpdaterReady && app.isPackaged) {
-    try {
-      logging.write(`OTA: starting differential download for v${updateState.version} (only changed blocks, not full installer)`);
-      await autoUpdater.downloadUpdate();
-      return updateSnapshot();
-    } catch (err) {
-      updateState.downloading = false;
-      updateState.error = friendlyUpdateError(err);
-      logging.error(`OTA: differential download failed: ${err && err.stack ? err.stack : err}`);
-      pushUpdateState();
-      try { dialog.showMessageBox(mainWindow, { type: "error", title: "Download failed", message: updateState.error, detail: "Try again, or use Direct download from the download site." }).catch(() => {}); } catch {}
-      return updateSnapshot();
-    }
-  }
-  let manifest = null;
-  try { manifest = await fetchLatestManifest(); } catch (e) {
-    updateState.downloading = false;
-    updateState.error = friendlyUpdateError(e);
-    pushUpdateState();
-    return updateSnapshot();
-  }
-  if (!manifest.url || !manifest.url.setup) {
-    updateState.downloading = false;
-    updateState.error = "Download link is missing. Please try checking for updates again.";
-    pushUpdateState();
-    return updateSnapshot();
-  }
-  let dest = "";
-  try {
-    const tmpDir = path.join(app.getPath("temp"), "fig-pos-update");
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-    const setupName = (manifest.url.setup.split("/").pop() || `Fig-POS-Setup-${manifest.version}.exe`).split("?")[0];
-    dest = path.join(tmpDir, setupName);
-    const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
-    const res = await fetch(manifest.url.setup, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-    if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status}`);
-    const total = Number(res.headers.get("content-length") || 0);
-    updateState.total = total;
-    let received = 0;
-    const file = fs.createWriteStream(dest);
-    const reader = res.body.getReader();
-    let lastPush = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.byteLength;
-      file.write(Buffer.from(value));
-      updateState.transferred = received;
-      if (total) {
-        const pct = Math.round((received / total) * 100);
-        if (pct !== updateState.progress && Date.now() - lastPush > 120) {
-          updateState.progress = pct;
-          lastPush = Date.now();
-          pushUpdateState();
-        }
-      } else if (received % (1024 * 1024) < 65536) {
-        logging.write(`OTA: downloading… ${(received / (1024 * 1024)).toFixed(1)} MB`);
-      }
-    }
-    await new Promise((resolve, reject) => file.end((err) => (err ? reject(err) : resolve())));
-    updateState.installerPath = dest;
-    updateState.downloading = false;
-    updateState.downloaded = true;
-    updateState.progress = 100;
-    logging.write(`OTA: update ${manifest.version} downloaded (full fallback) — will install via separate updater window.`);
-    pushUpdateState();
-    try {
-      dialog.showMessageBox(mainWindow, {
-        type: "info",
-        buttons: ["Restart & update now", "Later"],
-        defaultId: 0,
-        cancelId: 1,
-        title: "Fig POS — Update ready",
-        message: `Version ${manifest.version} is ready to install.`,
-        detail: "Restart now to apply the update in a separate window, or choose Later to install when you quit the app. Do not turn off your PC during install.",
-      }).then(({ response }) => { if (response === 0) installUpdate(); }).catch(() => {});
-    } catch {}
-  } catch (err) {
-    updateState.downloading = false;
-    updateState.error = friendlyUpdateError(err);
-    logging.error("OTA: download failed: " + (err && err.message ? err.message : String(err)));
-    try { if (dest && fs.existsSync(dest)) fs.rmSync(dest, { force: true }); } catch {}
-    pushUpdateState();
-  }
+  spawnUpdater("", updateState.version);
   return updateSnapshot();
 }
 
 function installUpdate() {
   const ver = updateState.version || "";
+  let cached = updateState.installerPath;
   if (autoUpdaterReady && updateState.downloaded && autoUpdater.downloadedUpdateHelper) {
+    if (!cached || !fs.existsSync(cached)) {
+      try {
+        const helper = autoUpdater.downloadedUpdateHelper;
+        const cache = helper.cacheDir || helper._cacheDir || "";
+        const file = helper.file || helper._file || "";
+        const cand = file && path.isAbsolute(file) ? file : cache && file ? path.join(cache, file) : "";
+        if (cand && fs.existsSync(cand)) cached = cand;
+      } catch {}
+    }
+  }
+  if (cached && fs.existsSync(cached)) {
     updateState.installing = true;
     pushUpdateState();
-    logging.write(`OTA: installing v${ver} via separate updater window (differential build)`);
-    setTimeout(() => {
-      const cached = updateState.installerPath;
-      if (cached && fs.existsSync(cached)) {
-        const exe = app.getPath("exe");
-        const updaterArgs = app.isPackaged ? ["--updater", cached, ver] : [ROOT, "--updater", cached, ver];
-        try {
-          const child = spawn(process.execPath, updaterArgs, { detached: true, stdio: "ignore" });
-          child.on("error", (e) => logging.error(`OTA: updater spawn failed: ${e.message}`));
-          child.unref();
-        } catch (e) { logging.error(`OTA: updater spawn failed: ${e.message}`); }
-      } else {
-        try { autoUpdater.quitAndInstall(false, true); return; } catch (e) { logging.error(`OTA: quitAndInstall failed: ${e.message}`); }
-      }
-      setTimeout(() => {
-        app.removeAllListeners("window-all-closed");
-        app.quit();
-        setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
-      }, 350);
-    }, 250);
+    spawnUpdater(cached, ver);
     return;
   }
-  if (!updateState.installerPath || !fs.existsSync(updateState.installerPath)) {
-    logging.error(`OTA: installer not found at ${updateState.installerPath}`);
-    try { dialog.showMessageBox(mainWindow, { type: "error", title: "Update failed", message: "Update installer not found.", detail: "Please try downloading again from Settings → Update." }).catch(() => {}); } catch {}
+  if (!ver) {
+    logging.error("OTA: no version to install");
+    try { dialog.showMessageBox(mainWindow, { type: "error", title: "Update failed", message: "No update version found. Please check for updates again." }).catch(() => {}); } catch {}
     return;
   }
-  const installerPath = updateState.installerPath;
   updateState.installing = true;
   pushUpdateState();
-  logging.write(`OTA: handing off to separate updater window for ${installerPath} v${ver} — main window will close, installer progress shows in new window`);
-  try {
-    const exe = app.getPath("exe");
-    const updaterArgs = app.isPackaged ? ["--updater", installerPath, ver] : [ROOT, "--updater", installerPath, ver];
-    const child = spawn(process.execPath, updaterArgs, { detached: true, stdio: "ignore" });
-    child.on("error", (e) => logging.error(`OTA: updater spawn failed: ${e.message}`));
-    child.unref();
-    logging.write(`OTA: updater window spawned pid ${child.pid}`);
-  } catch (e) {
-    updateState.installing = false;
-    logging.error(`OTA: updater spawn failed: ${e.message}`);
-    try { dialog.showMessageBox(mainWindow, { type: "error", title: "Update failed", message: String(e.message || e) }).catch(() => {}); } catch {}
-    pushUpdateState();
-    return;
-  }
-  setTimeout(() => {
-    app.removeAllListeners("window-all-closed");
-    app.quit();
-    setTimeout(() => { try { app.exit(0); } catch {} }, 1500);
-  }, 400);
+  spawnUpdater("", ver);
 }
 
 // ---------------------------------------------------------------------------
@@ -1277,16 +1190,83 @@ function waitForHealth(url, timeoutMs) {
 
 const isUpdater = process.argv.includes("--updater");
 
+function sendUpdaterProgress(win, p, text) {
+  try { win.webContents.send("updater:status", { p: Math.round(p), text }); } catch {}
+  try { win.webContents.executeJavaScript(`try{clearInterval(iv);setProgress(${Math.round(p)});document.getElementById("detail").textContent=${JSON.stringify(text)}}catch{}`); } catch {}
+}
+
+async function downloadForUpdater(win, verHint) {
+  let manifest = null;
+  try {
+    sendUpdaterProgress(win, 0, "Checking for update…");
+    manifest = await fetchLatestManifest();
+  } catch (e) {
+    throw new Error(friendlyUpdateError(e));
+  }
+  if (!manifest || !manifest.version) throw new Error("No version in manifest");
+  const ver = manifest.version;
+  if (verHint && ver !== verHint && !isNewerVersion(ver, app.getVersion())) {
+    logging.write(`Updater: manifest ${ver} not newer than ${app.getVersion()} (hint ${verHint})`);
+  }
+  try { win.webContents.executeJavaScript(`try{document.getElementById("title").textContent="Downloading update v${ver}…"}catch{}`); } catch {}
+  if (!manifest.url || !manifest.url.setup) throw new Error("Download link missing");
+  const tmpDir = path.join(app.getPath("temp"), "fig-pos-update");
+  if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+  const setupName = (manifest.url.setup.split("/").pop() || `Fig-POS-Setup-${ver}.exe`).split("?")[0];
+  const dest = path.join(tmpDir, setupName);
+  if (fs.existsSync(dest)) {
+    try {
+      const st = fs.statSync(dest);
+      if (st.size > 1024 * 1024) {
+        logging.write(`Updater: reusing existing installer ${dest}`);
+        return dest;
+      }
+    } catch {}
+  }
+  const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+  sendUpdaterProgress(win, 0, "Downloading… 0%");
+  const res = await fetch(manifest.url.setup, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+  if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status}`);
+  const total = Number(res.headers.get("content-length") || 0);
+  let received = 0;
+  const file = fs.createWriteStream(dest);
+  const reader = res.body.getReader();
+  let lastSent = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    file.write(Buffer.from(value));
+    const now = Date.now();
+    if (total) {
+      const pct = Math.round((received / total) * 100);
+      if (now - lastSent > 120) {
+        const mb = (received / (1024 * 1024)).toFixed(1);
+        const totMb = (total / (1024 * 1024)).toFixed(1);
+        sendUpdaterProgress(win, pct, `Downloading… ${pct}% (${mb} / ${totMb} MB)`);
+        lastSent = now;
+      }
+    } else if (now - lastSent > 500) {
+      sendUpdaterProgress(win, Math.min(95, Math.round((received / (30 * 1024 * 1024)) * 100)), `Downloading… ${(received / (1024 * 1024)).toFixed(1)} MB`);
+      lastSent = now;
+    }
+  }
+  await new Promise((resolve, reject) => file.end((err) => (err ? reject(err) : resolve())));
+  sendUpdaterProgress(win, 100, "Download complete — starting install…");
+  logging.write(`Updater: downloaded ${ver} to ${dest}`);
+  return dest;
+}
+
 async function runUpdater() {
   const idx = process.argv.indexOf("--updater");
-  const installerPath = process.argv[idx + 1] || updateState.installerPath || "";
+  let installerPath = process.argv[idx + 1] || updateState.installerPath || "";
   const ver = process.argv[idx + 2] || updateState.version || "";
   const exePath = app.getPath("exe");
   try { logging.init(path.join(userDataDir(), "logs")); } catch {}
   logging.write(`Updater: starting for ${installerPath} v${ver}`);
   const win = new BrowserWindow({
     width: 460,
-    height: 220,
+    height: 240,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -1299,13 +1279,26 @@ async function runUpdater() {
   });
   win.loadFile(path.join(__dirname, "updater.html"), { query: { v: ver } });
   win.show();
-  win.webContents.on("did-finish-load", () => {
-    setTimeout(() => {
+  win.webContents.on("did-finish-load", async () => {
+    await new Promise((r) => setTimeout(r, 600));
+    try {
+      if (!installerPath || !fs.existsSync(installerPath)) {
+        logging.write(`Updater: no cached installer, downloading v${ver || "latest"}…`);
+        try {
+          installerPath = await downloadForUpdater(win, ver);
+        } catch (e) {
+          logging.error(`Updater: download failed: ${e.message}`);
+          try { win.webContents.send("updater:status", `Download failed: ${e.message}`); } catch {}
+          try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: String(e.message), detail: "Check your internet and try again." }).then(() => app.quit()).catch(() => app.quit()); } catch { app.quit(); }
+          return;
+        }
+      }
       if (!installerPath || !fs.existsSync(installerPath)) {
         logging.error(`Updater: installer not found at ${installerPath}`);
         try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: "Installer not found." }).catch(() => {}); } catch {}
         return;
       }
+      sendUpdaterProgress(win, 96, "Installing… please wait");
       logging.write(`Updater: spawning silent installer ${installerPath} /S --force-run`);
       const child = spawn(installerPath, ["/S", "--force-run"], { detached: false, stdio: "ignore" });
       child.on("error", (e) => {
@@ -1314,6 +1307,7 @@ async function runUpdater() {
       });
       child.on("close", (code) => {
         logging.write(`Updater: installer exited with code ${code}`);
+        sendUpdaterProgress(win, 100, "100% — restarting…");
         setTimeout(() => {
           try {
             const c2 = spawn(exePath, [], { detached: true, stdio: "ignore" });
@@ -1324,7 +1318,10 @@ async function runUpdater() {
           setTimeout(() => { try { app.exit(0); } catch {} }, 500);
         }, 800);
       });
-    }, 800);
+    } catch (e) {
+      logging.error(`Updater: fatal ${e.message}`);
+      try { dialog.showMessageBox(win, { type: "error", title: "Update failed", message: String(e.message) }).catch(() => {}); } catch {}
+    }
   });
 }
 
