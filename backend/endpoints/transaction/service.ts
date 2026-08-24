@@ -133,10 +133,23 @@ export async function createSale(input: CreateSaleInput, userId: string) {
   const subtotal = items.reduce((sum, i) => sum + i.total, 0);
   const { taxRate, cardFee: cardFeePct } = await getCompanyFinancials();
   const tax = Math.round(subtotal * taxRate) / 100;
-  const cardUsed = input.payments.some((p) => p.method === "CARD");
-  const cardAmount = input.payments
-    .filter((p) => p.method === "CARD")
-    .reduce((sum, p) => sum + p.amount, 0);
+  let reservationCardAmount = 0;
+  const soldUnitIdsForFee = items.filter((i) => i.unitId).map((i) => i.unitId as string);
+  if (soldUnitIdsForFee.length > 0 && cardFeePct > 0) {
+    const resForFee = await prisma.reservation.findMany({
+      where: { status: "ACTIVE", items: { some: { unitId: { in: soldUnitIdsForFee } } } },
+      select: { id: true },
+    });
+    if (resForFee.length > 0) {
+      const cardMovements = await prisma.moneyMovement.findMany({
+        where: { sourceType: "RESERVATION", sourceId: { in: resForFee.map((r) => r.id) }, note: { contains: "(card)" } },
+        select: { amount: true },
+      });
+      reservationCardAmount = cardMovements.reduce((s, m) => s + Number(m.amount), 0);
+    }
+  }
+  const cardUsed = input.payments.some((p) => p.method === "CARD") || reservationCardAmount > 0;
+  const cardAmount = input.payments.filter((p) => p.method === "CARD").reduce((sum, p) => sum + p.amount, 0) + reservationCardAmount;
   const cardFee = cardUsed ? Math.round(cardAmount * cardFeePct) / 100 : 0;
   const total = subtotal - input.discount + tax + cardFee;
   if (total < 0) throw new ApiError(400, "transaction.negative_total", "Total cannot be negative");
@@ -254,14 +267,43 @@ export async function createSale(input: CreateSaleInput, userId: string) {
             const remainder = Math.max(0, total - paidInput - advanceAdded);
             const toAdd = Math.min(advance, remainder);
             if (toAdd > 0) {
-              await tx.payment.create({
-                data: {
-                  transactionId: created.id,
-                  method: "CASH",
-                  amount: toAdd,
-                  reference: `Advance from ${reservation.number}`,
-                },
+              const resMovements = await tx.moneyMovement.findMany({
+                where: { sourceType: "RESERVATION", sourceId: reservation.id },
+                select: { account: true, amount: true, bankAccountId: true, note: true },
               });
+              let resPayments: { method: string; amount: number; bankAccountId: string | null }[] = resMovements.map((m) => {
+                const note = m.note ?? "";
+                if (note.includes("(card)")) return { method: "CARD", amount: Number(m.amount), bankAccountId: null };
+                if (note.includes("(credit)")) return { method: "CREDIT", amount: Number(m.amount), bankAccountId: null };
+                return { method: m.account === "bank" ? "BANK_TRANSFER" : "CASH", amount: Number(m.amount), bankAccountId: m.bankAccountId };
+              });
+              if (resPayments.length === 0) resPayments = [{ method: "CASH", amount: advance, bankAccountId: null }];
+              let remaining = toAdd;
+              for (const rp of resPayments) {
+                if (remaining <= 0) break;
+                const take = Math.min(rp.amount, remaining);
+                if (take <= 0) continue;
+                await tx.payment.create({
+                  data: {
+                    transactionId: created.id,
+                    method: rp.method as any,
+                    amount: take,
+                    reference: `Advance from ${reservation.number}`,
+                    ...(rp.method === "BANK_TRANSFER" && rp.bankAccountId ? { bankAccountId: rp.bankAccountId } : {}),
+                  },
+                });
+                remaining = Math.round((remaining - take) * 100) / 100;
+              }
+              if (remaining > 0.001) {
+                await tx.payment.create({
+                  data: {
+                    transactionId: created.id,
+                    method: "CASH",
+                    amount: remaining,
+                    reference: `Advance from ${reservation.number}`,
+                  },
+                });
+              }
               advanceAdded += toAdd;
             }
           }
@@ -334,6 +376,31 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
       const existing = await prisma.unit.findUnique({ where: { imei: item.imei } });
       if (existing && existing.status === "IN_STOCK") {
         throw new ApiError(400, "unit.imei_exists", `IMEI ${item.imei} already exists in stock`);
+      }
+    }
+  }
+
+  {
+    const barcodeToProduct = new Map<string, string>();
+    for (const item of input.items) {
+      const bc = item.barcode?.trim();
+      if (!bc) continue;
+      const prevProduct = barcodeToProduct.get(bc);
+      if (prevProduct && prevProduct !== item.productId) {
+        throw new ApiError(400, "barcode.duplicate_product", `Barcode ${bc} cannot be used for two different products`);
+      }
+      barcodeToProduct.set(bc, item.productId);
+    }
+    for (const [bc, productId] of barcodeToProduct) {
+      const conflictUnit = await prisma.unit.findFirst({ where: { imei: bc, productId: { not: productId } } });
+      if (conflictUnit) {
+        const conflictProduct = await prisma.product.findUnique({ where: { id: conflictUnit.productId } });
+        const label = conflictProduct ? `${conflictProduct.model}` : "another product";
+        throw new ApiError(400, "barcode.duplicate_product", `Barcode ${bc} is already used for ${label} — choose a different barcode`);
+      }
+      const conflictProduct = await prisma.product.findFirst({ where: { barcode: bc, id: { not: productId } } });
+      if (conflictProduct) {
+        throw new ApiError(400, "barcode.duplicate_product", `Barcode ${bc} is already used for ${conflictProduct.model} — choose a different barcode`);
       }
     }
   }
@@ -1055,8 +1122,33 @@ export async function modifyPurchase(id: string, input: CreatePurchaseInput, use
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
     if (item.imei) {
       const existingUnit = await prisma.unit.findUnique({ where: { imei: item.imei } });
-      if (existingUnit && existingUnit.status === "IN_STOCK" && !ownedUnitIds.has(existingUnit.id)) {
+      if (existingUnit && existingUnit.status === "IN_STOCK" && !ownedUnitIds.has(existingUnit.id as string)) {
         throw new ApiError(400, "unit.imei_exists", `IMEI ${item.imei} already exists in stock`);
+      }
+    }
+  }
+
+  {
+    const barcodeToProduct = new Map<string, string>();
+    for (const item of input.items) {
+      const bc = item.barcode?.trim();
+      if (!bc) continue;
+      const prevProduct = barcodeToProduct.get(bc);
+      if (prevProduct && prevProduct !== item.productId) {
+        throw new ApiError(400, "barcode.duplicate_product", `Barcode ${bc} cannot be used for two different products`);
+      }
+      barcodeToProduct.set(bc, item.productId);
+    }
+    for (const [bc, productId] of barcodeToProduct) {
+      const conflictUnit = await prisma.unit.findFirst({ where: { imei: bc, productId: { not: productId } } });
+      if (conflictUnit && !ownedUnitIds.has(conflictUnit.id)) {
+        const conflictProduct = await prisma.product.findUnique({ where: { id: conflictUnit.productId } });
+        const label = conflictProduct ? `${conflictProduct.model}` : "another product";
+        throw new ApiError(400, "barcode.duplicate_product", `Barcode ${bc} is already used for ${label} — choose a different barcode`);
+      }
+      const conflictProduct = await prisma.product.findFirst({ where: { barcode: bc, id: { not: productId } } });
+      if (conflictProduct) {
+        throw new ApiError(400, "barcode.duplicate_product", `Barcode ${bc} is already used for ${conflictProduct.model} — choose a different barcode`);
       }
     }
   }

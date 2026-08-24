@@ -492,6 +492,7 @@ export type ReservationDetail = {
   createdAt: string;
   contact: { id: string; name: string; phone: string | null };
   user: { id: string; name: string };
+  payments?: { method: string; amount: number; bankAccountId: string | null }[];
   items: {
     id: string;
     quantity: number;

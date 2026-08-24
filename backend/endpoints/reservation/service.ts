@@ -39,7 +39,10 @@ export async function createReservation(input: CreateReservationInput, userId: s
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
   const total = subtotal - input.discount;
   if (total < 0) throw new ApiError(400, "reservation.negative_total", "Total cannot be negative");
-  if (input.advance > total + 0.001) {
+  const paymentsInput = (input as any).payments as { method: string; amount: number; bankAccountId?: string | null }[] | undefined;
+  const advanceFromPayments = paymentsInput && paymentsInput.length > 0 ? paymentsInput.reduce((s, p) => s + (Number(p.amount) || 0), 0) : null;
+  const effectiveAdvance = advanceFromPayments !== null ? advanceFromPayments : input.advance;
+  if (effectiveAdvance > total + 0.001) {
     throw new ApiError(400, "reservation.advance_exceeds_total", "Advance cannot exceed the total");
   }
 
@@ -109,17 +112,36 @@ export async function createReservation(input: CreateReservationInput, userId: s
         subtotal,
         discount: input.discount,
         total,
-        advance: input.advance,
+        advance: effectiveAdvance,
         status: "ACTIVE",
         note: input.note,
         items: { create: createdItems },
       },
       include: includeReservation,
     });
-    if (input.advance > 0) {
+    if (paymentsInput && paymentsInput.length > 0) {
+      for (const p of paymentsInput) {
+        const amt = Number(p.amount) || 0;
+        if (amt <= 0) continue;
+        if (p.method === "CASH") {
+          await moneyIn(tx, { account: "cash", amount: amt, sourceType: "RESERVATION", sourceId: created.id, note: `Advance on ${created.number} (cash)`, userId });
+        } else if (p.method === "BANK_TRANSFER") {
+          await moneyIn(tx, { account: "bank", amount: amt, bankAccountId: (p as any).bankAccountId ?? undefined, sourceType: "RESERVATION", sourceId: created.id, note: `Advance on ${created.number} (bank)`, userId });
+        } else if (p.method === "CARD") {
+          await tx.moneyMovement.create({ data: { date: new Date(), kind: "IN", amount: amt, account: "cash", sourceType: "RESERVATION", sourceId: created.id, note: `Advance on ${created.number} (card)`, createdById: userId } });
+        } else if (p.method === "CREDIT") {
+          await tx.creditAccount.upsert({
+            where: { contactId: contact.id },
+            create: { contactId: contact.id, limit: 0, balance: amt },
+            update: { balance: { increment: amt } },
+          });
+          await tx.moneyMovement.create({ data: { date: new Date(), kind: "IN", amount: amt, account: "cash", sourceType: "RESERVATION", sourceId: created.id, note: `Advance on ${created.number} (credit)`, createdById: userId } });
+        }
+      }
+    } else if (effectiveAdvance > 0) {
       await moneyIn(tx, {
         account: "cash",
-        amount: input.advance,
+        amount: effectiveAdvance,
         sourceType: "RESERVATION",
         sourceId: created.id,
         note: `Advance on ${created.number}`,
@@ -138,16 +160,35 @@ export async function createReservation(input: CreateReservationInput, userId: s
       number,
       type: input.type,
       total,
-      advance: input.advance,
+      advance: effectiveAdvance,
       contact: contact.name,
     }),
   });
 
-  return reservation;
+  return attachPayments(reservation as any);
+}
+
+async function attachPayments<T extends { id: string }>(reservation: T): Promise<T & { payments: { method: string; amount: number; bankAccountId: string | null }[] }> {
+  const movements = await prisma.moneyMovement.findMany({
+    where: { sourceType: "RESERVATION", sourceId: reservation.id },
+    select: { account: true, amount: true, bankAccountId: true, note: true },
+  });
+  const payments: { method: string; amount: number; bankAccountId: string | null }[] = movements.map((m) => {
+    const note = m.note ?? "";
+    if (note.includes("(card)")) return { method: "CARD", amount: Number(m.amount), bankAccountId: null };
+    if (note.includes("(credit)")) return { method: "CREDIT", amount: Number(m.amount), bankAccountId: null };
+    return { method: m.account === "bank" ? "BANK_TRANSFER" : "CASH", amount: Number(m.amount), bankAccountId: m.bankAccountId };
+  });
+  const advance = Number((reservation as any).advance ?? 0);
+  const moved = payments.reduce((s, p) => s + p.amount, 0);
+  if (advance > moved + 0.001) {
+    payments.push({ method: "CASH", amount: Math.round((advance - moved) * 100) / 100, bankAccountId: null });
+  }
+  return Object.assign(reservation, { payments }) as any;
 }
 
 export async function listReservations({ status, type }: { status?: string; type?: string } = {}) {
-  return prisma.reservation.findMany({
+  const rows = await prisma.reservation.findMany({
     where: {
       ...(status ? { status: status as ReservationStatus } : {}),
       ...(type ? { type: type as HoldType } : {}),
@@ -155,6 +196,7 @@ export async function listReservations({ status, type }: { status?: string; type
     orderBy: { createdAt: "desc" },
     include: includeReservation,
   });
+  return Promise.all(rows.map((r) => attachPayments(r)));
 }
 
 export async function checkReservationConflicts(unitIds: string[], saleContactId: string) {
@@ -384,7 +426,10 @@ export async function modifyReservation(id: string, input: CreateReservationInpu
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
   const total = subtotal - input.discount;
   if (total < 0) throw new ApiError(400, "reservation.negative_total", "Total cannot be negative");
-  if (input.advance > total + 0.001) {
+  const paymentsInputMod = (input as any).payments as { method: string; amount: number; bankAccountId?: string | null }[] | undefined;
+  const advanceFromPaymentsMod = paymentsInputMod && paymentsInputMod.length > 0 ? paymentsInputMod.reduce((s, p) => s + (Number(p.amount) || 0), 0) : null;
+  const effectiveAdvanceMod = advanceFromPaymentsMod !== null ? advanceFromPaymentsMod : input.advance;
+  if (effectiveAdvanceMod > total + 0.001) {
     throw new ApiError(400, "reservation.advance_exceeds_total", "Advance cannot exceed the total");
   }
 
@@ -480,7 +525,7 @@ export async function modifyReservation(id: string, input: CreateReservationInpu
         subtotal,
         discount: input.discount,
         total,
-        advance: input.advance,
+        advance: effectiveAdvanceMod,
         note: input.note,
       },
     });
@@ -490,10 +535,25 @@ export async function modifyReservation(id: string, input: CreateReservationInpu
       data: createdItems.map((ci) => ({ ...ci, reservationId: id })),
     });
 
-    if (input.advance > 0) {
+    if (paymentsInputMod && paymentsInputMod.length > 0) {
+      for (const p of paymentsInputMod) {
+        const amt = Number(p.amount) || 0;
+        if (amt <= 0) continue;
+        if (p.method === "CASH") {
+          await moneyIn(tx, { account: "cash", amount: amt, sourceType: "RESERVATION", sourceId: id, note: `Advance on ${existing.number} (cash)`, userId });
+        } else if (p.method === "BANK_TRANSFER") {
+          await moneyIn(tx, { account: "bank", amount: amt, bankAccountId: (p as any).bankAccountId ?? undefined, sourceType: "RESERVATION", sourceId: id, note: `Advance on ${existing.number} (bank)`, userId });
+        } else if (p.method === "CARD") {
+          await tx.moneyMovement.create({ data: { date: new Date(), kind: "IN", amount: amt, account: "cash", sourceType: "RESERVATION", sourceId: id, note: `Advance on ${existing.number} (card)`, createdById: userId } });
+        } else if (p.method === "CREDIT") {
+          await tx.creditAccount.upsert({ where: { contactId: contact.id }, create: { contactId: contact.id, limit: 0, balance: amt }, update: { balance: { increment: amt } } });
+          await tx.moneyMovement.create({ data: { date: new Date(), kind: "IN", amount: amt, account: "cash", sourceType: "RESERVATION", sourceId: id, note: `Advance on ${existing.number} (credit)`, createdById: userId } });
+        }
+      }
+    } else if (effectiveAdvanceMod > 0) {
       await moneyIn(tx, {
         account: "cash",
-        amount: input.advance,
+        amount: effectiveAdvanceMod,
         sourceType: "RESERVATION",
         sourceId: id,
         note: `Advance on ${existing.number}`,
@@ -513,10 +573,10 @@ export async function modifyReservation(id: string, input: CreateReservationInpu
       number: existing.number,
       type: input.type,
       total,
-      advance: input.advance,
+      advance: effectiveAdvanceMod,
       contact: contact.name,
     }),
   });
 
-  return reservation;
+  return reservation ? attachPayments(reservation as any) : reservation;
 }

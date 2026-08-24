@@ -630,7 +630,7 @@ export default function SaleReturnsPage() {
             <Button variant="destructive" onClick={reset}>Clear</Button>
           </div>
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
             <div className="shrink-0">
               <div className="flex flex-wrap items-end gap-3">
@@ -677,8 +677,8 @@ export default function SaleReturnsPage() {
               </div>
             </section>
             <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-white">
+              <table className="min-w-[480px] w-full table-fixed text-sm">
+                <thead className="sticky top-0 z-10 bg-white">
                   <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
                     <th className="px-4 py-3">Item</th>
                     <th className="w-32 px-4 py-3">Sale #</th>

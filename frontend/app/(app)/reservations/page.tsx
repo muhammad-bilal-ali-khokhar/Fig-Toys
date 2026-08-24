@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
-import { brandOf, type Contact, type ProductSummary, type ReservationDetail } from "@/lib/api-types";
+import { brandOf, type BankAccount, type Contact, type ProductSummary, type ReservationDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
@@ -16,13 +16,14 @@ import { Kbd } from "@/components/ui/kbd";
 import { PriceInput } from "@/components/ui/price-input";
 import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import { PaymentSummaryCard } from "@/components/payment-bottom";
+import { BankPaymentRow } from "@/components/payment-bottom";
+import { BankDepositSheet } from "@/components/bank-deposit-sheet";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { ReservationModifyPicker } from "@/components/transactions/reservation-modify-picker";
 import { ReservationReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
-import { useDashboardLayout } from "@/lib/dashboard-layout-context";
 import { triggerAutoPrint, useAutoPrint } from "@/lib/use-auto-print";
+import { useQuickAdd } from "@/lib/quick-add";
 import { ChevronLeftIcon, PlusIcon, ReservationIcon, SmartphoneIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
 import { useScannerScan } from "@/components/scanner/global-scanner";
@@ -83,7 +84,28 @@ export default function ReservationsPage() {
   const [contactId, setContactId] = useState<string | null>(null);
   const [walkInName, setWalkInName] = useState("");
   const [walkInPhone, setWalkInPhone] = useState("");
-  const [advance, setAdvance] = useState("");
+  const [cash, setCash] = useState("");
+  const [card, setCard] = useState("");
+  const [credit, setCredit] = useState("");
+  const [bankRows, setBankRows] = useState<{ id: string; amount: string; bankId: string }[]>([]);
+  const [bankSheetOpen, setBankSheetOpen] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const { data: bankData } = useApi<BankAccount[]>("/bank-account");
+  useEffect(() => {
+    if (bankData) {
+      setBankAccounts(bankData);
+    }
+  }, [bankData]);
+  const advance = useMemo(() => {
+    const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    return String(roundMoney((parseFloat(cash) || 0) + (parseFloat(card) || 0) + (parseFloat(credit) || 0) + bankTotal) || "");
+  }, [cash, card, credit, bankRows]);
+  const setAdvance = (v: string) => {
+    setCash(clampMoneyInput(v));
+    setCard("");
+    setCredit("");
+    setBankRows([]);
+  };
   const [submitting, setSubmitting] = useState(false);
   const [reservation, setReservation] = useState<ReservationDetail | null>(null);
   const [reserveNo, setReserveNo] = useState("RES-0001");
@@ -121,6 +143,7 @@ export default function ReservationsPage() {
   const [addPrice, setAddPrice] = useState("");
   const [selProductId, setSelProductId] = useState<string | null>(null);
   const [stockDialog, setStockDialog] = useState<string | null>(null);
+  const { enabled: quickAddEnabled } = useQuickAdd();
 
   useEffect(() => {
     if (highlightedIndex < 0 || !listRef.current) return;
@@ -573,6 +596,15 @@ export default function ReservationsPage() {
     try {
       const method = modifyId ? "PUT" : "POST";
       const url = modifyId ? `/reservation/${modifyId}` : "/reservation";
+      const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+      const payments: { method: "CASH" | "CARD" | "BANK_TRANSFER" | "CREDIT"; amount: number; bankAccountId?: string }[] = [];
+      if ((parseFloat(cash) || 0) > 0) payments.push({ method: "CASH", amount: parseFloat(cash) || 0 });
+      if ((parseFloat(card) || 0) > 0) payments.push({ method: "CARD", amount: parseFloat(card) || 0 });
+      if ((parseFloat(credit) || 0) > 0) payments.push({ method: "CREDIT", amount: parseFloat(credit) || 0 });
+      for (const row of bankRows) {
+        const amt = parseFloat(row.amount) || 0;
+        if (amt > 0 && row.bankId) payments.push({ method: "BANK_TRANSFER", amount: amt, bankAccountId: row.bankId });
+      }
       const created = await apiRequest<ReservationDetail>(url, {
         method,
         body: {
@@ -585,6 +617,7 @@ export default function ReservationsPage() {
             unitPrice: l.unitPrice,
           })),
           advance: advanceAmount,
+          ...(payments.length > 0 ? { payments } : {}),
         },
       });
       setReservation(created);
@@ -606,7 +639,11 @@ export default function ReservationsPage() {
     setQ("");
     setModifyId(null);
     setResults([]);
-    setAdvance("");
+    setCash("");
+    setCard("");
+    setCredit("");
+    setBankRows([]);
+    setBankSheetOpen(false);
     setWalkInName("");
     setWalkInPhone("");
     setContactId(contacts?.[0]?.id ?? null);
@@ -639,8 +676,7 @@ export default function ReservationsPage() {
 
   const isWalkIn = contactId === WALK_IN;
   const balanceDue = roundMoney(total - (advance === "" ? 0 : parseFloat(advance) || 0));
-  const { layout } = useDashboardLayout();
-  const isNewLayout = layout === "new";
+  const isNewLayout = true;
   const autoPrintEnabled = useAutoPrint(flow === "CONSIGNMENT" ? "CONSIGNMENT" : "RESERVATION");
   useEffect(() => { if (reservation && autoPrintEnabled) triggerAutoPrint(true); }, [reservation, autoPrintEnabled]);
 
@@ -752,30 +788,45 @@ export default function ReservationsPage() {
 
   if (isNewLayout) {
     const paymentSection = (
-      <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
-        <div className="rounded-3xl bg-white p-4">
-          <h3 className="text-sm font-semibold text-ink-900">{flow === "CONSIGNMENT" ? "Consignment" : "Advance payment"}</h3>
-          <p className="mt-1 text-xs text-ink-400">{flow === "CONSIGNMENT" ? "Agreed total" : "Total"} <span className="font-semibold text-ink-900">{formatPKR(total)}</span></p>
-          <div className="mt-3">
-            {flow === "CONSIGNMENT" ? (
-              <p className="rounded-2xl bg-ink-50 px-4 py-3 text-xs font-medium text-ink-500">Phone leaves the shop. Collect payment when it sells.</p>
-            ) : (
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Advance payment</p>
-                <Input value={advance} onChange={(e) => setAdvance(clampMoneyInput(e.target.value))} placeholder="0 = nothing paid" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
-                {advance !== "" && !Number.isNaN(parseFloat(advance)) && <p className="mt-1.5 text-xs text-ink-500">Balance due <span className="font-semibold text-ink-900">{formatPKR(Math.max(0, balanceDue))}</span></p>}
-              </div>
-            )}
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex-1 rounded-2xl bg-white p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">{flow === "CONSIGNMENT" ? "Consignment" : "Payment"}</h3>
+            <p className="text-xs text-ink-400">Due <span className="font-semibold text-ink-900">{formatPKR(flow === "CONSIGNMENT" ? total : balanceDue)}</span></p>
           </div>
+          {flow === "CONSIGNMENT" ? (
+            <div className="mt-3">
+              <p className="rounded-2xl bg-ink-50 px-4 py-3 text-xs font-medium text-ink-500">Phone leaves the shop. Collect payment when it sells.</p>
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, total - (parseFloat(card) || 0) - (parseFloat(credit) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(Math.max(0, total - (parseFloat(card) || 0) - (parseFloat(credit) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)))))}>Fill cash</Button></div>
+              <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Card</p><Input value={card} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, total - (parseFloat(cash) || 0) - (parseFloat(credit) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCard(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCard(clampMoneyInput(String(Math.max(0, total - (parseFloat(cash) || 0) - (parseFloat(credit) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)))))}>Fill card</Button></div>
+              <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={credit} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, total - (parseFloat(cash) || 0) - (parseFloat(card) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCredit(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCredit(clampMoneyInput(String(Math.max(0, total - (parseFloat(cash) || 0) - (parseFloat(card) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)))))}>Fill credit</Button></div>
+              {balanceDue > 0.01 ? (<div className="mt-2"><BankPaymentRow bankRows={bankRows} bankAccounts={bankAccounts} onBankSheetOpen={() => setBankSheetOpen(true)} onAddBank={() => { if (balanceDue <= 0.01) return; if (bankRows.length === 0) { const next = bankAccounts[0]; setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]); } setBankSheetOpen(true); }} /></div>) : (<p className="mt-2 text-center text-xs font-medium text-emerald-600">Fully paid — no bank needed</p>)}
+            </div>
+          )}
         </div>
-        <PaymentSummaryCard title="Summary" total={total} lines={flow === "RESERVATION" && advance !== "" && !Number.isNaN(parseFloat(advance)) ? [{ label: "Advance", amount: parseFloat(advance) || 0 }, { label: "Balance due", amount: balanceDue }] : []}>
-          <Button className="w-full" type="submit" disabled={submitting || cart.length === 0}>{submitting ? "Saving…" : flow === "CONSIGNMENT" ? `Consign ${formatPKR(total)}` : `Reserve ${formatPKR(total)}`}<Kbd>Ctrl+S</Kbd></Button>
-        </PaymentSummaryCard>
+        <div className="sticky bottom-0 rounded-2xl bg-white p-4">
+          <div className="flex items-baseline justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Total · {totalQuantity} item{totalQuantity !== 1 ? "s" : ""}</p><p className="text-3xl font-bold tracking-tight text-brand-600">{formatPKR(total)}</p></div>
+          <div className="mt-2 space-y-1 text-xs text-ink-500">
+            {([
+              ...(flow === "RESERVATION" && advance !== "" && !Number.isNaN(parseFloat(advance)) ? [{ label: "Advance", amount: parseFloat(advance) || 0 }, { label: "Balance due", amount: balanceDue }] : []),
+              ...((parseFloat(cash) || 0) > 0 ? [{ label: "Cash", amount: parseFloat(cash) || 0 }] : []),
+              ...((parseFloat(card) || 0) > 0 ? [{ label: "Card", amount: parseFloat(card) || 0 }] : []),
+              ...((parseFloat(credit) || 0) > 0 ? [{ label: "Credit", amount: parseFloat(credit) || 0 }] : []),
+              ...(bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) > 0 ? [{ label: "Bank", amount: bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) }] : []),
+            ] as { label: string; amount: number }[]).filter((v, i, a) => a.findIndex(x => x.label === v.label) === i).map((line) => (
+              <p key={line.label} className="flex items-center justify-between"><span>{line.label}</span><span className="font-medium tabular-nums text-ink-700">{formatPKR(line.amount)}</span></p>
+            ))}
+          </div>
+          <Button className="mt-3 h-12 w-full text-[15px] font-semibold active:scale-[0.98] transition-transform duration-100" type="submit" disabled={submitting || cart.length === 0}>{submitting ? "Saving…" : flow === "CONSIGNMENT" ? `Consign ${formatPKR(total)}` : `Reserve ${formatPKR(total)}`} <Kbd>Ctrl+S</Kbd></Button>
+        </div>
       </div>
     );
     return (
       <>
-        <form className="flex h-full flex-col" onSubmit={(e) => { e.preventDefault(); void reserve(); }}>
+        <form className="flex h-full flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void reserve(); }}>
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
@@ -788,485 +839,34 @@ export default function ReservationsPage() {
               <Button variant="destructive" onClick={reset}>Clear</Button>
             </div>
           </div>
-          <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>{contactOptions.length > 0 && <Dropdown value={contactId} options={contactOptions} onChange={setContactId} searchable placeholder="Select customer" triggerClassName="bg-white" />}</div>
-            <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Reservation #</p><Input value={reserveNo} readOnly variant="white" className="bg-white" /></div>
-          </div>
-          {isWalkIn && <div className="mt-3 grid shrink-0 gap-3 rounded-2xl bg-white p-4 md:grid-cols-2"><div><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer name</p><Input value={walkInName} onChange={(e) => setWalkInName(e.target.value)} placeholder="Enter customer name" className="bg-ink-100" /></div><div><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Phone number</p><Input value={walkInPhone} onChange={(e) => setWalkInPhone(e.target.value)} placeholder="e.g. 0300-1234567" inputMode="tel" className="bg-ink-100" /></div></div>}
-          <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+              <div className="shrink-0">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>{contactOptions.length > 0 && <Dropdown value={contactId} options={contactOptions} onChange={setContactId} searchable placeholder="Select customer" triggerClassName="bg-white" />}</div>
+                  <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Reservation #</p><Input value={reserveNo} readOnly variant="white" className="bg-white text-center px-2" /></div>
+                </div>
+                {isWalkIn && (<div className="mt-3 grid gap-3 md:grid-cols-2"><div><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer name</p><Input value={walkInName} onChange={(e) => setWalkInName(e.target.value)} placeholder="Enter customer name" className="bg-white" /></div><div><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Phone number</p><Input value={walkInPhone} onChange={(e) => setWalkInPhone(e.target.value)} placeholder="e.g. 0300-1234567" inputMode="tel" className="bg-white" /></div></div>)}
+              </div>
               <section className="shrink-0"><div className="flex flex-wrap items-end gap-3">
-                <div ref={searchWrapRef} className="relative min-w-48 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p><SearchInput data-scanner-input="pos-search" value={q} onChange={setQ} onFocus={() => { setSearchFocused(true); if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q); }} onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); if (flatItems.length > 0) setHighlightedIndex((i) => (i + 1) % flatItems.length); } else if (e.key === "ArrowUp") { e.preventDefault(); if (flatItems.length > 0) setHighlightedIndex((i) => (i <= 0 ? flatItems.length - 1 : i - 1)); } else if (e.key === "Enter") { e.preventDefault(); if (flatItems.length > 0 && highlightedIndex >= 0 && highlightedIndex < flatItems.length) { activateFlatItem(flatItems[highlightedIndex]); } else { void handleSearchEnter(); } } else if (e.key === "Escape") { setSearchFocused(false); } }} placeholder="Scan IMEI / Barcode…" variant="white" className="bg-ink-100 h-10 text-sm rounded-[12px]" iconClassName="h-4 w-4" /></div>
-                <div className="min-w-64 max-w-[320px] flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p><Dropdown value={selProductId} options={productOptions} onChange={(v) => { setSelProductId(v); const pp = (products ?? []).find((x) => x.id === v); if (pp?.sellPrice) setAddPrice(String(parseFloat(pp.sellPrice) || "")); }} searchable placeholder="Select accessory…" triggerClassName="bg-white" /></div>
-                <div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={addQty} onChange={(e) => setAddQty(e.target.value.replace(/\D/g, ""))} placeholder="1" inputMode="numeric" className="bg-white text-center" /></div>
-                <div className="w-28"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p><Input value={addPrice} onChange={(e) => setAddPrice(clampMoneyInput(e.target.value))} placeholder="Auto" inputMode="decimal" className="bg-white" /></div>
-                <Button type="button" variant="secondary" onClick={handleAddClick} className="h-10 shrink-0 px-4 text-sm">Add</Button>
+                <div ref={searchWrapRef} className="relative min-w-48 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p><SearchInput data-scanner-input="pos-search" value={q} onChange={setQ} onFocus={() => { setSearchFocused(true); if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q); }} onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); if (flatItems.length > 0) setHighlightedIndex((i) => (i + 1) % flatItems.length); } else if (e.key === "ArrowUp") { e.preventDefault(); if (flatItems.length > 0) setHighlightedIndex((i) => (i <= 0 ? flatItems.length - 1 : i - 1)); } else if (e.key === "Enter") { e.preventDefault(); if (flatItems.length > 0 && highlightedIndex >= 0 && highlightedIndex < flatItems.length) { activateFlatItem(flatItems[highlightedIndex]); } else { void handleSearchEnter(); } } else if (e.key === "Escape") { setSearchFocused(false); } }} placeholder="Scan IMEI / Barcode…" variant="white" className="bg-ink-100 h-10 text-sm rounded-[12px]" iconClassName="h-4 w-4" />{panelPos && results.length === 0 && (<div style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"><p className="text-sm text-ink-400">{searching ? "Searching…" : q.trim().length >= 2 ? "No units found for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}</p></div>)}{panelPos && results.length > 0 && (<div ref={listRef} style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5">{flatItems.map((item, idx) => { const isActive = idx === highlightedIndex; if (item.kind === "product") { return (<button key={`prod-${item.result.id}`} data-flat={idx} type="button" onClick={() => activateFlatItem(item)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{item.result.category.type === "ACCESSORY" && item.result.barcode ? item.result.barcode : [item.result.brand, item.result.model, item.result.storage, item.result.ram, item.result.screenSize, item.result.color].filter(Boolean).join(" ")}</p><p className="truncate text-xs text-ink-500">{formatPKR(item.result.sellPrice)} · {item.result.category.name}{item.result.category.type === "ACCESSORY" && item.result.barcode ? ` · ${item.result.barcode}` : ""}</p></div><span className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${item.added ? "bg-brand-100 text-brand-600" : "bg-white text-ink-600"}`}>{item.added ? "✓ Added" : "Add"}</span></button>); } return (<button key={item.unit.id} data-flat={idx} type="button" onClick={() => activateFlatItem(item)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{[item.result.brand, item.result.model, item.result.storage, item.result.ram, item.result.screenSize].filter(Boolean).join(" ")} <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span></p><p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500"><span>{formatPKR(item.result.sellPrice)}</span><Badge variant="neutral">{item.unit.condition}</Badge><Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge></p></div><span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span></button>); })}</div>)}</div>
+                <div className="min-w-64 max-w-[320px] flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p><Dropdown value={selProductId} options={productOptions} onChange={(v) => { if (quickAddEnabled) { const p = (products ?? []).find((x) => x.id === v); if (!p) return; if (p.categoryType === "PHONE") { toast("Phones require IMEI — scan the serial", "error"); return; } const available = p.inStock ?? Infinity; const existingQty = cart.find((l) => l.key === `prod-${p.id}`)?.quantity ?? 0; if (existingQty + 1 > available) { toast(`Only ${available} pcs available for ${p.brand} ${p.model}`, "error"); return; } const fakeResult: SearchResult = { id: p.id, brand: p.brand, model: p.model, storage: p.storage, ram: p.ram, screenSize: p.screenSize, color: p.color, category: { id: p.categoryId, name: p.categoryName, type: p.categoryType }, barcode: p.barcode ?? null, sellPrice: p.sellPrice, units: [] }; const ok = addLine(fakeResult, undefined, undefined, 1); if (ok) toast(`${p.brand} ${p.model} added`, "success"); setSelProductId(null); return; } setSelProductId(v); const pp = (products ?? []).find((x) => x.id === v); if (pp?.sellPrice) setAddPrice(String(parseFloat(pp.sellPrice) || "")); }} searchable placeholder="Select accessory…" triggerClassName="bg-white" /></div>
+                {!quickAddEnabled && (<><div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={addQty} onChange={(e) => setAddQty(e.target.value.replace(/\D/g, ""))} placeholder="1" inputMode="numeric" className="bg-white text-center" /></div><div className="w-28"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p><Input value={addPrice} onChange={(e) => setAddPrice(clampMoneyInput(e.target.value))} placeholder="Auto" inputMode="decimal" className="bg-white" /></div><Button type="button" variant="secondary" onClick={handleAddClick} className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></>)}
               </div></section>
               <div className="flex items-center justify-between shrink-0"><span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Reserved items</span><span className="text-xs text-ink-500">{totalQuantity} item(s)</span></div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white"><table className="w-full text-sm"><thead className="sticky top-0 z-10 bg-white"><tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500"><th className="px-4 py-3">Item</th><th className="w-14 px-4 py-3 text-center">Qty</th><th className="w-28 px-4 py-3 text-right">{flow === "CONSIGNMENT" ? "Agreed price" : "Price"}</th><th className="w-28 px-4 py-3 text-right">Amount</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{cart.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-ink-400">Cart is empty. Search and add items.</td></tr> : <><Fragment>{cartGroups.groups.map((g) => (<Fragment key={g.key}><tr className="bg-ink-50/80"><td className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{g.label}</span><span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500 ring-1 ring-ink-200">{g.lines.length} unit{g.lines.length === 1 ? "" : "s"}</span></div></td><td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-900">{g.lines.reduce((s,l)=>s+l.quantity,0)}</td><td className="px-4 py-2.5 text-right"><div className="w-20"><PriceInput value={g.unitPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupPrice(g.key, n)} className="bg-white px-2 text-right" /></div></td><td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">{formatPKR(roundMoney(g.lines.reduce((s,l)=>s+l.unitPrice*l.quantity,0)))}</td><td className="px-4 py-2.5" /></tr>{g.lines.map((line) => (<tr key={line.key} className="border-b border-ink-50 bg-white"><td className="px-4 py-2.5 pl-9"><span className="font-mono text-[13px] font-medium text-ink-900">{line.imei}</span></td><td className="px-4 py-2.5 text-center text-ink-700">{line.quantity}</td><td className="px-4 py-2.5 text-right"><div className="w-20"><PriceInput value={line.unitPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => setLinePrice(line.key, n)} className="px-2 text-right" /></div></td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(roundMoney(line.unitPrice*line.quantity))}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeLine(line.key)} className="rounded-lg p-1 text-ink-300 hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>))}</Fragment>{cartGroups.plain.map((line) => (<tr key={line.key} className="border-b border-ink-50 bg-white"><td className="px-4 py-3"><p className="font-medium text-ink-900">{line.label}</p><p className="text-[11px] text-ink-400">{line.imei ?? `${line.quantity} × ${formatPKR(line.unitPrice)}`}</p></td><td className="px-4 py-3 text-center text-ink-700">{line.quantity}</td><td className="px-4 py-3 text-right"><div className="ml-auto w-20"><PriceInput value={line.unitPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => setLinePrice(line.key, n)} className="px-2 text-right" /></div></td><td className="px-4 py-3 text-right font-semibold text-ink-900">{formatPKR(roundMoney(line.unitPrice*line.quantity))}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => removeLine(line.key)} className="rounded-lg p-1 text-ink-300 hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</>}</tbody></table></div>
             </div>
-            {paymentSection}
+            <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
+              {paymentSection}
+            </div>
           </div>
         </form>
         <ReservationModifyPicker open={modifyPickerOpen} onClose={() => setModifyPickerOpen(false)} onSelect={(r) => loadForModify(r)} />
+        <BankDepositSheet open={bankSheetOpen} onClose={() => setBankSheetOpen(false)} bankRows={bankRows} onBankRowsChange={setBankRows} bankAccounts={bankAccounts} />
         <Dialog open={stockDialog !== null} title="Not enough stock" message={<p className="text-sm text-ink-600">{stockDialog}</p>} confirmLabel="OK" onCancel={() => setStockDialog(null)} onConfirm={() => setStockDialog(null)} />
       </>
     );
   }
 
-  return (
-    <>
-    <form
-      className="flex h-full flex-col"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void reserve();
-      }}
-    >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700">
-            <ChevronLeftIcon className="h-5 w-5" />
-          </button>
-          <h1 className="text-lg font-bold text-ink-900">
-            {modifyId ? "Modify Reservation" : "Reservation"}
-            <span className="ml-2 text-sm font-medium text-ink-400">
-              {flow === "CONSIGNMENT" ? "· On Consignment" : "· Hold at Shop"}
-            </span>
-          </h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
-            Modify
-          </Button>
-          <Link href="/reservations/all">
-            <Button variant="ghost">
-              <ReservationIcon className="h-4 w-4" />
-              All Reservations
-            </Button>
-          </Link>
-          <Link href="/reservations/cancel">
-            <Button variant="ghost">
-              <XIcon className="h-4 w-4" />
-              Cancel
-            </Button>
-          </Link>
-          <Button variant="destructive" onClick={reset}>
-            Clear
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
-          {contactOptions.length > 0 && (
-            <Dropdown
-              value={contactId}
-              options={contactOptions}
-              onChange={setContactId}
-              searchable
-              placeholder="Select customer"
-              triggerClassName="bg-white"
-            />
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Reservation #</p>
-          <Input value={reserveNo} readOnly variant="white" />
-        </div>
-      </div>
-
-      {isWalkIn && (
-        <div className="mt-3 grid shrink-0 gap-3 rounded-2xl bg-white p-4 md:grid-cols-2">
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer name</p>
-            <Input
-              value={walkInName}
-              onChange={(e) => setWalkInName(e.target.value)}
-              placeholder="Enter customer name"
-              className="bg-ink-100"
-            />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Phone number</p>
-            <Input
-              value={walkInPhone}
-              onChange={(e) => setWalkInPhone(e.target.value)}
-              placeholder="e.g. 0300-1234567"
-              inputMode="tel"
-              className="bg-ink-100"
-            />
-          </div>
-        </div>
-      )}
-
-      <section className="mt-6 shrink-0">
-        <div className="flex flex-wrap items-end gap-3">
-          <div ref={searchWrapRef} className="relative min-w-48 flex-1">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
-            <SearchInput
-              data-scanner-input="pos-search"
-              value={q}
-              onChange={setQ}
-              onFocus={() => {
-                setSearchFocused(true);
-                if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  if (flatItems.length > 0) setHighlightedIndex((i) => (i + 1) % flatItems.length);
-                } else if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  if (flatItems.length > 0) setHighlightedIndex((i) => (i <= 0 ? flatItems.length - 1 : i - 1));
-                } else if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (flatItems.length > 0 && highlightedIndex >= 0 && highlightedIndex < flatItems.length) {
-                    activateFlatItem(flatItems[highlightedIndex]);
-                  } else {
-                    void handleSearchEnter();
-                  }
-                } else if (e.key === "Escape") {
-                  setSearchFocused(false);
-                }
-              }}
-              placeholder="Scan IMEI / Barcode…"
-              variant="white"
-              className="bg-ink-100 h-10 text-sm rounded-[12px]"
-              iconClassName="h-4 w-4"
-            />
-
-            {panelPos && results.length === 0 && (
-              <div
-                style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"
-              >
-                <p className="text-sm text-ink-400">
-                  {searching ? "Searching…" : q.trim().length >= 2 ? "No units found for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}
-                </p>
-              </div>
-            )}
-
-            {panelPos && results.length > 0 && (
-              <div
-                ref={listRef}
-                style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
-              >
-                {flatItems.map((item, idx) => {
-                  const isActive = idx === highlightedIndex;
-                  if (item.kind === "product") {
-                    return (
-                      <button
-                        key={`prod-${item.result.id}`}
-                        data-flat={idx}
-                        type="button"
-                        onClick={() => activateFlatItem(item)}
-                        onMouseEnter={() => setHighlightedIndex(idx)}
-                        className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${
-                          isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-ink-900">
-                            {item.result.category.type === "ACCESSORY" && item.result.barcode
-                              ? item.result.barcode
-                              : [item.result.brand, item.result.model, item.result.storage, item.result.ram, item.result.screenSize, item.result.color]
-                                  .filter(Boolean)
-                                  .join(" ")}
-                          </p>
-                          <p className="truncate text-xs text-ink-500">
-                            {formatPKR(item.result.sellPrice)} · {item.result.category.name}
-                            {item.result.category.type === "ACCESSORY" && item.result.barcode ? ` · ${item.result.barcode}` : ""}
-                          </p>
-                        </div>
-                        <span className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${item.added ? "bg-brand-100 text-brand-600" : "bg-white text-ink-600"}`}>
-                          {item.added ? "✓ Added" : "Add"}
-                        </span>
-                      </button>
-                    );
-                  }
-                  return (
-                    <button
-                      key={item.unit.id}
-                      data-flat={idx}
-                      type="button"
-                      onClick={() => activateFlatItem(item)}
-                      onMouseEnter={() => setHighlightedIndex(idx)}
-                      className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${
-                        isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-ink-900">
-                          {[item.result.brand, item.result.model, item.result.storage, item.result.ram, item.result.screenSize].filter(Boolean).join(" ")}{" "}
-                          <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span>
-                        </p>
-                        <p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
-                          <span>{formatPKR(item.result.sellPrice)}</span>
-                          <Badge variant="neutral">{item.unit.condition}</Badge>
-                          <Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge>
-                        </p>
-                      </div>
-                      <span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>
-                        {item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div className="min-w-64 max-w-[320px] flex-1">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
-            <Dropdown
-              value={selProductId}
-              options={productOptions}
-              onChange={(v) => {
-                setSelProductId(v);
-                const p = (products ?? []).find((x) => x.id === v);
-                if (p?.sellPrice) setAddPrice(String(parseFloat(p.sellPrice) || ""));
-              }}
-              searchable
-              placeholder="Select accessory…"
-              triggerClassName="bg-white"
-            />
-          </div>
-          <div className="w-20">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
-            <Input
-              value={addQty}
-              onChange={(e) => setAddQty(e.target.value.replace(/\D/g, ""))}
-              placeholder="1"
-              inputMode="numeric"
-              className="bg-white text-center"
-            />
-          </div>
-          <div className="w-28">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p>
-            <Input
-              value={addPrice}
-              onChange={(e) => setAddPrice(clampMoneyInput(e.target.value))}
-              placeholder="Auto"
-              inputMode="decimal"
-              className="bg-white"
-            />
-          </div>
-          <Button type="button" variant="secondary" onClick={handleAddClick} className="h-14 shrink-0 rounded-[16px] px-6">
-            <PlusIcon className="h-4 w-4" />
-            Add
-          </Button>
-        </div>
-      </section>
-
-      <div className="mb-3 flex shrink-0 items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Reserved items</span>
-        <span className="text-xs text-ink-500">{totalQuantity} item(s)</span>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-white">
-            <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
-              <th className="px-4 py-3">Item</th>
-              <th className="w-14 px-4 py-3 text-center">Qty</th>
-              <th className="w-28 px-4 py-3 text-right">
-                {flow === "CONSIGNMENT" ? "Agreed price" : "Price"}
-              </th>
-              <th className="w-28 px-4 py-3 text-right">Amount</th>
-              <th className="w-12 px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {cartGroups.groups.map((g) => (
-              <Fragment key={g.key}>
-                <tr className="bg-ink-50/80">
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
-                      <span className="truncate text-sm font-semibold text-ink-900">{g.label}</span>
-                      <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500 ring-1 ring-ink-200">
-                        {g.lines.length} unit{g.lines.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-900">
-                    {g.lines.reduce((s, l) => s + l.quantity, 0)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <div className="w-20">
-                      <PriceInput
-                        value={g.unitPrice}
-                        max={MAX_MONEY_AMOUNT}
-                        onChange={(n) => updateGroupPrice(g.key, n)}
-                        className="bg-white px-2 text-right"
-                      />
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">
-                    {formatPKR(roundMoney(g.lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0)))}
-                  </td>
-                  <td className="px-4 py-2.5" />
-                </tr>
-                {g.lines.map((line) => (
-                  <tr key={line.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
-                    <td className="px-4 py-2.5 pl-9">
-                      <span className="font-mono text-[13px] font-medium text-ink-900">{line.imei}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-center text-ink-700">{line.quantity}</td>
-                    <td className="px-4 py-2.5 text-right">
-                      <div className="w-20">
-                        <PriceInput
-                          value={line.unitPrice}
-                          max={MAX_MONEY_AMOUNT}
-                          onChange={(n) => setLinePrice(line.key, n)}
-                          className="px-2 text-right"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-semibold text-ink-900">
-                      {formatPKR(roundMoney(line.unitPrice * line.quantity))}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => removeLine(line.key)}
-                        title="Remove"
-                        className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
-                      >
-                        <XIcon className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </Fragment>
-            ))}
-            {cartGroups.plain.map((line) => (
-              <tr key={line.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
-                <td className="px-4 py-3">
-                  <p className="font-medium text-ink-900">{line.label}</p>
-                  <p className="text-[11px] text-ink-400">
-                    {line.imei ?? `${line.quantity} × ${formatPKR(line.unitPrice)}`}
-                  </p>
-                </td>
-                <td className="px-4 py-3 text-center text-ink-700">{line.quantity}</td>
-                <td className="px-4 py-3 text-right">
-                  <div className="ml-auto w-20">
-                    <PriceInput
-                      value={line.unitPrice}
-                      max={MAX_MONEY_AMOUNT}
-                      onChange={(n) => setLinePrice(line.key, n)}
-                      className="px-2 text-right"
-                    />
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right font-semibold text-ink-900">
-                  {formatPKR(roundMoney(line.unitPrice * line.quantity))}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    onClick={() => removeLine(line.key)}
-                    title="Remove"
-                    className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
-                  >
-                    <XIcon className="h-4 w-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {cart.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-ink-400">
-                  Cart is empty. Search and add items.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-6 grid shrink-0 gap-4 lg:grid-cols-3">
-        <div className="rounded-3xl bg-white lg:col-span-2">
-          <div className="flex items-center justify-between px-5 py-4">
-            <h3 className="text-sm font-semibold text-ink-900">
-              {flow === "CONSIGNMENT" ? "Consignment" : "Advance payment"}
-            </h3>
-            <p className="text-xs text-ink-400">
-              {flow === "CONSIGNMENT" ? "Agreed total" : "Total"}{" "}
-              <span className="font-semibold text-ink-900">{formatPKR(total)}</span>
-            </p>
-          </div>
-          <div className="px-5 pb-5">
-            {flow === "CONSIGNMENT" ? (
-              <p className="max-w-xs rounded-2xl bg-ink-50 px-4 py-3 text-xs font-medium text-ink-500">
-                Phone leaves the shop. Collect payment when it sells.
-              </p>
-            ) : (
-              <div className="mt-3 max-w-64">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                  Advance payment
-                </p>
-                <Input
-                  value={advance}
-                  onChange={(e) => setAdvance(clampMoneyInput(e.target.value))}
-                  placeholder="0 = nothing paid"
-                  inputMode="decimal"
-                  className="bg-ink-100"
-                />
-                {advance !== "" && !Number.isNaN(parseFloat(advance)) && (
-                  <p className="mt-1.5 text-xs text-ink-500">
-                    Balance due{" "}
-                    <span className="font-semibold text-ink-900">{formatPKR(Math.max(0, balanceDue))}</span>
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <PaymentSummaryCard
-          title="Summary"
-          total={total}
-          lines={
-            flow === "RESERVATION" && advance !== "" && !Number.isNaN(parseFloat(advance))
-              ? [
-                  { label: "Advance", amount: parseFloat(advance) || 0 },
-                  { label: "Balance due", amount: balanceDue },
-                ]
-              : []
-          }
-        >
-          <Button className="w-full" type="submit" disabled={submitting || cart.length === 0}>
-            {submitting
-              ? "Saving…"
-              : flow === "CONSIGNMENT"
-                ? `Consign ${formatPKR(total)}`
-                : `Reserve ${formatPKR(total)}`}
-            <Kbd>Ctrl+S</Kbd>
-          </Button>
-        </PaymentSummaryCard>
-      </div>
-    </form>
-
-    <ReservationModifyPicker
-      open={modifyPickerOpen}
-      onClose={() => setModifyPickerOpen(false)}
-      onSelect={(reservation) => {
-        loadForModify(reservation);
-      }}
-    />
-
-      <Dialog
-        open={stockDialog !== null}
-        title="Not enough stock"
-        message={<p className="text-sm text-ink-600">{stockDialog}</p>}
-        confirmLabel="OK"
-        onCancel={() => setStockDialog(null)}
-        onConfirm={() => setStockDialog(null)}
-      />
-    </>
-  );
+  return null;
 }

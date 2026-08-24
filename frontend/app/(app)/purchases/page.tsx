@@ -470,6 +470,11 @@ export default function PurchasesPage() {
         toast("Enter a barcode", "error");
         return;
       }
+      const conflict = rows.find((r) => r.barcode && r.barcode === bc && r.productId !== barcodePopup.productId);
+      if (conflict) {
+        toast(`Barcode ${bc} is already used for ${conflict.productLabel} — choose a different barcode`, "error");
+        return;
+      }
       setRows((prev) => {
         const idx = prev.findIndex((r) => r.productId === barcodePopup.productId && r.barcode === bc && r.costPrice === barcodePopup.price);
         if (idx !== -1) {
@@ -503,6 +508,13 @@ export default function PurchasesPage() {
       if (list.length === 0) {
         toast("Enter at least one barcode", "error");
         return;
+      }
+      for (const bc of list) {
+        const conflict = rows.find((r) => r.barcode && r.barcode === bc && r.productId !== barcodePopup.productId);
+        if (conflict) {
+          toast(`Barcode ${bc} is already used for ${conflict.productLabel} — fix it before adding`, "error");
+          return;
+        }
       }
       const counts = new Map<string, number>();
       for (const bc of list) counts.set(bc, (counts.get(bc) ?? 0) + 1);

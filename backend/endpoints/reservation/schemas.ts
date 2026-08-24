@@ -8,11 +8,18 @@ const reservationItemSchema = z.object({
   discount: z.coerce.number().min(0).default(0),
 });
 
+const paymentSchema = z.object({
+  method: z.enum(["CASH", "CARD", "BANK_TRANSFER", "CREDIT"]),
+  amount: z.coerce.number().min(0),
+  bankAccountId: z.string().optional().nullable(),
+});
+
 export const createReservationSchema = z.object({
   contactId: z.string().min(1, "contactId is required"),
   type: z.enum(["RESERVATION", "CONSIGNMENT"]).default("RESERVATION"),
   items: z.array(reservationItemSchema).min(1, "At least one item is required"),
   advance: z.coerce.number().min(0).default(0),
+  payments: z.array(paymentSchema).optional(),
   discount: z.coerce.number().min(0).default(0),
   note: z.string().trim().optional(),
 });

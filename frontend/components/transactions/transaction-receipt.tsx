@@ -379,6 +379,15 @@ export function ReservationReceipt({
                 <span>Advance</span>
                 <span>{formatPKR(reservation.advance)}</span>
               </div>
+              {reservation.payments && reservation.payments.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {reservation.payments.map((p, idx) => (
+                    <Badge key={`${p.method}-${idx}`} variant="brand">
+                      {p.method.replace("_", " ").toLowerCase()} {formatPKR(p.amount)}
+                    </Badge>
+                  ))}
+                </div>
+              )}
               <div className="flex justify-between text-ink-500">
                 <span>Balance due</span>
                 <span>{formatPKR(balanceDue)}</span>

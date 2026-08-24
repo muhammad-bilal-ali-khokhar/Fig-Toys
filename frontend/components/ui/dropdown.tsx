@@ -238,7 +238,7 @@ export function Dropdown<T extends string>({
         }
       }}
       style={{ top: pos.top, left: pos.left, width: pos.width }}
-      className={`fixed z-50 rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5 ${menuClassName}`}
+      className={`fixed z-[130] rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5 ${menuClassName}`}
     >
       {searchable && (
         <div className="p-1.5 pb-2.5">
