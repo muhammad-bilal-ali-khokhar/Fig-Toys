@@ -9,10 +9,11 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { CheckIcon, AlertIcon, XIcon } from "@/components/icons";
 import { playError, playSuccess } from "@/lib/sound";
 import { TOAST } from "@/lib/constants";
 
-type ToastType = "success" | "error";
+type ToastType = "success" | "error" | "info";
 
 type ToastAction = {
   label: string;
@@ -98,40 +99,53 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-[200] flex flex-col items-end gap-2">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            role="status"
-            className="toast-in pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-ink-900 px-4 py-3 text-sm font-medium text-ink-50"
-          >
-            <span
-              className={
-                t.type === "error" ? "text-brand-500" : "text-brand-400"
-              }
+      <div className="pointer-events-none fixed inset-x-4 top-4 z-[200] flex flex-col items-end gap-3 sm:inset-x-auto sm:right-4 sm:w-[420px]">
+        {toasts.map((t) => {
+          const isError = t.type === "error";
+          const isSuccess = t.type === "success";
+          return (
+            <div
+              key={t.id}
+              role="status"
+              className="pointer-events-auto flex w-full overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)]"
+              style={{ animation: "posSlideIn 220ms ease-out" }}
             >
-              {t.type === "error" ? "✕" : "✓"}
-            </span>
-            {t.count > 1 && (
-              <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-bold">
-                {t.count}x
-              </span>
-            )}
-            {t.message}
-            {t.action && (
-              <button
-                type="button"
-                onClick={() => {
-                  t.action?.onClick();
-                  dismiss(t.id);
-                }}
-                className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold text-white transition hover:bg-white/25"
-              >
-                {t.action.label}
-              </button>
-            )}
-          </div>
-        ))}
+              <div className="flex min-w-0 flex-1 items-start gap-3 p-3">
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                    isError ? "bg-error/10 text-error" : isSuccess ? "bg-success/10 text-success" : "bg-info/10 text-info"
+                  }`}
+                >
+                  {isError ? <XIcon className="h-4 w-4" /> : isSuccess ? <CheckIcon className="h-4 w-4" /> : <AlertIcon className="h-4 w-4" />}
+                </span>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p className="text-sm font-semibold leading-tight text-ink-900">{t.message}</p>
+                  {t.count > 1 && <p className="mt-1 text-xs font-bold text-ink-400">{t.count}x repeated</p>}
+                </div>
+                {t.action && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      t.action?.onClick();
+                      dismiss(t.id);
+                    }}
+                    className="shrink-0 rounded-xl bg-ink-900 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-ink-800"
+                  >
+                    {t.action.label}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => dismiss(t.id)}
+                  aria-label="Dismiss"
+                  className="shrink-0 rounded-xl p-1.5 text-ink-400 transition hover:bg-ink-50 hover:text-ink-700"
+                >
+                  <XIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );
