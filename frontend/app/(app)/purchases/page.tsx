@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import type { Color, Contact, ProductSummary, PurchaseOrder, Transaction, TransactionDetail, BankAccount } from "@/lib/api-types";
@@ -54,6 +54,16 @@ function rowDiscount(row: PendingUnit) {
   const combined = (price * row.discountPct) / 100 + row.discountFlat;
   return Math.min(Math.max(combined, 0), price);
 }
+
+const ImeiRow = memo(function ImeiRow({ index, value, onChange, onEnter, onClear, inputRef }: { index: number; value: string; onChange: (i: number, v: string) => void; onEnter: (i: number) => void; onClear: (i: number) => void; inputRef: (el: HTMLInputElement | null) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-5 shrink-0 text-right text-xs text-ink-400">{index + 1}.</span>
+      <Input ref={inputRef} data-scanner-input="imei" value={value} onChange={(e) => onChange(index, e.target.value.replace(/\D/g, "").slice(0, 15))} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEnter(index); } }} placeholder={`IMEI ${index + 1}`} variant="filled" className={`min-w-0 flex-1 rounded-xl py-1.5 font-mono text-xs ${value.length === 15 ? "border border-brand-500/50" : ""}`} />
+      {value.length === 15 ? (<CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />) : (<button type="button" onClick={() => onClear(index)} className="shrink-0 text-ink-300 hover:text-error" aria-label="Clear IMEI">✕</button>)}
+    </div>
+  );
+});
 
 type PopupInfo = {
   productId: string;
@@ -298,17 +308,20 @@ export default function PurchasesPage() {
     if (t2 !== -1) imeiFieldRefs.current[t2]?.focus();
   }
 
-  function updatePopupImei(i: number, value: string) {
-    const next = popupImeis.map((v, idx) => (idx === i ? value : v));
-    setPopupImeis(next);
-    if (value.length === 15) {
-      if (next.every((v) => v.length === 15)) {
-        commit(next);
-        return;
+  const validCount = useMemo(() => popupImeis.filter((v) => v.length === 15).length, [popupImeis]);
+  const updatePopupImei = useCallback((i: number, value: string) => {
+    setPopupImeis((prev) => {
+      const next = prev.map((v, idx) => (idx === i ? value : v));
+      if (value.length === 15) {
+        if (next.every((v) => v.length === 15)) {
+          queueMicrotask(() => commit(next));
+        } else {
+          queueMicrotask(() => focusNextImeiField(next, i));
+        }
       }
-      focusNextImeiField(next, i);
-    }
-  }
+      return next;
+    });
+  }, []);
 
   function clearPopupImei(i: number) {
     const next = popupImeis.map((v, idx) => (idx === i ? "" : v));
@@ -938,7 +951,7 @@ export default function PurchasesPage() {
         </div>
         <ModifyPicker open={modifyPickerOpen} onClose={() => setModifyPickerOpen(false)} type="PURCHASE" onSelect={(txn) => { void (async () => { try { const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`); loadForModify(detail); } catch { toast("Could not load the purchase to modify", "error"); } })(); }} />
         <BankDepositSheet open={bankSheetOpen} onClose={() => setBankSheetOpen(false)} bankRows={bankRows} onBankRowsChange={setBankRows} bankAccounts={bankAccounts} />
-        {popup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{popup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{[popup.colorLabel, popup.batteryHealth ? `Battery ${popup.batteryHealth}%` : null].filter(Boolean).join(" · ")}{" · "}{formatPKR(popup.price)} each</p><div className="my-4 flex items-center justify-center gap-1 text-4xl font-bold"><span className={popupImeis.filter((v) => v.length === 15).length === popup.qty ? "text-brand-600" : "text-ink-900"}>{popupImeis.filter((v) => v.length === 15).length}</span><span className="text-ink-400">/</span><span className="text-ink-400">{popup.qty}</span></div><div className="-mr-1 mt-4 h-72 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{popupImeis.map((val, i) => (<div key={i} className="flex items-center gap-2"><span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span><Input ref={(el) => { imeiFieldRefs.current[i] = el; }} data-scanner-input="imei" value={val} onChange={(e) => updatePopupImei(i, e.target.value.replace(/\D/g, "").slice(0, 15))} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handlePopupImeiEnter(i); } }} placeholder={`IMEI ${i + 1}`} variant="filled" className={`min-w-0 flex-1 rounded-xl py-1.5 font-mono text-xs ${val.length === 15 ? "border border-brand-500/50" : ""}`} />{val.length === 15 ? (<CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />) : (<button type="button" onClick={() => clearPopupImei(i)} className="shrink-0 text-ink-300 hover:text-error" aria-label="Clear IMEI">✕</button>)}</div>))}</div><div className="mt-5 flex shrink-0 justify-end gap-2"><ScannerButton label="Scan" variant="grey" /><Button variant="grey" onClick={closePopup}>Cancel</Button><Button onClick={() => commit(popupImeis.filter((v) => v.length === 15))} disabled={popupImeis.filter((v) => v.length === 15).length === 0}>{popupImeis.filter((v) => v.length === 15).length === popup.qty ? "Add all" : `Add ${popupImeis.filter((v) => v.length === 15).length} unit(s)`}</Button></div></div></div>)}
+         {popup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{popup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{[popup.colorLabel, popup.batteryHealth ? `Battery ${popup.batteryHealth}%` : null].filter(Boolean).join(" · ")}{" · "}{formatPKR(popup.price)} each</p><div className="my-4 flex items-center justify-center gap-1 text-4xl font-bold"><span className={validCount === popup.qty ? "text-brand-600" : "text-ink-900"}>{validCount}</span><span className="text-ink-400">/</span><span className="text-ink-400">{popup.qty}</span></div><div className="-mr-1 mt-4 h-72 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{popupImeis.map((val, i) => (<ImeiRow key={i} index={i} value={val} onChange={updatePopupImei} onEnter={handlePopupImeiEnter} onClear={clearPopupImei} inputRef={(el) => { imeiFieldRefs.current[i] = el; }} />))}</div><div className="mt-5 flex shrink-0 justify-end gap-2"><ScannerButton label="Scan" variant="grey" /><Button variant="grey" onClick={closePopup}>Cancel</Button><Button onClick={() => commit(popupImeis.filter((v) => v.length === 15))} disabled={validCount === 0} className="active:scale-[0.97] transition-transform duration-100">{`Add ${validCount} pcs`}</Button></div></div></div>)}
         {barcodePopup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{barcodePopup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{formatPKR(barcodePopup.price)} each</p><div className="my-4"><Checkbox checked={sameBarcode} onChange={setSameBarcode} label={`Same barcode for all ${barcodePopup.qty} pcs`} /></div>{sameBarcode ? (<div className="flex items-center gap-2"><Input value={singleBarcode} onChange={(e) => setSingleBarcode(e.target.value)} placeholder="Scan or type barcode" className="flex-1" /><Button variant="grey" onClick={() => setSingleBarcode("")}>Clear</Button></div>) : (<div className="-mr-1 h-64 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{barcodes.map((val, i) => (<div key={i} className="flex items-center gap-2"><span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span><Input ref={(el) => { barcodeFieldRefs.current[i] = el; }} value={val} onChange={(e) => updateBarcode(i, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleBarcodeEnter(i); } }} placeholder={`Barcode ${i + 1}`} className="min-w-0 flex-1" />{val.trim() ? (<CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />) : (<button type="button" onClick={() => clearBarcode(i)} className="shrink-0 text-ink-300 hover:text-error">✕</button>)}</div>))}</div>)}<div className="mt-5 flex shrink-0 justify-end gap-2"><Button variant="grey" onClick={closeBarcodePopup}>Cancel</Button><Button onClick={() => commitBarcodes()}>{sameBarcode ? `Add ${barcodePopup.qty} pcs` : `Add ${barcodes.filter((v) => v.trim()).length} pcs`}</Button></div></div></div>)}
       </div>
     );

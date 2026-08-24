@@ -333,19 +333,20 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     added: boolean;
   };
 
+  const cartKeySet = useMemo(() => new Set(cart.map((l) => l.key)), [cart]);
   const flatItems = useMemo<FlatItem[]>(() => {
     const items: FlatItem[] = [];
     for (const result of results) {
       if (result.units.length === 0) {
-        items.push({ kind: "product", result, added: cart.some((l) => l.key === `prod-${result.id}`) });
+        items.push({ kind: "product", result, added: cartKeySet.has(`prod-${result.id}`) });
       } else {
         for (const unit of result.units) {
-          items.push({ kind: "unit", result, unit, added: cart.some((l) => l.key === `unit-${unit.id}`) });
+          items.push({ kind: "unit", result, unit, added: cartKeySet.has(`unit-${unit.id}`) });
         }
       }
     }
     return items;
-  }, [results, cart]);
+  }, [results, cartKeySet]);
 
   useEffect(() => {
     setHighlightedIndex(-1);

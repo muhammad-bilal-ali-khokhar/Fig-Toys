@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Scanner } from "@/components/scanner";
 
 type GlobalScannerContextValue = {
@@ -79,13 +79,15 @@ export function GlobalScannerProvider({ children }: { children: React.ReactNode 
   );
 }
 
-export function useScannerScan(handler: (value: string) => void, deps: unknown[] = []) {
+export function useScannerScan(handler: (value: string) => void, _deps: unknown[] = []) {
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
   useEffect(() => {
     function onScan(e: Event) {
       const ce = e as CustomEvent<{ value: string }>;
-      handler(ce.detail.value);
+      handlerRef.current(ce.detail.value);
     }
     window.addEventListener("fig:scanner-scan", onScan as EventListener);
     return () => window.removeEventListener("fig:scanner-scan", onScan as EventListener);
-  }, deps);
+  }, []);
 }
