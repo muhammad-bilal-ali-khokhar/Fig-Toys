@@ -2,16 +2,16 @@ import { prisma } from "../../core/lib/prisma";
 import type { PrintSettingInput } from "./schemas";
 
 const DEFAULT_CONFIG = {
-  fontSize: 11,
-  lineHeight: 1.35,
-  paddingMm: 3,
+  fontSize: 15,
+  lineHeight: 1.45,
+  paddingMm: 0,
   marginMm: 0,
-  density: "normal",
+  density: "bold",
   compact: false,
-  headerScale: 1,
+  headerScale: 1.25,
   showLogo: true,
-  qrSize: 72,
-  barcodeHeight: 48,
+  qrSize: 80,
+  barcodeHeight: 56,
 };
 
 const DEFAULTS: Record<string, { format: string; options: Record<string, boolean>; qrType: string; config: typeof DEFAULT_CONFIG }> = {

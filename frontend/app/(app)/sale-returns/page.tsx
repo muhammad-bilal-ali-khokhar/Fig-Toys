@@ -16,11 +16,11 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
 import { triggerAutoPrint, useAutoPrint } from "@/lib/use-auto-print";
+import { useQuickAdd } from "@/lib/quick-add";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playSuccess } from "@/lib/sound";
-import { useDashboardLayout } from "@/lib/dashboard-layout-context";
 import { SearchInput } from "@/components/ui/search-input";
 import { ScannerButton } from "@/components/scanner/scanner-button";
 import { useScannerScan } from "@/components/scanner/global-scanner";
@@ -58,8 +58,6 @@ type ReturnLine = {
 
 export default function SaleReturnsPage() {
   const { toast } = useToast();
-  const { layout } = useDashboardLayout();
-  const isNewLayout = layout === "new";
   const searchParams = useSearchParams();
   const { data: bankData } = useApi<BankAccount[]>("/bank-account");
   const { data: contacts } = useApi<Contact[]>("/contact");
@@ -95,6 +93,7 @@ export default function SaleReturnsPage() {
   const [selProductId, setSelProductId] = useState<string | null>(null);
   const [returnQty, setReturnQty] = useState("1");
   const [returnPrice, setReturnPrice] = useState("");
+  const { enabled: quickAddEnabled } = useQuickAdd();
 
   useEffect(() => {
     if (highlightedIndex < 0 || !listRef.current) return;
@@ -616,8 +615,7 @@ export default function SaleReturnsPage() {
     );
   }
 
-  if (isNewLayout) {
-    return (
+  return (
       <div className="flex h-full flex-col">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Return" : "Sale Return"}</h1>
@@ -657,17 +655,21 @@ export default function SaleReturnsPage() {
                 </div>
                 <div className="min-w-64 max-w-[320px] flex-1">
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
-                  <Dropdown value={selProductId} options={productOptions} onChange={(v) => { setSelProductId(v); const p = (products ?? []).find((x) => x.id === v); if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || "")); }} triggerClassName="bg-white" searchable placeholder="Select accessory…" />
+                  <Dropdown value={selProductId} options={productOptions} onChange={(v) => { if (quickAddEnabled) { const p = (products ?? []).find((x) => x.id === v); if (!p) return; if (p.categoryType === "PHONE") { toast("Phones require IMEI — scan the serial", "error"); return; } const prod = (products ?? []).find((x) => x.id === p.id); const available = prod?.inStock ?? Infinity; const existingQty = cart.filter((l) => l.productId === p.id && !l.unitId).reduce((s, l) => s + l.quantity, 0); if (existingQty + 1 > available) { toast(`Only ${available} pcs available for ${p.brand} ${p.model}`, "error"); return; } const price = parseFloat(p.sellPrice) || 0; const existing = cart.find((l) => l.productId === p.id && !l.unitId); if (existing) setCart((prev) => prev.map((l) => (l.productId === p.id && !l.unitId ? { ...l, quantity: l.quantity + 1, refund: price || l.refund } : l))); else { const saleId = cart[0]?.saleId ?? ""; const saleNumber = cart[0]?.saleNumber ?? ""; setCart((prev) => [...prev, { id: crypto.randomUUID(), productId: p.id, unitId: undefined, imei: undefined, productLabel: `${p.brand} ${p.model}`, saleId, saleNumber, refund: price, quantity: 1 }]); } toast(`${p.brand} ${p.model} added`, "success"); setSelProductId(null); return; } setSelProductId(v); const p = (products ?? []).find((x) => x.id === v); if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || "")); }} triggerClassName="bg-white" searchable placeholder="Select accessory…" />
                 </div>
-                <div className="w-20">
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
-                  <Input value={returnQty} onChange={(e) => setReturnQty(e.target.value.replace(/\D/g, ""))} placeholder="1" inputMode="numeric" className="bg-white text-center" />
-                </div>
-                <div className="w-28">
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p>
-                  <Input value={returnPrice} onChange={(e) => setReturnPrice(clampMoneyInput(e.target.value))} placeholder="Auto" inputMode="decimal" className="bg-white" />
-                </div>
-                <Button type="button" variant="secondary" onClick={() => { if (selProductId) { const p = (products ?? []).find((x) => x.id === selProductId); if (p) { if (p.categoryType === "PHONE") { toast("Phones require IMEI — scan the serial", "error"); return; } const qty = Math.max(1, parseInt(returnQty, 10) || 1); const price = returnPrice.trim() ? parseFloat(returnPrice) : parseFloat(p.sellPrice) || 0; const existing = cart.find((l) => l.productId === p.id && !l.unitId); if (existing) { setCart((prev) => prev.map((l) => (l.productId === p.id && !l.unitId ? { ...l, quantity: l.quantity + qty, refund: price || l.refund } : l))); } else { const saleId = cart[0]?.saleId ?? ""; const saleNumber = cart[0]?.saleNumber ?? ""; setCart((prev) => [...prev, { id: crypto.randomUUID(), productId: p.id, unitId: undefined, imei: undefined, productLabel: `${p.brand} ${p.model}`, saleId, saleNumber, refund: price, quantity: qty }]); } return; } } void handleEnterOrScan(q); }} className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button>
+                {!quickAddEnabled && (
+                  <>
+                    <div className="w-20">
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
+                      <Input value={returnQty} onChange={(e) => setReturnQty(e.target.value.replace(/\D/g, ""))} placeholder="1" inputMode="numeric" className="bg-white text-center" />
+                    </div>
+                    <div className="w-28">
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p>
+                      <Input value={returnPrice} onChange={(e) => setReturnPrice(clampMoneyInput(e.target.value))} placeholder="Auto" inputMode="decimal" className="bg-white" />
+                    </div>
+                    <Button type="button" variant="secondary" onClick={() => { if (selProductId) { const p = (products ?? []).find((x) => x.id === selProductId); if (p) { if (p.categoryType === "PHONE") { toast("Phones require IMEI — scan the serial", "error"); return; } const qty = Math.max(1, parseInt(returnQty, 10) || 1); const price = returnPrice.trim() ? parseFloat(returnPrice) : parseFloat(p.sellPrice) || 0; const existing = cart.find((l) => l.productId === p.id && !l.unitId); if (existing) { setCart((prev) => prev.map((l) => (l.productId === p.id && !l.unitId ? { ...l, quantity: l.quantity + qty, refund: price || l.refund } : l))); } else { const saleId = cart[0]?.saleId ?? ""; const saleNumber = cart[0]?.saleNumber ?? ""; setCart((prev) => [...prev, { id: crypto.randomUUID(), productId: p.id, unitId: undefined, imei: undefined, productLabel: `${p.brand} ${p.model}`, saleId, saleNumber, refund: price, quantity: qty }]); } return; } } void handleEnterOrScan(q); }} className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button>
+                  </>
+                )}
               </div>
             </section>
             <div className="mt-3 flex-1 min-h-0 w-full min-w-0 overflow-y-auto overscroll-none rounded-2xl bg-white">
@@ -741,401 +743,3 @@ export default function SaleReturnsPage() {
       </div>
     );
   }
-
-
-  return (
-    <form
-      className="flex h-full flex-col"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void submit();
-      }}
-    >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Return" : "Sale Return"}</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
-            Modify
-          </Button>
-          <ScannerButton label="Scan IMEI" variant="ghost" />
-          <Link href="/pos">
-            <Button variant="ghost">
-              <PrinterIcon className="h-4 w-4" />
-              Sale Invoice
-            </Button>
-          </Link>
-          <Button variant="destructive" onClick={reset}>
-            Clear
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
-          <Dropdown
-            value={customerId}
-            options={contactOptions}
-            onChange={(v) => {
-              setCustomerId(v);
-              const c = (contacts ?? []).find((x) => x.id === v);
-              if (c) {
-                setContactName(c.name);
-                setContactPhone(c.phone ?? "");
-              }
-            }}
-            triggerClassName="bg-white" searchable
-            placeholder="Select customer…"
-          />
-          <p className="mt-1 text-xs text-ink-400">{contactName ? `${contactName}${contactPhone ? ` · ${contactPhone}` : ""}` : "Or auto-assigns from unit"}</p>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Return #</p>
-          <Input value={returnNo} readOnly variant="white" />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date</p>
-          <DatePicker value={returnDate} onChange={setReturnDate} />
-        </div>
-      </div>
-
-      <section className="mt-6 shrink-0">
-        <div className="flex flex-wrap items-end gap-3">
-          <div ref={searchWrapRef} className="relative min-w-48 flex-1">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
-            <SearchInput
-              data-scanner-input="sale-return-search"
-              value={q}
-              onChange={setQ}
-              onFocus={() => {
-                setSearchFocused(true);
-                if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q);
-              }}
-              onKeyDown={(e) => {
-                const hasResults = flatUnits.length > 0;
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  if (hasResults) setHighlightedIndex((i) => (i + 1) % flatUnits.length);
-                } else if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  if (hasResults) setHighlightedIndex((i) => (i <= 0 ? flatUnits.length - 1 : i - 1));
-                } else if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (hasResults && highlightedIndex >= 0 && highlightedIndex < flatUnits.length) {
-                    pickUnit(flatUnits[highlightedIndex].unit);
-                  } else {
-                    void handleEnterOrScan(q);
-                  }
-                } else if (e.key === "Escape") {
-                  setSearchFocused(false);
-                }
-              }}
-              placeholder="Scan IMEI / Barcode…"
-              variant="white"
-              className="bg-ink-100 h-10 text-sm rounded-[12px]"
-              iconClassName="h-4 w-4"
-            />
-
-            {panelPos && results.length === 0 && (
-              <div
-                style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"
-              >
-                <p className="text-sm text-ink-400">
-                  {searching ? "Searching…" : q.trim().length >= 2 ? "No sold units for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}
-                </p>
-              </div>
-            )}
-
-            {panelPos && results.length > 0 && (
-              <div
-                ref={listRef}
-                style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }}
-                className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
-              >
-                {flatUnits.map((item, idx) => {
-                  const product = results[item.productIndex];
-                  const isActive = idx === highlightedIndex;
-                  return (
-                    <button
-                      key={item.unit.id}
-                      data-flat={idx}
-                      type="button"
-                      onClick={() => pickUnit(item.unit)}
-                      onMouseEnter={() => setHighlightedIndex(idx)}
-                      className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-ink-900">
-                          {[brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ")}{" "}
-                          <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span>
-                        </p>
-                        <p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
-                          <Badge variant="neutral">{item.unit.condition}</Badge>
-                          <Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge>
-                        </p>
-                      </div>
-                      <span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div className="min-w-64 max-w-[320px] flex-1">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
-            <Dropdown
-              value={selProductId}
-              options={productOptions}
-              onChange={(v) => {
-                setSelProductId(v);
-                const p = (products ?? []).find((x) => x.id === v);
-                if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || ""));
-              }}
-              triggerClassName="bg-white" searchable
-              placeholder="Select accessory…"
-            />
-          </div>
-          <div className="w-20">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
-            <Input
-              value={returnQty}
-              onChange={(e) => setReturnQty(e.target.value.replace(/\D/g, ""))}
-              placeholder="1"
-              inputMode="numeric"
-              className="bg-white text-center"
-            />
-          </div>
-          <div className="w-28">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p>
-            <Input
-              value={returnPrice}
-              onChange={(e) => setReturnPrice(clampMoneyInput(e.target.value))}
-              placeholder="Auto"
-              inputMode="decimal"
-              className="bg-white"
-            />
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => {
-              if (selProductId) {
-                const p = (products ?? []).find((x) => x.id === selProductId);
-                if (p) {
-                  if (p.categoryType === "PHONE") {
-                    toast("Phones require IMEI — scan the serial", "error");
-                    return;
-                  }
-                  const fake: SearchResult = {
-                    id: p.id,
-                    brand: p.brand,
-                    model: p.model,
-                    storage: p.storage,
-                    ram: p.ram,
-                    screenSize: p.screenSize,
-                    color: p.color,
-                    category: { id: p.categoryId, name: p.categoryName, type: p.categoryType },
-                    sellPrice: p.sellPrice,
-                    units: [],
-                  };
-                  const qty = Math.max(1, parseInt(returnQty, 10) || 1);
-                  const price = returnPrice.trim() ? parseFloat(returnPrice) : parseFloat(p.sellPrice) || 0;
-                  const existing = cart.find((l) => l.productId === p.id && !l.unitId);
-                  if (existing) {
-                    setCart((prev) => prev.map((l) => (l.productId === p.id && !l.unitId ? { ...l, quantity: l.quantity + qty, refund: price || l.refund } : l)));
-                  } else {
-                    const saleId = cart[0]?.saleId ?? "";
-                    const saleNumber = cart[0]?.saleNumber ?? "";
-                    setCart((prev) => [
-                      ...prev,
-                      {
-                        id: crypto.randomUUID(),
-                        productId: p.id,
-                        unitId: undefined,
-                        imei: undefined,
-                        productLabel: `${p.brand} ${p.model}`,
-                        saleId,
-                        saleNumber,
-                        refund: price,
-                        quantity: qty,
-                      },
-                    ]);
-                  }
-                  return;
-                }
-              }
-              void handleEnterOrScan(q);
-            }}
-            className="h-10 shrink-0 rounded-[12px] px-6"
-          >
-            <PlusIcon className="h-4 w-4" />
-            Add
-          </Button>
-        </div>
-      </section>
-
-      <div className="mt-6 mb-3 flex shrink-0 items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Units to return</span>
-        <span className="text-xs text-ink-500">{cart.reduce((s, l) => s + l.quantity, 0)} pcs</span>
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none rounded-2xl bg-white">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-white">
-            <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
-              <th className="px-4 py-3">Item</th>
-              <th className="w-32 px-4 py-3">Sale #</th>
-              <th className="w-28 px-4 py-3 text-right">Refund</th>
-              <th className="w-12 px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-              {returnGroups.map((g) => (
-                <Fragment key={g.key}>
-                  <tr className="bg-ink-50/80">
-                    <td className="px-4 py-2.5" colSpan={4}>
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
-                        <span className="truncate text-sm font-semibold text-ink-900">{g.label}</span>
-                        <span className="text-xs text-ink-500">{g.quantity} pcs</span>
-                      </div>
-                    </td>
-                  </tr>
-                  {g.lines.map((line) => (
-                    <tr key={line.id} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
-                      <td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{line.imei ?? `${line.quantity} pcs`}</span></td>
-                      <td className="px-4 py-2.5 text-ink-700">{line.saleNumber || "—"}</td>
-                      <td className="px-4 py-2.5 text-right"><PriceInput value={line.refund} onChange={(n) => setCart((prev) => prev.map((l) => (l.id === line.id ? { ...l, refund: n } : l)))} className="h-8 w-28 text-right text-sm" /></td>
-                      <td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeLine(line.id)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td>
-                    </tr>
-                  ))}
-                </Fragment>
-              ))}
-              {cart.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">Cart is empty. Scan or search for sold units.</td>
-                </tr>
-              )}
-            </tbody>
-        </table>
-      </div>
-
-      <div className="mt-6 grid shrink-0 gap-4 lg:grid-cols-3">
-        <div className="rounded-3xl bg-white lg:col-span-2">
-          <div className="flex items-center justify-between px-5 py-4">
-            <h3 className="text-sm font-semibold text-ink-900">Refund</h3>
-            <p className="text-xs text-ink-400">
-              Total <span className="font-semibold text-ink-900">{formatPKR(refundTotal)}</span>
-            </p>
-          </div>
-          <div className="px-5 pb-5">
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
-                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
-                  </div>
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
-                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="secondary"
-                    className="px-3 py-1.5 text-xs"
-                    onClick={() =>
-                      setCash(
-                        clampMoneyInput(
-                          String(
-                            refundTotal -
-                              (parseFloat(creditAmount) || 0) -
-                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                          ),
-                        ),
-                      )
-                    }
-                  >
-                    Fill remaining as cash
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="px-3 py-1.5 text-xs"
-                    onClick={() =>
-                      setCreditAmount(
-                        clampMoneyInput(
-                          String(
-                            refundTotal -
-                              (parseFloat(cash) || 0) -
-                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                          ),
-                        ),
-                      )
-                    }
-                  >
-                    Fill remaining as credit
-                  </Button>
-                </div>
-              </div>
-
-              <BankPaymentRow
-                bankRows={bankRows}
-                bankAccounts={bankAccounts}
-                onBankSheetOpen={() => setBankSheetOpen(true)}
-                onAddBank={() => {
-                  if (bankRows.length === 0) {
-                    const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0];
-                    setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]);
-                  }
-                  setBankSheetOpen(true);
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <PaymentSummaryCard
-          title="Summary"
-          total={refundTotal}
-          lines={[
-            ...(cashAmt > 0 ? [{ label: "Cash", amount: cashAmt }] : []),
-            ...(creditAmt > 0 ? [{ label: "Credit", amount: creditAmt }] : []),
-            ...(bankAmt > 0 ? [{ label: "Bank", amount: bankAmt }] : []),
-          ]}
-        >
-          <Button className="w-full" type="submit" disabled={submitting || cart.length === 0}>
-            {submitting ? "Returning…" : `Refund ${formatPKR(refundTotal)}`}
-          </Button>
-        </PaymentSummaryCard>
-      </div>
-
-      <ModifyPicker
-        open={modifyPickerOpen}
-        onClose={() => setModifyPickerOpen(false)}
-        type="SALE_RETURN"
-        onSelect={(txn) => {
-          void (async () => {
-            try {
-              const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`);
-              loadForModify(detail);
-            } catch {
-              toast("Could not load the return", "error");
-            }
-          })();
-        }}
-      />
-
-      <BankDepositSheet
-        open={bankSheetOpen}
-        onClose={() => setBankSheetOpen(false)}
-        bankRows={bankRows}
-        onBankRowsChange={setBankRows}
-        bankAccounts={bankAccounts}
-      />
-    </form>
-  );
-}

@@ -133,7 +133,7 @@ export function InventoryDocument({
   const base = isA4 ? "text-xs" : "font-mono font-bold";
   const densityClass = isA4 ? "" : config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
 
-  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: `${config.paddingMm}mm` } as const;
+  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: config.paddingMm ? `${config.paddingMm}mm` : undefined } as const;
   return (
     <div style={thermalStyle} className={`bg-white ${pad} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
       <div className="flex items-start justify-between gap-6">

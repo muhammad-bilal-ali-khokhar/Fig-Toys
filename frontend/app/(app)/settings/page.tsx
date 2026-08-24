@@ -15,6 +15,7 @@ import { useDashboardLayout } from "@/lib/dashboard-layout-context";
 import { PIN_LENGTH } from "@/lib/constants/users";
 import { setSoundPrefs } from "@/lib/sound";
 import { setUnsaved } from "@/lib/unsaved-guard";
+import { useQuickAdd } from "@/lib/quick-add";
 import type { Bank, BankAccount, CompanyProfile } from "@/lib/api-types";
 import {
   CheckIcon,
@@ -293,6 +294,7 @@ export default function SettingsPage() {
     });
   }
 
+  const { enabled: quickAddEnabled, setEnabled: setQuickAddEnabled } = useQuickAdd();
   const canEdit = hasPermission(user, PERMISSIONS.settingsWrite);
 
   function validateProfile(): boolean {
@@ -599,6 +601,19 @@ export default function SettingsPage() {
                 <Button variant="grey" onClick={() => setPinOpen(true)}>
                   Change PIN
                 </Button>
+              </div>
+            </Group>
+
+            <SectionTitle>POS — quick add</SectionTitle>
+            <Group>
+              <div className="px-4 py-3">
+                <Checkbox
+                  checked={quickAddEnabled}
+                  onChange={(v) => setQuickAddEnabled(v)}
+                  disabled={!canEdit}
+                  label="Select item from dropdown instantly"
+                  description="When on, picking a product from the dropdown adds it immediately with quantity 1 at catalog price. Price, quantity and Add button are hidden. Disable to edit price and quantity before adding. Default off. Applies to Sale, Sale Return, Purchase Return and Purchase Orders — purchases page stays manual."
+                />
               </div>
             </Group>
           </>

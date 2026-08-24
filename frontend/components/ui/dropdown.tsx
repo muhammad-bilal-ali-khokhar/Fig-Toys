@@ -189,11 +189,11 @@ export function Dropdown<T extends string>({
         setActiveIndex(visible.length - 1);
       } else if (event.key === "Enter") {
         const target = activeIndex >= 0 ? visible[activeIndex] : visible[0];
-        if (target) {
+        if (target && !target.disabled) {
           event.preventDefault();
           onChange(target.value);
           setOpen(false);
-        } else if (allowCustom) {
+        } else if (allowCustom && !target) {
           event.preventDefault();
           chooseCustom();
         }
@@ -227,11 +227,11 @@ export function Dropdown<T extends string>({
           setActiveIndex(visible.length - 1);
         } else if (e.key === "Enter") {
           const target = activeIndex >= 0 ? visible[activeIndex] : visible[0];
-          if (target) {
+          if (target && !target.disabled) {
             e.preventDefault();
             onChange(target.value);
             setOpen(false);
-          } else if (allowCustom) {
+          } else if (allowCustom && !target) {
             e.preventDefault();
             chooseCustom();
           }
@@ -276,6 +276,7 @@ export function Dropdown<T extends string>({
                 disabled={option.disabled}
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => {
+                  if (option.disabled) return;
                   onChange(option.value);
                   setOpen(false);
                 }}

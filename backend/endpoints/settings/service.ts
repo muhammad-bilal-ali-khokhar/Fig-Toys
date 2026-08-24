@@ -14,6 +14,8 @@ const DEFAULT_SOUND_PREFS = {
 const THEME_KEY = "app.theme";
 const DASHBOARD_LAYOUT_KEY = "app.dashboardLayout";
 const AUTO_PRINT_KEY = "app.autoPrint";
+const PRINT_MODE_KEY = "app.printMode";
+const QUICK_ADD_KEY = "app.quickAdd";
 
 export async function getTheme(): Promise<string | null> {
   const row = await prisma.settings.findUnique({ where: { key: THEME_KEY } });
@@ -147,4 +149,35 @@ export async function updateAutoPrint(input: Record<string, boolean>) {
     create: { key: AUTO_PRINT_KEY, value: JSON.stringify(merged) },
   });
   return merged;
+}
+
+export async function getPrintMode(): Promise<"dialog" | "silent"> {
+  const row = await prisma.settings.findUnique({ where: { key: PRINT_MODE_KEY } });
+  const v = row?.value?.trim();
+  return v === "silent" ? "silent" : "dialog";
+}
+
+export async function updatePrintMode(mode: string) {
+  const next = mode === "silent" ? "silent" : "dialog";
+  await prisma.settings.upsert({
+    where: { key: PRINT_MODE_KEY },
+    update: { value: next },
+    create: { key: PRINT_MODE_KEY, value: next },
+  });
+  return next;
+}
+
+export async function getQuickAdd(): Promise<boolean> {
+  const row = await prisma.settings.findUnique({ where: { key: QUICK_ADD_KEY } });
+  return row?.value === "true";
+}
+
+export async function updateQuickAdd(enabled: boolean) {
+  const next = enabled ? "true" : "false";
+  await prisma.settings.upsert({
+    where: { key: QUICK_ADD_KEY },
+    update: { value: next },
+    create: { key: QUICK_ADD_KEY, value: next },
+  });
+  return enabled;
 }

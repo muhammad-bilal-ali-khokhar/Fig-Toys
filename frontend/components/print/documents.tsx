@@ -398,10 +398,6 @@ export function ReceiptDocument({
   const base = isA4 ? "text-sm" : "font-mono font-bold text-black antialiased";
   const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-black";
   const showAccounts = options.bankAccounts && bankAccounts.length > 0;
-  const paidFullyInCash =
-    detail.payments.length > 0 &&
-    detail.payments.every((p) => p.method === "CASH") &&
-    detail.payments.reduce((sum, p) => sum + Number(p.amount), 0) >= Number(detail.total);
 
   const A4_ROWS_PER_PAGE = 15;
   const itemGroups = useMemo(() => groupItems(detail.items), [detail.items]);
@@ -485,28 +481,6 @@ export function ReceiptDocument({
         </div>
       )}
 
-      {paidFullyInCash && (
-        <div className={`avoid-break flex justify-center ${isA4 ? "mt-6" : "mt-4"}`}>
-          <span
-            className={`-rotate-6 inline-flex flex-col items-center rounded-md border-[3px] ${
-              isA4 ? "border-success text-success" : "border-black text-black"
-            } ${isA4 ? "px-10 py-3" : "px-6 py-2"}`}
-            style={{
-              boxShadow: isA4
-                ? "inset 0 0 0 2px #fff, inset 0 0 0 4px rgba(5,150,105,0.5)"
-                : "inset 0 0 0 2px #fff, inset 0 0 0 4px #000",
-            }}
-          >
-            <span className={`font-black uppercase tracking-[0.18em] ${isA4 ? "text-4xl" : "text-lg"}`}>
-              {RECEIPT_TEXT.paid}
-            </span>
-            <span className={`font-black uppercase tracking-[0.2em] ${isA4 ? "mt-1.5 text-sm text-success/80" : "mt-1 text-[11px] text-black"}`}>
-              {new Date(detail.createdAt).toLocaleDateString()}
-            </span>
-          </span>
-        </div>
-      )}
-
       {options.note && (
         <div className="mt-4">
           <p className="text-[11px] font-black uppercase tracking-wider text-black">{RECEIPT_TEXT.note}</p>
@@ -572,7 +546,7 @@ export function ReceiptDocument({
     </>
   );
 
-  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: `${config.paddingMm}mm`, margin: `${config.marginMm}mm` } as const;
+  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: config.paddingMm ? `${config.paddingMm}mm` : undefined, margin: config.marginMm ? `${config.marginMm}mm` : undefined } as const;
   const densityClass = config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
   return (
     <div style={thermalStyle} className={`${isA4 ? "space-y-6 print:space-y-0" : "bg-white"} ${isA4 ? "" : ""} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
@@ -612,7 +586,7 @@ export function ReceiptDocument({
           </div>
         ))
       ) : (
-        <div style={{ padding: `${config.paddingMm}mm` }}>
+        <div>
           <ThermalHeader
             detail={detail}
             options={options}
@@ -656,7 +630,7 @@ export function VoucherDocument({
   const pad = isA4 ? "px-12 py-10" : "";
   const base = isA4 ? "text-sm" : "font-mono font-bold text-black";
   const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-black";
-  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: `${config.paddingMm}mm` } as const;
+  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: config.paddingMm ? `${config.paddingMm}mm` : undefined } as const;
   const densityClass = isA4 ? "" : config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
   const receiving = voucher.type === "RECEIVING";
   const amount = parseFloat(voucher.amount);
@@ -833,7 +807,7 @@ export function ExpenseVoucherDocument({
   const pad = isA4 ? "px-12 py-10" : "";
   const base = isA4 ? "text-sm" : "font-mono font-bold text-black";
   const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-black";
-  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: `${config.paddingMm}mm` } as const;
+  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: config.paddingMm ? `${config.paddingMm}mm` : undefined } as const;
   const densityClass = isA4 ? "" : config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
 
   return (
@@ -949,7 +923,7 @@ export function ReservationDocument({
   const isConsignment = reservation.type === "CONSIGNMENT";
   const balanceDue = parseFloat(reservation.total) - parseFloat(reservation.advance);
   const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-black";
-  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: `${config.paddingMm}mm` } as const;
+  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: config.paddingMm ? `${config.paddingMm}mm` : undefined } as const;
   const densityClass = isA4 ? "" : config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
   const pad = isA4 ? "px-12 py-10" : "";
   const base = isA4 ? "text-sm" : "font-mono font-bold text-black";

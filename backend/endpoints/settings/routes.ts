@@ -10,12 +10,16 @@ import {
   companyPutHandler,
   dashboardLayoutGetHandler,
   dashboardLayoutPutHandler,
+  printModeGetHandler,
+  printModePutHandler,
+  quickAddGetHandler,
+  quickAddPutHandler,
   soundGetHandler,
   soundPutHandler,
   themeGetHandler,
   themePutHandler,
 } from "./handlers";
-import { autoPrintSchema, companyProfileSchema, dashboardLayoutSchema, soundPrefsSchema, themeSchema } from "./schemas";
+import { autoPrintSchema, companyProfileSchema, dashboardLayoutSchema, printModeSchema, quickAddSchema, soundPrefsSchema, themeSchema } from "./schemas";
 
 const router = Router();
 
@@ -32,5 +36,9 @@ router.get("/dashboard-layout", asyncHandler(dashboardLayoutGetHandler));
 router.put("/dashboard-layout", validate(dashboardLayoutSchema), asyncHandler(dashboardLayoutPutHandler));
 router.get("/auto-print", asyncHandler(autoPrintGetHandler));
 router.put("/auto-print", requirePermission(PERMISSIONS.settingsWrite), validate(autoPrintSchema), asyncHandler(autoPrintPutHandler));
+router.get("/print-mode", asyncHandler(printModeGetHandler));
+router.put("/print-mode", requirePermission(PERMISSIONS.settingsWrite), validate(printModeSchema), asyncHandler(printModePutHandler));
+router.get("/quick-add", asyncHandler(quickAddGetHandler));
+router.put("/quick-add", requirePermission(PERMISSIONS.settingsWrite), validate(quickAddSchema), asyncHandler(quickAddPutHandler));
 
 export default router;

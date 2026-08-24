@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { apiRequest } from "@/lib/apiClient";
-import { Dropdown, type DropdownOption } from "@/components/ui/dropdown";
 import { Sheet } from "@/components/ui/sheet";
 import {
   EyeIcon,
@@ -135,43 +135,20 @@ function formatAmount(amount?: string): string {
   return `Rs ${n.toLocaleString("en-PK")}`;
 }
 
-function GlobalSearchField({
-  value,
-  onChange,
-  onFocus,
-  onBlur,
-  variant = "light",
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onFocus?: () => void;
-  onBlur?: () => void;
-  variant?: "light" | "dark";
-}) {
-  const isDark = variant === "dark";
-  return (
-    <span
-      className={`flex h-9 items-center gap-2 rounded-2xl pl-3 pr-6 ${isDark ? "bg-white/10" : "bg-ink-100"}`}
-    >
-      <SearchIcon className={`h-4 w-4 shrink-0 ${isDark ? "text-white/60" : "text-ink-400"}`} />
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        placeholder="Search IMEI, sale / purchase / voucher number…"
-        className={`h-full min-w-0 flex-1 bg-transparent text-sm outline-none ${isDark ? "text-white placeholder:text-white/50" : "text-ink-900 placeholder:text-ink-400"}`}
-      />
-    </span>
-  );
-}
+type MenuPos = { top: number; left: number; width: number } | null;
 
 export function GlobalSearch({ variant = "light" }: { variant?: "light" | "dark" }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeResult, setActiveResult] = useState<SearchResult | null>(null);
-  const [isFocused, setIsFocused] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [pos, setPos] = useState<MenuPos>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const isDark = variant === "dark";
 
   useEffect(() => {
     const term = query.trim();
@@ -196,61 +173,167 @@ export function GlobalSearch({ variant = "light" }: { variant?: "light" | "dark"
 
   const byKey = useMemo(() => {
     const map = new Map<string, SearchResult>();
-    for (const r of results ?? []) {
-      map.set(`${r.kind}|${r.id}`, r);
-    }
+    for (const r of results ?? []) map.set(`${r.kind}|${r.id}`, r);
     return map;
   }, [results]);
 
-  const options: DropdownOption<string>[] =
-    loading
-      ? [{ value: "__loading", label: "Searching…", disabled: true }]
-      : query.trim() && results !== null && results.length === 0
-        ? [{ value: "__empty", label: "No matches.", disabled: true }]
-        : results === null
-          ? [{ value: "__hint", label: "Type an IMEI or document number to search.", disabled: true }]
-          : results.map((r) => ({
-              value: `${r.kind}|${r.id}`,
-              label: `${r.number || r.title} · ${r.title}`,
-              leading: (
-                <span className="shrink-0 rounded-lg bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-600">
-                  {kindBadge(r.kind)}
-                </span>
-              ),
-              trailing: r.amount ? (
-                <span className="shrink-0 text-xs font-semibold text-ink-700">{formatAmount(r.amount)}</span>
-              ) : undefined,
-            }));
+  const hasSelectableResults = !!results && results.length > 0;
+  const selectableKeys = useMemo(() => (results ?? []).map((r) => `${r.kind}|${r.id}`), [results]);
+
+  const measure = useCallback(() => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const menuHeight = menuRef.current?.offsetHeight ?? 280;
+    const below = window.innerHeight - rect.bottom;
+    const above = rect.top;
+    const shouldOpenUp = below < menuHeight && above > below;
+    const width = rect.width;
+    let top = shouldOpenUp ? rect.top - menuHeight - 8 : rect.bottom + 8;
+    top = Math.max(8, Math.min(top, window.innerHeight - menuHeight - 8));
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    setPos({ top, left, width });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (open) measure();
+  }, [open, results, loading, measure]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onResize() { measure(); }
+    function onScroll() { measure(); }
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open, measure]);
+
+  useEffect(() => {
+    function onPointerDown(e: MouseEvent) {
+      const target = e.target as Node;
+      if (!containerRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+        setOpen(false);
+        setActiveIndex(-1);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, []);
 
   function handleSelect(key: string) {
     const r = byKey.get(key);
     if (!r) return;
     setQuery("");
     setResults(null);
+    setOpen(false);
+    setActiveIndex(-1);
     setActiveResult(r);
+    inputRef.current?.blur();
   }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      setOpen(false);
+      setActiveIndex(-1);
+      return;
+    }
+    if (!open) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!hasSelectableResults) return;
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      setActiveIndex((i) => {
+        const next = i + step;
+        if (next < 0) return 0;
+        if (next >= selectableKeys.length) return selectableKeys.length - 1;
+        return next;
+      });
+      return;
+    }
+    if (e.key === "Enter") {
+      if (hasSelectableResults) {
+        const key = activeIndex >= 0 ? selectableKeys[activeIndex] : selectableKeys[0];
+        if (key) {
+          e.preventDefault();
+          handleSelect(key);
+        }
+      } else {
+        e.preventDefault();
+      }
+    }
+  }
+
+  const showMenu = open;
 
   return (
     <>
-      <Dropdown<string>
-        value={null}
-        options={options}
-        onChange={handleSelect}
-        placeholder="Search…"
-        open={isFocused}
-        onOpenChange={setIsFocused}
-        trigger={(open) => (
-          <span className="block" onClickCapture={open ? (e) => e.stopPropagation() : undefined}>
-            <GlobalSearchField
-              value={query}
-              onChange={setQuery}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setTimeout(() => setIsFocused(false), 150)}
-              variant={variant}
-            />
-          </span>
-        )}
-      />
+      <div ref={containerRef} className="relative w-full">
+        <label className={`flex h-9 items-center gap-2 rounded-2xl pl-3 pr-6 ${isDark ? "bg-white/10" : "bg-ink-100"}`}>
+          <SearchIcon className={`h-4 w-4 shrink-0 ${isDark ? "text-white/60" : "text-ink-400"}`} />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (!open) setOpen(true);
+              setActiveIndex(-1);
+            }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={handleKeyDown}
+            placeholder="Search IMEI, sale / purchase / voucher number…"
+            className={`h-full min-w-0 flex-1 bg-transparent text-sm outline-none ${isDark ? "text-white placeholder:text-white/50" : "text-ink-900 placeholder:text-ink-400"}`}
+          />
+        </label>
+      </div>
+
+      {showMenu && pos && createPortal(
+        <div
+          ref={menuRef}
+          role="listbox"
+          onMouseDown={(e) => e.preventDefault()}
+          style={{ top: pos.top, left: pos.left, width: pos.width }}
+          className="fixed z-50 max-h-72 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5"
+        >
+          {loading ? (
+            <p className="px-4 py-3 text-sm text-ink-400">Searching…</p>
+          ) : query.trim() && results !== null && results.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-ink-400">No matches.</p>
+          ) : results === null ? (
+            <p className="px-4 py-3 text-sm text-ink-400">Type an IMEI or document number to search.</p>
+          ) : (
+            <div className="space-y-1">
+              {results.map((r, i) => {
+                const key = `${r.kind}|${r.id}`;
+                const isActive = i === activeIndex;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onClick={() => handleSelect(key)}
+                    className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition ${isActive ? "bg-brand-50" : "hover:bg-ink-50"}`}
+                  >
+                    <span className="shrink-0 rounded-lg bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-600">
+                      {kindBadge(r.kind)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-ink-900">
+                      {r.number || r.title} · {r.title}
+                    </span>
+                    {r.amount ? (
+                      <span className="shrink-0 text-xs font-semibold text-ink-700">{formatAmount(r.amount)}</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
 
       <Sheet
         open={activeResult !== null}
@@ -261,12 +344,8 @@ export function GlobalSearch({ variant = "light" }: { variant?: "light" | "dark"
           <div>
             <div className="rounded-2xl bg-ink-50 p-4">
               <p className="text-sm font-semibold text-ink-900">{activeResult.title}</p>
-              {activeResult.subtitle && (
-                <p className="mt-0.5 text-xs text-ink-500">{activeResult.subtitle}</p>
-              )}
-              {activeResult.amount && (
-                <p className="mt-2 text-lg font-bold text-ink-900">{formatAmount(activeResult.amount)}</p>
-              )}
+              {activeResult.subtitle && <p className="mt-0.5 text-xs text-ink-500">{activeResult.subtitle}</p>}
+              {activeResult.amount && <p className="mt-2 text-lg font-bold text-ink-900">{formatAmount(activeResult.amount)}</p>}
             </div>
             <div className="mt-4 grid gap-2">
               {actionsFor(activeResult).map((a) => {

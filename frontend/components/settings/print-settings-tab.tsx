@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { thermalPrintSupported, printThermalText } from "@/lib/thermal-print";
 import { PRINT_DEFAULT_CONFIG, PRINT_DENSITY_OPTIONS } from "@/lib/constants";
 import type { PrintConfig, PrintDensity, PrintDocType, PrintFormatId, PrintSetting } from "@/lib/constants";
+import { getLocalPrintMode, setLocalPrintMode, type PrintMode } from "@/lib/print";
 
 const DOC_TYPES: { key: PrintDocType; label: string }[] = [
   { key: "SALE", label: "Sale receipt" },
@@ -79,6 +80,7 @@ export function PrintSettingsTab() {
   const [busy, setBusy] = useState(false);
   const [thermalBusy, setThermalBusy] = useState(false);
   const [thermalDoc, setThermalDoc] = useState<PrintDocType>("SALE");
+  const [printMode, setPrintMode] = useState<PrintMode>("dialog");
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +97,20 @@ export function PrintSettingsTab() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const mode = await apiRequest<string>("/settings/print-mode");
+        if (!cancelled && (mode === "silent" || mode === "dialog")) setPrintMode(mode);
+        else if (!cancelled) setPrintMode(getLocalPrintMode() ?? "dialog");
+      } catch {
+        if (!cancelled) setPrintMode(getLocalPrintMode() ?? "dialog");
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   function formatFor(docType: PrintDocType): PrintFormatId {
@@ -162,6 +178,27 @@ export function PrintSettingsTab() {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-ink-200 bg-white p-4">
+        <p className="text-sm font-semibold text-ink-900">How printing works</p>
+        <p className="mt-1 text-xs text-ink-500">Choose whether the print prompt shows every time. Show prompt is recommended so you always see what is happening.</p>
+        <div className="mt-3">
+          <SegmentedControl
+            options={[
+              { value: "dialog", label: "Show prompt" },
+              { value: "silent", label: "Print directly" },
+            ]}
+            value={printMode}
+            onChange={(v) => {
+              const next = v as PrintMode;
+              setPrintMode(next);
+              setLocalPrintMode(next);
+              apiRequest<string>("/settings/print-mode", { method: "PUT", body: { mode: next } }).catch(() => {});
+            }}
+          />
+        </div>
+        <p className="mt-2 text-xs text-ink-500">{printMode === "dialog" ? "You will see the system print dialog every time. Pick your printer and confirm." : "Prints straight to your default printer with no prompt. If nothing prints, switch back to Show prompt."}</p>
+      </div>
+
       <div>
         <p className="text-sm font-semibold text-ink-900">Default print format per document</p>
         <p className="mt-1 text-xs text-ink-500">Pick which format opens first in Print Studio for each document type.</p>

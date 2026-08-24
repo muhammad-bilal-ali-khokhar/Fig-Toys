@@ -50,7 +50,7 @@ import { jsPDF } from "jspdf";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { DownloadIcon, FilterIcon, InventoryIcon, PrinterIcon, SendIcon, SettingsIcon } from "@/components/icons";
-import { doPrint } from "@/lib/print";
+import { doPrintWithMode, getLocalPrintMode, setLocalPrintMode, type PrintMode } from "@/lib/print";
 import { InventoryDocument } from "./components/inventory-document";
 import { ContactsDocument } from "./components/contacts-document";
 import { ExpenseSheetDocument } from "./components/expense-sheet-document";
@@ -257,6 +257,22 @@ function PrintStudioContent() {
   const [invFiltersOpen, setInvFiltersOpen] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [printMode, setPrintMode] = useState<PrintMode>(() => getLocalPrintMode() ?? "dialog");
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const mode = await apiRequest<string>("/settings/print-mode");
+        if (!cancelled && (mode === "silent" || mode === "dialog")) {
+          setPrintMode(mode);
+          setLocalPrintMode(mode);
+        }
+      } catch {
+        /* keep local */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const reportType = isReportDocType(printDocType) ? printDocType : null;
   const reportStart = new Date();
@@ -1028,14 +1044,30 @@ function PrintStudioContent() {
           <SendIcon className="h-4 w-4" />
           Send
         </Button>
-        <Button
-          className="px-4 py-2 text-xs"
-          onClick={() => void doPrint()}
-          disabled={!canPrint}
-        >
-          <PrinterIcon className="h-4 w-4" />
-          Print
-        </Button>
+        <div className="flex items-center gap-1 rounded-2xl bg-white p-1">
+          <Button
+            className="px-4 py-2 text-xs"
+            onClick={() => void doPrintWithMode(printMode)}
+            disabled={!canPrint}
+          >
+            <PrinterIcon className="h-4 w-4" />
+            Print
+          </Button>
+          <select
+            value={printMode}
+            onChange={(e) => {
+              const next = e.target.value as PrintMode;
+              setPrintMode(next);
+              setLocalPrintMode(next);
+              apiRequest<string>("/settings/print-mode", { method: "PUT", body: { mode: next } }).catch(() => {});
+            }}
+            className="rounded-xl bg-ink-50 px-2 py-2 text-xs font-medium text-ink-700"
+            title={printMode === "dialog" ? "Shows print dialog" : "Prints directly without prompt"}
+          >
+            <option value="dialog">Prompt</option>
+            <option value="silent">Direct</option>
+          </select>
+        </div>
       </div>
 
       {layoutType === "report" && (
@@ -1351,6 +1383,8 @@ function PrintStudioContent() {
             setQrType(t);
             void saveSetting({ qrType: t });
           }}
+          config={config}
+          onConfigChange={updateConfig}
         />
       </Sheet>
 
@@ -1421,6 +1455,7 @@ function PrintStudioContent() {
                       format={fmt.id}
                       profile={profile}
                       showCost={showCost}
+                      config={config}
                     />
                   </div>
                 )
@@ -1455,7 +1490,35 @@ function PrintStudioContent() {
                       voucher={selectedVoucher}
                       options={options as unknown as PrintBooleanOptions}
                       format={format}
+                      qrUrl={qrUrl}
+                      qrType={qrType}
                       profile={profile}
+                      config={config}
+                    />
+                  </div>
+                )
+              ) : docType === "EXPENSE" ? (
+                selectedExpense && (
+                  <div className="print-doc">
+                    <ExpenseVoucherDocument
+                      expense={selectedExpense}
+                      options={options as unknown as PrintBooleanOptions}
+                      format={format}
+                      profile={profile}
+                      config={config}
+                    />
+                  </div>
+                )
+              ) : docType === "RESERVATION" || docType === "CONSIGNMENT" ? (
+                selectedReservation && (
+                  <div className="print-doc">
+                    <ReservationDocument
+                      reservation={selectedReservation}
+                      options={options as unknown as PrintBooleanOptions}
+                      format={format}
+                      profile={profile}
+                      qrUrl={qrUrl}
+                      qrType={qrType}
                       config={config}
                     />
                   </div>

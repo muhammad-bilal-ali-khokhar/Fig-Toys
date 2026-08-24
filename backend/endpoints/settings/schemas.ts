@@ -59,3 +59,15 @@ export const autoPrintSchema = z.object({
 });
 
 export type AutoPrintInput = z.infer<typeof autoPrintSchema>;
+
+export const printModeSchema = z.object({
+  mode: z.enum(["dialog", "silent"]),
+});
+
+export type PrintModeInput = z.infer<typeof printModeSchema>;
+
+export const quickAddSchema = z.object({
+  enabled: z.boolean(),
+});
+
+export type QuickAddInput = z.infer<typeof quickAddSchema>;

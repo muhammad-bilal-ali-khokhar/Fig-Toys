@@ -16,12 +16,13 @@ export function useAutoPrint(docType: string) {
 
 export function triggerAutoPrint(enabled: boolean) {
   if (!enabled) return;
-  setTimeout(() => {
+  setTimeout(async () => {
     const btn = document.getElementById("receipt-print-btn") ?? document.querySelector<HTMLElement>("[data-auto-print]");
     if (btn) {
       btn.click();
       return;
     }
-    window.print();
+    const { getEffectivePrintMode, doPrintWithMode } = await import("@/lib/print");
+    await doPrintWithMode(getEffectivePrintMode("dialog"));
   }, 600);
 }

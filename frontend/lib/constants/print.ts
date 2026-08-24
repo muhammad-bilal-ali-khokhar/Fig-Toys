@@ -41,16 +41,16 @@ export type PrintConfig = {
 };
 
 export const PRINT_DEFAULT_CONFIG: PrintConfig = {
-  fontSize: 13,
-  lineHeight: 1.4,
-  paddingMm: 3,
+  fontSize: 15,
+  lineHeight: 1.45,
+  paddingMm: 0,
   marginMm: 0,
   density: "bold",
   compact: false,
-  headerScale: 1.15,
+  headerScale: 1.25,
   showLogo: true,
-  qrSize: 72,
-  barcodeHeight: 48,
+  qrSize: 80,
+  barcodeHeight: 56,
 };
 
 export type PrintSetting = {

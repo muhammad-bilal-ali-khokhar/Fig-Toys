@@ -3,15 +3,19 @@ import {
   getAutoPrint,
   getCompanyProfile,
   getDashboardLayout,
+  getPrintMode,
+  getQuickAdd,
   getSoundPrefs,
   getTheme,
   updateAutoPrint,
   updateCompanyProfile,
   updateDashboardLayout,
+  updatePrintMode,
+  updateQuickAdd,
   updateSoundPrefs,
   updateTheme,
 } from "./service";
-import type { AutoPrintInput, CompanyProfileInput, DashboardLayoutInput, SoundPrefsInput, ThemeInput } from "./schemas";
+import type { AutoPrintInput, CompanyProfileInput, DashboardLayoutInput, PrintModeInput, QuickAddInput, SoundPrefsInput, ThemeInput } from "./schemas";
 
 export async function companyGetHandler(req: Request, res: Response) {
   res.json({ data: await getCompanyProfile() });
@@ -51,4 +55,20 @@ export async function autoPrintGetHandler(req: Request, res: Response) {
 
 export async function autoPrintPutHandler(req: Request, res: Response) {
   res.json({ data: await updateAutoPrint(req.body as AutoPrintInput) });
+}
+
+export async function printModeGetHandler(req: Request, res: Response) {
+  res.json({ data: await getPrintMode() });
+}
+
+export async function printModePutHandler(req: Request, res: Response) {
+  res.json({ data: await updatePrintMode((req.body as PrintModeInput).mode) });
+}
+
+export async function quickAddGetHandler(req: Request, res: Response) {
+  res.json({ data: await getQuickAdd() });
+}
+
+export async function quickAddPutHandler(req: Request, res: Response) {
+  res.json({ data: await updateQuickAdd((req.body as QuickAddInput).enabled) });
 }
