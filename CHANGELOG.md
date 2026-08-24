@@ -4,7 +4,13 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.12
+## v0.2.13
+
+- Released on: 2026-08-24
+
+- docs: release notes for quick add and print polish
+- feat: quick-add toggle, auto-print settings, print studio and POS polish
+- feat: premium toast cards with info type and dismiss
 
 - Released on: 2026-08-24
 
