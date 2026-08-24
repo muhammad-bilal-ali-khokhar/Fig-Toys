@@ -4,7 +4,7 @@ import { writeAudit } from "../../core/lib/audit";
 import { formatSku, nextSkuNumber } from "../../core/lib/sku";
 import type { ImportProductInput, ProductInput } from "./schemas";
 
-async function findDuplicate(key: { brandId: string; model: string; storage?: string; colorId?: string; categoryId: string }, excludeId?: string) {
+async function findDuplicate(key: { brandId: string; model: string; storage?: string; colorId?: string; categoryId: string; carrier?: string | null }, excludeId?: string) {
   return prisma.product.findFirst({
     where: {
       brandId: key.brandId,
@@ -12,14 +12,15 @@ async function findDuplicate(key: { brandId: string; model: string; storage?: st
       storage: key.storage ?? null,
       colorId: key.colorId ?? null,
       categoryId: key.categoryId,
+      carrier: (key.carrier as any) ?? null,
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
     include: { brand: { select: { name: true } } },
   });
 }
 
-function throwDuplicate(existing: { brand: { name: string }; model: string }) {
-  throw new ApiError(409, "product.duplicate", `A product "${existing.brand.name} ${existing.model}" already exists with the same storage, color and category`);
+function throwDuplicate(existing: { brand: { name: string }; model: string } & Record<string, unknown>) {
+  throw new ApiError(409, "product.duplicate", `A product "${existing.brand.name} ${existing.model}" already exists with the same storage, color, category and PTA Status`);
 }
 
 export async function listProducts({ q, categoryId }: { q?: string; categoryId?: string }) {
@@ -105,6 +106,7 @@ export async function listProducts({ q, categoryId }: { q?: string; categoryId?:
       parentCategoryName: p.category.parent?.name ?? null,
       sku: p.sku,
       barcode: (p as any).barcode ?? null,
+      carrier: (p as any).carrier ?? null,
       image: p.image,
       sellPrice: p.sellPrice,
       costPrice: p.costPrice,
@@ -144,6 +146,7 @@ export async function createProduct(input: ProductInput, userId: string) {
     storage: input.storage,
     colorId: input.colorId,
     categoryId: input.categoryId,
+    carrier: (input as any).carrier ?? null,
   });
   if (existing) throwDuplicate(existing);
 
@@ -157,6 +160,7 @@ export async function createProduct(input: ProductInput, userId: string) {
       screenSize: input.screenSize,
       colorId: input.colorId ?? null,
       categoryId: input.categoryId,
+      carrier: (input as any).carrier ?? null,
       sku,
       barcode: input.barcode,
       image: input.image,
@@ -191,6 +195,7 @@ export async function updateProduct(id: string, input: ProductInput, userId: str
       storage: input.storage,
       colorId: input.colorId,
       categoryId: input.categoryId,
+      carrier: (input as any).carrier ?? null,
     },
     id,
   );
@@ -212,6 +217,7 @@ export async function updateProduct(id: string, input: ProductInput, userId: str
       screenSize: input.screenSize,
       colorId: input.colorId ?? null,
       categoryId: input.categoryId,
+      carrier: (input as any).carrier ?? null,
       sku,
       barcode: input.barcode,
       image: input.image,
@@ -286,6 +292,7 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
     category: p.category,
     sku: p.sku,
     barcode: (p as any).barcode ?? null,
+    carrier: (p as any).carrier ?? null,
     sellPrice: p.sellPrice,
     costPrice: (p as any).costPrice ?? null,
     units: p.units,
@@ -332,7 +339,8 @@ export async function importProducts(rows: ImportProductInput[], userId: string)
       const category = await findOrCreateCategory(row.category);
       const color = row.color ? await findOrCreateColor(row.color) : null;
 
-      const dupKey = `${brand.id}|${row.model}|${row.storage ?? ""}|${color?.id ?? ""}|${category.id}`;
+      const carrier = (row as any).carrier ?? null;
+      const dupKey = `${brand.id}|${row.model}|${row.storage ?? ""}|${color?.id ?? ""}|${category.id}|${carrier ?? ""}`;
       if (seen.has(dupKey)) {
         skipped.push({ brand: row.brand, model: row.model, reason: "duplicate in file" });
         continue;
@@ -345,6 +353,7 @@ export async function importProducts(rows: ImportProductInput[], userId: string)
           storage: row.storage ?? null,
           colorId: color?.id ?? null,
           categoryId: category.id,
+          carrier: carrier as any,
         },
       });
       if (existing) {
@@ -364,6 +373,7 @@ export async function importProducts(rows: ImportProductInput[], userId: string)
           screenSize: row.screenSize,
           colorId: color?.id ?? null,
           categoryId: category.id,
+          carrier: carrier as any,
           sellPrice: row.sellPrice,
           costPrice: row.costPrice,
           retailPrice: row.retailPrice ?? null,

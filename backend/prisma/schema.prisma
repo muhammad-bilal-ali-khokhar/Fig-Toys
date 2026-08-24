@@ -261,6 +261,7 @@ model Product {
   color            Color?   @relation(fields: [colorId], references: [id])
   categoryId       String
   category         Category @relation(fields: [categoryId], references: [id])
+  carrier          CarrierType?
   sku              String   @unique
   barcode          String?
   image            String?

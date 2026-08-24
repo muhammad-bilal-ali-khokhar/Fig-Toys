@@ -241,10 +241,13 @@ export default function ProductsPage() {
 
   function initialForm(): ProductFormValues {
     if (!editingId) {
+      const isPhone = createType !== "ACCESSORY";
+      const defaultCarrier = createType === "NEW" ? "PTA" : createType === "USED" ? "" : "";
       return {
         ...EMPTY_PRODUCT_FORM,
         brandId: activeBrands[0]?.id ?? "",
         categoryId: defaultCategoryForType(createType),
+        carrier: isPhone ? defaultCarrier : "",
       };
     }
     const p = (data ?? []).find((x) => x.id === editingId);
@@ -253,6 +256,7 @@ export default function ProductsPage() {
         ...EMPTY_PRODUCT_FORM,
         brandId: activeBrands[0]?.id ?? "",
         categoryId: activeCategories[0]?.id ?? "",
+        carrier: "",
       };
     }
     return {
@@ -264,6 +268,7 @@ export default function ProductsPage() {
       colorId: p.colorId ?? "",
       categoryId: p.parentCategoryId ?? p.categoryId,
       subcategoryId: p.parentCategoryId ? p.categoryId : "",
+      carrier: (p as any).carrier ?? "",
       sellPrice: String(p.sellPrice),
       costPrice: p.costPrice ? String(p.costPrice) : "",
       retailPrice: p.retailPrice ? String(p.retailPrice) : "",
@@ -286,9 +291,15 @@ export default function ProductsPage() {
       toast("Pick a category", "error");
       return;
     }
+    const cat = categories?.find((c) => c.id === values.categoryId) ?? activeCategories.find((c) => c.id === values.categoryId);
+    const isPhoneCat = cat?.type === "PHONE";
+    if (isPhoneCat && !values.carrier) {
+      const isUsedCat = cat.name.toLowerCase().includes("used");
+      if (isUsedCat) { toast("Carrier is required for Used phones", "error"); return; }
+    }
     setSaving(true);
     try {
-      const body = {
+      const body: any = {
         brandId: values.brandId,
         model: values.model,
         storage: values.storage || undefined,
@@ -296,6 +307,7 @@ export default function ProductsPage() {
         screenSize: values.screenSize || undefined,
         colorId: values.colorId || undefined,
         categoryId: values.categoryId,
+        carrier: isPhoneCat ? (values.carrier || "PTA") : undefined,
         sellPrice: parseFloat(values.sellPrice) || 0,
         costPrice: parseFloat(values.costPrice) || 0,
         retailPrice: values.retailPrice ? parseFloat(values.retailPrice) : undefined,
@@ -518,6 +530,7 @@ export default function ProductsPage() {
                 </th>
                 <SortHeader label="Product" k="brand" sort={sort} onSort={onSort} />
                 <SortHeader label="Color" k="color" sort={sort} onSort={onSort} />
+                <SortHeader label="Carrier" k="brand" sort={sort} onSort={onSort} />
                 <SortHeader label="Category" k="categoryName" sort={sort} onSort={onSort} />
                 <SortHeader label="SKU" k="sku" sort={sort} onSort={onSort} />
                 <SortHeader label="Sell price" k="sellPrice" sort={sort} onSort={onSort} right />
@@ -559,6 +572,7 @@ export default function ProductsPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-ink-700">{p.color ?? "—"}</td>
+                    <td className="px-5 py-3">{(p as any).carrier ? <Badge variant="neutral">{String((p as any).carrier).replace("_"," ")}</Badge> : <span className="text-ink-300">—</span>}</td>
                     <td className="px-5 py-3">
                       <Badge variant="neutral">
                         {p.parentCategoryName ? `${p.parentCategoryName} > ${p.categoryName}` : p.categoryName}

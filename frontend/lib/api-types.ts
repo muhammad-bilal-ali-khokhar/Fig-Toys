@@ -146,6 +146,7 @@ export type ProductSummary = {
   parentCategoryName: string | null;
   sku: string | null;
   barcode: string | null;
+  carrier?: string | null;
   image?: string | null;
   sellPrice: string;
   costPrice?: string;

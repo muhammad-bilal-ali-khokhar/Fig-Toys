@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Brand, Category, Color } from "@/lib/api-types";
-import { RAM_OPTIONS, SCREEN_SIZE_OPTIONS, STORAGE_OPTIONS } from "@/lib/constants";
+import { CARRIER_LABELS, CARRIER_OPTIONS, RAM_OPTIONS, SCREEN_SIZE_OPTIONS, STORAGE_OPTIONS } from "@/lib/constants";
 import { useDirtyForm } from "@/lib/use-dirty-form";
 import { DiscardConfirmDialog } from "@/components/ui/discard-confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ export type ProductFormValues = {
   colorId: string;
   categoryId: string;
   subcategoryId: string;
+  carrier: string;
   sellPrice: string;
   costPrice: string;
   retailPrice: string;
@@ -37,6 +38,7 @@ export const EMPTY_PRODUCT_FORM: ProductFormValues = {
   colorId: "",
   categoryId: "",
   subcategoryId: "",
+  carrier: "",
   sellPrice: "",
   costPrice: "",
   retailPrice: "",
@@ -88,14 +90,16 @@ export function ProductForm({
 }) {
   const [form, setForm] = useState<ProductFormValues>(() => {
     const leaf = initial.subcategoryId || initial.categoryId;
+    let base: ProductFormValues;
     if (leaf) {
       const found = findInTree(categories, leaf);
-      if (found) return { ...initial, categoryId: leaf, subcategoryId: "" };
-    }
-    if (initial.subcategoryId && !initial.categoryId) {
-      return { ...initial, categoryId: initial.subcategoryId, subcategoryId: "" };
-    }
-    return { ...initial, subcategoryId: "" };
+      if (found) base = { ...initial, categoryId: leaf, subcategoryId: "" };
+      else base = { ...initial, subcategoryId: "" };
+    } else if (initial.subcategoryId && !initial.categoryId) {
+      base = { ...initial, categoryId: initial.subcategoryId, subcategoryId: "" };
+    } else base = { ...initial, subcategoryId: "" };
+    if (type === "NEW" && !base.carrier) base.carrier = "PTA";
+    return base;
   });
   const dirty = useDirtyForm(initial);
 
@@ -201,21 +205,37 @@ export function ProductForm({
             </div>
           </div>
         )}
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
-          <Dropdown
-            value={form.categoryId}
-            options={categoryOptions}
-            onChange={(value) => update({ categoryId: value })}
-            placeholder="Select…"
-            searchable
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
+            <Dropdown
+              value={form.categoryId}
+              options={categoryOptions}
+              onChange={(value) => update({ categoryId: value })}
+              placeholder="Select…"
+              searchable
+            />
+          </div>
+          {(type === "NEW" || type === "USED" || !type) && (
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Carrier</label>
+              <Dropdown
+                value={form.carrier}
+                options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))}
+                onChange={(value) => update({ carrier: value })}
+                placeholder={type === "USED" ? "Select carrier…" : "PTA"}
+              />
+              {type === "USED" && !form.carrier && <p className="mt-1 text-xs text-error">Carrier is required for Used phones</p>}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2 py-1">
-          <Checkbox checked={!!form.hasBarcode} onChange={(v) => update({ hasBarcode: !!v })} />
-          <label className="text-xs font-semibold text-ink-500">Contain barcode</label>
-          <span className="text-xs text-ink-400">— if disabled, no barcode (barcode added at purchase)</span>
-        </div>
+        {type === "ACCESSORY" && (
+          <div className="flex items-center gap-2 py-1">
+            <Checkbox checked={!!form.hasBarcode} onChange={(v) => update({ hasBarcode: !!v })} />
+            <label className="text-xs font-semibold text-ink-500">Contain barcode</label>
+            <span className="text-xs text-ink-400">— if disabled, no barcode (barcode added at purchase)</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-500">Sell price (PKR)</label>

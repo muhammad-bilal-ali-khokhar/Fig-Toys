@@ -7,7 +7,7 @@ import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import type { Color, Contact, ProductSummary, PurchaseOrder, Transaction, TransactionDetail, BankAccount } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS, CARRIER_OPTIONS, MAX_MONEY_AMOUNT } from "@/lib/constants";
+import { CARRIER_LABELS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { hasPermission } from "@/lib/roles";
 import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
@@ -30,6 +30,7 @@ import { TransactionReceipt } from "@/components/transactions/transaction-receip
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playPop, playSuccess } from "@/lib/sound";
 import { ScannerButton } from "@/components/scanner/scanner-button";
+import { useScannerScan } from "@/components/scanner/global-scanner";
 import { CameraIcon, CheckIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, ReportsIcon, SmartphoneIcon, XIcon } from "@/components/icons";
 
 type PendingUnit = {
@@ -107,13 +108,14 @@ export default function PurchasesPage() {
   const [price, setPrice] = useState("");
   const [qty, setQty] = useState("1");
   const [colorId, setColorId] = useState<string | null>(null);
-  const [carrier, setCarrier] = useState<"NON_PTA" | "PTA" | "SIM_LOCKED">("PTA");
   const [batteryHealth, setBatteryHealth] = useState("");
   const [grade, setGrade] = useState("A");
 
   const [popup, setPopup] = useState<PopupInfo | null>(null);
   const [popupImeis, setPopupImeis] = useState<string[]>([]);
   const imeiFieldRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const popupRef = useRef<PopupInfo | null>(null);
+  useEffect(() => { popupRef.current = popup; }, [popup]);
 
   const [barcodePopup, setBarcodePopup] = useState<{ productId: string; productLabel: string; qty: number; price: string } | null>(null);
   const [barcodes, setBarcodes] = useState<string[]>([]);
@@ -121,6 +123,22 @@ export default function PurchasesPage() {
   const [singleBarcode, setSingleBarcode] = useState("");
   const barcodeFieldRefs = useRef<(HTMLInputElement | null)[]>([]);
   const purchaseClientRef = useRef<string | null>(null);
+  useScannerScan((value) => {
+    if (!popupRef.current) return;
+    const el = document.activeElement as HTMLElement | null;
+    if (el?.getAttribute("data-scanner-input") === "imei") return;
+    const imei = value.replace(/\D/g, "").slice(0, 15);
+    if (imei.length !== 15) return;
+    setPopupImeis((prev) => {
+      if (prev.includes(imei)) return prev;
+      const idx = prev.findIndex((v) => v.length < 15);
+      if (idx === -1) return prev;
+      const next = prev.map((v, pIdx) => (pIdx === idx ? imei : v));
+      if (next.every((v) => v.length === 15)) queueMicrotask(() => commit(next));
+      else queueMicrotask(() => focusNextImeiField(next, idx));
+      return next;
+    });
+  });
   const [modifyId, setModifyId] = useState<string | null>(null);
   const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
   const [receipt, setReceipt] = useState<TransactionDetail | null>(null);
@@ -231,7 +249,7 @@ export default function PurchasesPage() {
     })
     .map((p) => ({
       value: p.id,
-      label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""}`.trim(),
+      label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${(p as any).carrier ? String((p as any).carrier).replace("_"," ") : ""}`.trim(),
       trailing: <span className="text-xs text-ink-400">{formatPKR(p.costPrice ?? 0)}</span>,
     }));
   const colorOptions = (colors ?? [])
@@ -282,6 +300,7 @@ export default function PurchasesPage() {
       return;
     }
     const color = colorOptions.find((c) => c.value === colorId);
+    const carrierFromProduct = ((p as any).carrier as "PTA" | "NON_PTA" | "SIM_LOCKED" | null) ?? "PTA";
     playPop();
     setPopup({
       productId: p.id,
@@ -290,7 +309,7 @@ export default function PurchasesPage() {
       price: String(parseFloat(price)),
       colorId: colorId,
       colorLabel: color?.label ?? null,
-      carrier,
+      carrier: carrierFromProduct,
       batteryHealth,
       grade,
     });
@@ -309,7 +328,7 @@ export default function PurchasesPage() {
   }
 
   const validCount = useMemo(() => popupImeis.filter((v) => v.length === 15).length, [popupImeis]);
-  const updatePopupImei = useCallback((i: number, value: string) => {
+  function updatePopupImei(i: number, value: string) {
     setPopupImeis((prev) => {
       const next = prev.map((v, idx) => (idx === i ? value : v));
       if (value.length === 15) {
@@ -321,7 +340,7 @@ export default function PurchasesPage() {
       }
       return next;
     });
-  }, []);
+  }
 
   function clearPopupImei(i: number) {
     const next = popupImeis.map((v, idx) => (idx === i ? "" : v));
@@ -343,8 +362,13 @@ export default function PurchasesPage() {
     focusNextImeiField(next, i);
   }
 
+  const commitGuardRef = useRef(false);
   function commit(imeis: string[]) {
-    if (!popup) return;
+    if (commitGuardRef.current) return;
+    const cur = popupRef.current ?? popup;
+    if (!cur) return;
+    commitGuardRef.current = true;
+    setTimeout(() => { commitGuardRef.current = false; }, 500);
     const seen = new Set<string>();
     for (const imei of imeis) {
       if (seen.has(imei)) {
@@ -355,17 +379,17 @@ export default function PurchasesPage() {
     }
     const newRows = imeis.map((imei) => ({
       key: String(keyCounter++),
-      productId: popup.productId,
-      productLabel: popup.productLabel,
+      productId: cur.productId,
+      productLabel: cur.productLabel,
       imei,
       barcode: "",
-      costPrice: popup.price,
+      costPrice: cur.price,
       quantity: 1,
-      colorId: popup.colorId,
-      colorLabel: popup.colorLabel,
-      carrier: popup.carrier,
-      batteryHealth: popup.batteryHealth,
-      grade: popup.grade,
+      colorId: cur.colorId,
+      colorLabel: cur.colorLabel,
+      carrier: cur.carrier,
+      batteryHealth: cur.batteryHealth,
+      grade: cur.grade,
       discountPct: 0,
       discountFlat: 0,
     }));
@@ -580,7 +604,6 @@ export default function PurchasesPage() {
     setPrice("");
     setQty("1");
     setColorId(null);
-    setCarrier("PTA");
     setBatteryHealth("");
     setModifyId(null);
     purchaseClientRef.current = null;
@@ -898,7 +921,7 @@ export default function PurchasesPage() {
                 <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Discount</p><div className="flex items-center gap-2"><PriceInput value={discountPct} max={100} onChange={setDiscountPct} className="flex-1 min-w-0 bg-white" suffix="%" /><PriceInput value={parseFloat(discount) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => setDiscount(n > 0 ? String(n) : "")} className="flex-1 min-w-0 bg-white" suffix="Rs" /></div></div>
               </div>
             </div>
-            <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); if (flow === "ACCESSORY") openBarcodePopup(); else openImeiPopup(); }}><div className="flex flex-col gap-3"><div className="flex flex-wrap items-end gap-3"><div className="min-w-[200px] flex-[2]"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div>{flow !== "ACCESSORY" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p><Dropdown value={colorId} options={colorOptions} onChange={setColorId} triggerClassName="bg-white" searchable placeholder="Select…" /></div>)}<Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div>{flow === "USED" && (<div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Carrier</p><Dropdown triggerClassName="bg-white" value={carrier} options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))} onChange={(value) => setCarrier(value)} /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p><Input value={batteryHealth} onChange={(e) => setBatteryHealth(e.target.value)} inputMode="numeric" placeholder="Optional" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p><Dropdown triggerClassName="bg-white" value={grade} options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))} onChange={setGrade} /></div></div>)}</div></form></section>
+            <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); if (flow === "ACCESSORY") openBarcodePopup(); else openImeiPopup(); }}><div className="flex flex-col gap-3"><div className="flex flex-wrap items-end gap-3"><div className="min-w-[200px] flex-[2]"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div>{flow !== "ACCESSORY" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p><Dropdown value={colorId} options={colorOptions} onChange={setColorId} triggerClassName="bg-white" searchable placeholder="Select…" /></div>)}<Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div>{flow === "USED" && (<div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p><Input value={batteryHealth} onChange={(e) => setBatteryHealth(e.target.value)} inputMode="numeric" placeholder="Optional" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p><Dropdown triggerClassName="bg-white" value={grade} options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))} onChange={setGrade} /></div></div>)}</div></form></section>
             <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white"><table className="min-w-[480px] w-full table-fixed text-sm"><thead className="sticky top-0 bg-white"><tr className="text-left text-xs uppercase tracking-wide text-ink-500"><th className="w-[180px] px-4 py-3 text-center">Item</th><th className="w-14 px-4 py-3 text-center">Qty</th><th className="w-20 px-4 py-3 text-center">Cost</th><th className="w-32 px-4 py-3 text-center">Disc</th><th className="w-24 px-4 py-3 text-center">Amount</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => {
               const groups = new Map<string, PendingUnit[]>();
               const plain: PendingUnit[] = [];

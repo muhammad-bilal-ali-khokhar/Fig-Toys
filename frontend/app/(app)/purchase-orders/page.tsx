@@ -582,7 +582,7 @@ export default function PurchaseOrdersPage() {
     const creditAmtNL = parseFloat(creditAmount) || 0;
     const bankAmtNL = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
     return (
-      <div className="flex h-full flex-col gap-4">
+      <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
@@ -594,7 +594,7 @@ export default function PurchaseOrdersPage() {
             <Button variant="destructive" onClick={clearAll}>Clear</Button>
           </div>
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
             <div className="shrink-0">
               <div className="flex flex-wrap items-end gap-3">
@@ -634,7 +634,7 @@ export default function PurchaseOrdersPage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700">
