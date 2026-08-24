@@ -232,13 +232,14 @@ export default function SaleReturnsPage() {
     };
   }, [q, runSearch]);
 
+  const cartUnitSet = useMemo(() => new Set(cart.map((l) => l.unitId)), [cart]);
   const flatUnits = useMemo(() => {
     const units: { unit: SearchResult["units"][number]; productIndex: number; added: boolean }[] = [];
     results.forEach((r, i) => {
-      r.units.forEach((u) => units.push({ unit: u, productIndex: i, added: cart.some((l) => l.unitId === u.id) }));
+      r.units.forEach((u) => units.push({ unit: u, productIndex: i, added: cartUnitSet.has(u.id) }));
     });
     return units;
-  }, [results, cart]);
+  }, [results, cartUnitSet]);
 
   useEffect(() => {
     setHighlightedIndex(-1);
