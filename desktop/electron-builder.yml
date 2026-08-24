@@ -54,7 +54,6 @@ nsis:
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: Fig POS
-  license: build/license.txt
   installerSidebar: build/installerSidebar.bmp
   installerHeaderIcon: build/installerHeaderIcon.ico
   include: build/installer.nsh
