@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.10
+
 - **Automatic print you control. Turn on automatic print for each document in Settings Automatic print and your sale, purchase, sale return, purchase return, orders, reservations and vouchers will print the moment you save. No extra clicks, perfect for busy counters.**
 - **Beautiful slips for reservations and consignments. Reservations and consignments now have real 58, 80 and A4 print layouts with barcodes and shop details. Find them in Print Studio and print from the slip itself. Switching documents in Print Studio no longer shows wrong not found messages.**
 - **A calmer POS at the counter. After a sale the screen clears and shows a clean receipt just like sale returns, so the cart never stays behind. Dropdowns are now crisp white on light backgrounds and the payment panel fits without overflow.**
