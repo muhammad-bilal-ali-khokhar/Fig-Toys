@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.2.17
+
+
+
 ## v0.2.16
 
 - **Your inventory now has a full ledger.** Tap any product name in Inventory and see its complete story. Every purchase, sale and return plus every IMEI with status, all in one sheet. Works for both phones and accessories. No more hunting through transactions.
