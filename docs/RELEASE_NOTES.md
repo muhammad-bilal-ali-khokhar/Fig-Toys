@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.2.19
+
+
+
 ## v0.2.18
 
 - **Print stays where you expect.** Vouchers and Expenses now open right in Print Studio inside the app. No more popping out to the browser. Preview, pick your format and print without leaving your flow.
