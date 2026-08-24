@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.15
+
 - **Reservations now work exactly like sales.** Every reservation advance can be split across Cash, Card, Bank and Credit just like a sale, with Fill buttons and bank picker in the upper Payment card and a clean total below. The reservation screen now matches POS spacing, inputs and panels perfectly.
 - **Your advance is never just cash anymore.** Pay a reservation with Card or Bank and it is recorded as Card or Bank, not lumped as Cash. Reports, ledgers and the POS payment panel show the real method.
 - **Card fees follow the card.** If an advance was paid by Card, the card fee is included when you complete the sale, so your totals and profits stay correct.

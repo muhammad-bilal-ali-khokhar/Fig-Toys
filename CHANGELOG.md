@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.14
+## v0.2.15
+
+- Released on: 2026-08-24
+
+- feat: reservation refund split by payment method, bank-aware advances and polished lists
+- feat: reservation advances split by payment method with POS parity
 
 - Released on: 2026-08-24
 
