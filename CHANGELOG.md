@@ -4,6 +4,15 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
+## v0.2.18
+
+- Released on: 2026-08-25
+
+- perf: hardware scanner — Set lookups for reservations and sale-returns dropdowns
+- perf: fast hardware scanner — memoized IMEI rows, Set lookup for flatItems, stable scanner handler
+- fix: expense Print opens Print Studio in-app, not a new browser tab
+- fix: voucher Print opens Print Studio in-app, not a new browser tab
+
 ## v0.2.17
 
 - Released on: 2026-08-24
