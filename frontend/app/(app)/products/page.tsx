@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import type { Brand, Category, Color, ProductDetail, ProductSummary, ScreenSize } from "@/lib/api-types";
@@ -74,7 +75,8 @@ export default function ProductsPage() {
   const { data: colors, refetch: refetchColors } = useApi<Color[]>("/color");
   const { data: screenSizes, refetch: refetchScreenSizes } = useApi<ScreenSize[]>("/screen-size");
   const { toast } = useToast();
-  const [q, setQ] = useState("");
+  const searchParams = useSearchParams();
+  const [q, setQ] = useState(() => searchParams.get("search") ?? searchParams.get("q") ?? "");
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
@@ -120,7 +122,7 @@ export default function ProductsPage() {
       if (colorId && p.colorId !== colorId) return false;
       const query = q.trim().toLowerCase();
       if (!query) return true;
-      return [p.brand, p.model, p.storage ?? "", p.ram ?? "", p.screenSize ?? "", p.color ?? "", p.sku ?? ""]
+      return [p.brand, p.model, p.storage ?? "", p.ram ?? "", p.screenSize ?? "", p.color ?? "", p.sku ?? "", (p as any).barcode ?? ""]
         .join(" ")
         .toLowerCase()
         .includes(query);
@@ -172,6 +174,12 @@ export default function ProductsPage() {
 
   const { page: safePage, pageSize, setPage, setPageSize, pageCount, from, to, slice } = usePagination(sorted.length);
   const pageItems = slice(sorted);
+
+  useEffect(() => {
+    const qp = searchParams.get("search") ?? searchParams.get("q");
+    if (qp !== null) setQ(qp);
+    else setQ("");
+  }, [searchParams]);
 
   useEffect(() => {
     setPage(1);
@@ -439,6 +447,7 @@ export default function ProductsPage() {
     setSubcategoryId("");
     setBrandId("");
     setColorId("");
+    setQ("");
   }
 
   return (

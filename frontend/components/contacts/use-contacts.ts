@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-api";
 import { useToast } from "@/components/ui/toast";
 import { usePagination } from "@/components/ui/pagination";
@@ -29,10 +29,11 @@ export type SortKey =
 
 export function useContacts() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data, loading, refetch } = useApi<Contact[]>("/contact");
   const { toast } = useToast();
 
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => searchParams.get("search") ?? searchParams.get("q") ?? "");
   const [type, setType] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -109,6 +110,12 @@ export function useContacts() {
 
   const { page: safePage, pageSize, setPage, setPageSize, pageCount, from, to, slice } = usePagination(sorted.length);
   const pageItems = slice(sorted);
+
+  useEffect(() => {
+    const qp = searchParams.get("search") ?? searchParams.get("q");
+    if (qp !== null) setQ(qp);
+    else setQ("");
+  }, [searchParams]);
 
   useEffect(() => {
     setPage(1);
@@ -299,6 +306,7 @@ export function useContacts() {
 
   function resetFilters() {
     setType("");
+    setQ("");
   }
 
   function openLedger(id: string) {

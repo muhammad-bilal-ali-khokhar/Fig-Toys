@@ -110,7 +110,7 @@ function actionsFor(r: SearchResult): Action[] {
       ];
     case "PRODUCT":
       return [
-        { label: "View product", icon: ProductsIcon, href: `/products?search=${encodeURIComponent(r.number)}` },
+        { label: "View product", icon: ProductsIcon, href: `/products?search=${encodeURIComponent(r.title)}` },
         { label: "View in inventory", icon: InventoryIcon, href: `/inventory?productId=${r.id}` },
         { label: "New purchase", icon: PurchasesIcon, href: `/purchases?productId=${r.id}` },
         { label: "New sale", icon: PosIcon, href: `/pos?productId=${r.id}` },

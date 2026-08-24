@@ -5,6 +5,9 @@
 - **Your POS and Reservations tables are now smoother and perfectly matched.** Both lists live inside a clean white card with fixed height so only the rows scroll while headers stay put. Same widths, same hover and the same polished look everywhere so switching between selling and reserving feels seamless.
 - **Edit accessory quantity right in the cart.** For chargers, cases and other non phone items you can now tap the Qty box directly in POS and Reservations. The field is grey for clarity with smart stock checks so you never oversell.
 - **Cleaner purchase returns.** Stock counts no longer clutter the accessory picker so finding the right item is faster and the list stays tidy.
+- **Search that actually finds what you scanned.** Tap any product in global search and your Products page opens already filtered to that exact model. Scan a barcode and you land on the product name not a blank page. Try it now from the top search bar with any product like RONIN R 4025.
+- **Smarter Contacts from search too.** Jumping to a contact from global search now opens your contacts already filtered to that name or phone so you find them instantly.
+- **Reliable installs for every shop.** Fresh installs and updates now build the database perfectly every time so new PCs set up without hiccups.
 
 ## v0.2.20
 
