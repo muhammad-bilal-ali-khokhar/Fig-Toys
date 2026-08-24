@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.19
+## v0.2.20
+
+- Released on: 2026-08-24
+
+- feat: carrier as product variant, POS-like scroll fixes, purchase IME auto-add
 
 - Released on: 2026-08-24
 

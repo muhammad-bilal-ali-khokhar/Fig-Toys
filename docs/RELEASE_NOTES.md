@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.20
+
 - **Carrier is now a real product choice.** PTA, Non PTA and SIM Locked are now separate products with their own prices. New phones default to PTA, Used phones ask you to pick Carrier at creation, and Category and Carrier sit together in one clean row. Phones always have a barcode and stock, profit and search now group correctly by carrier so your reports stay true. Purchases pick the exact carrier product so you never mix prices again.
 - **Smoother purchase lists and product creation.** Creating phones is clearer, buying used is faster, and barcodes are handled automatically for phones while accessories keep the handy toggle.
 
