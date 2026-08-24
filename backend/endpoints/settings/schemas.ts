@@ -46,3 +46,16 @@ export const dashboardLayoutSchema = z.object({
 });
 
 export type DashboardLayoutInput = z.infer<typeof dashboardLayoutSchema>;
+
+export const autoPrintSchema = z.object({
+  SALE: z.boolean().default(false),
+  PURCHASE: z.boolean().default(false),
+  SALE_RETURN: z.boolean().default(false),
+  PURCHASE_RETURN: z.boolean().default(false),
+  PURCHASE_ORDER: z.boolean().default(false),
+  VOUCHER: z.boolean().default(false),
+  RESERVATION: z.boolean().default(false),
+  EXPENSE: z.boolean().default(false),
+});
+
+export type AutoPrintInput = z.infer<typeof autoPrintSchema>;

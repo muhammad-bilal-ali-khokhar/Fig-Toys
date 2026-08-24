@@ -15,6 +15,7 @@ import { PriceInput } from "@/components/ui/price-input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
+import { triggerAutoPrint, useAutoPrint } from "@/lib/use-auto-print";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
@@ -104,6 +105,8 @@ export default function SaleReturnsPage() {
   const [modifyId, setModifyId] = useState<string | null>(null);
   const [modifyPickerOpen, setModifyPickerOpen] = useState(false);
   const [receipt, setReceipt] = useState<TransactionDetail | null>(null);
+  const autoPrintEnabled = useAutoPrint("SALE_RETURN");
+  useEffect(() => { if (receipt && autoPrintEnabled) triggerAutoPrint(true); }, [receipt, autoPrintEnabled]);
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -631,7 +634,7 @@ export default function SaleReturnsPage() {
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>
-                  <Dropdown value={customerId} options={contactOptions} onChange={(v) => { setCustomerId(v); const c = (contacts ?? []).find((x) => x.id === v); if (c) { setContactName(c.name); setContactPhone(c.phone ?? ""); } }} searchable placeholder="Select customer…" />
+                  <Dropdown value={customerId} options={contactOptions} onChange={(v) => { setCustomerId(v); const c = (contacts ?? []).find((x) => x.id === v); if (c) { setContactName(c.name); setContactPhone(c.phone ?? ""); } }} triggerClassName="bg-white" searchable placeholder="Select customer…" />
                   <p className="mt-1 text-xs text-ink-400">{contactName ? `${contactName}${contactPhone ? ` · ${contactPhone}` : ""}` : "Or auto-assigns from unit"}</p>
                 </div>
                 <div className="w-28 shrink-0">
@@ -654,7 +657,7 @@ export default function SaleReturnsPage() {
                 </div>
                 <div className="min-w-64 max-w-[320px] flex-1">
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
-                  <Dropdown value={selProductId} options={productOptions} onChange={(v) => { setSelProductId(v); const p = (products ?? []).find((x) => x.id === v); if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || "")); }} searchable placeholder="Select accessory…" />
+                  <Dropdown value={selProductId} options={productOptions} onChange={(v) => { setSelProductId(v); const p = (products ?? []).find((x) => x.id === v); if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || "")); }} triggerClassName="bg-white" searchable placeholder="Select accessory…" />
                 </div>
                 <div className="w-20">
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
@@ -708,7 +711,7 @@ export default function SaleReturnsPage() {
               </table>
             </div>
           </div>
-          <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[340px] lg:max-w-[400px]">
+          <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
             <div className="flex h-full flex-col gap-3">
               <div className="flex-1 rounded-2xl bg-white p-4">
                 <div className="flex items-center justify-between">
@@ -716,8 +719,8 @@ export default function SaleReturnsPage() {
                   <p className="text-xs text-ink-400">Total <span className="font-semibold text-ink-900">{formatPKR(refundTotal)}</span></p>
                 </div>
               <div className="mt-3 space-y-2">
-                <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotal - (parseFloat(creditAmount) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(refundTotal - (parseFloat(creditAmount) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill cash</Button></div>
-                <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={creditAmount} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotal - (parseFloat(cash) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCreditAmount(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCreditAmount(clampMoneyInput(String(refundTotal - (parseFloat(cash) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill credit</Button></div>
+                <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotal - (parseFloat(creditAmount) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-8 shrink-0 whitespace-nowrap px-2.5 text-[11px] active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(refundTotal - (parseFloat(creditAmount) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill cash</Button></div>
+                <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={creditAmount} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotal - (parseFloat(cash) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCreditAmount(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-8 shrink-0 whitespace-nowrap px-2.5 text-[11px] active:scale-[0.97] transition-transform duration-100" onClick={() => setCreditAmount(clampMoneyInput(String(refundTotal - (parseFloat(cash) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill credit</Button></div>
               </div>
               <div className="mt-3"><BankPaymentRow bankRows={bankRows} bankAccounts={bankAccounts} onBankSheetOpen={() => setBankSheetOpen(true)} onAddBank={() => { if (bankRows.length === 0) { const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0]; setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]); } setBankSheetOpen(true); }} /></div>
             </div>
@@ -781,7 +784,7 @@ export default function SaleReturnsPage() {
                 setContactPhone(c.phone ?? "");
               }
             }}
-            searchable
+            triggerClassName="bg-white" searchable
             placeholder="Select customer…"
           />
           <p className="mt-1 text-xs text-ink-400">{contactName ? `${contactName}${contactPhone ? ` · ${contactPhone}` : ""}` : "Or auto-assigns from unit"}</p>
@@ -891,7 +894,7 @@ export default function SaleReturnsPage() {
                 const p = (products ?? []).find((x) => x.id === v);
                 if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || ""));
               }}
-              searchable
+              triggerClassName="bg-white" searchable
               placeholder="Select accessory…"
             />
           </div>
@@ -1034,11 +1037,11 @@ export default function SaleReturnsPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
-                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
                   </div>
                   <div>
                     <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
-                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">

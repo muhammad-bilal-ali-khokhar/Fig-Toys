@@ -13,6 +13,7 @@ const DEFAULT_SOUND_PREFS = {
 
 const THEME_KEY = "app.theme";
 const DASHBOARD_LAYOUT_KEY = "app.dashboardLayout";
+const AUTO_PRINT_KEY = "app.autoPrint";
 
 export async function getTheme(): Promise<string | null> {
   const row = await prisma.settings.findUnique({ where: { key: THEME_KEY } });
@@ -115,4 +116,35 @@ export async function updateSoundPrefs(userId: string, input: SoundPrefsInput) {
     data: { soundPrefs: JSON.stringify(input) },
   });
   return input;
+}
+
+const DEFAULT_AUTO_PRINT = {
+  SALE: false,
+  PURCHASE: false,
+  SALE_RETURN: false,
+  PURCHASE_RETURN: false,
+  PURCHASE_ORDER: false,
+  VOUCHER: false,
+  RESERVATION: false,
+  EXPENSE: false,
+} as const;
+
+export async function getAutoPrint() {
+  const row = await prisma.settings.findUnique({ where: { key: AUTO_PRINT_KEY } });
+  if (!row?.value) return { ...DEFAULT_AUTO_PRINT };
+  try {
+    return { ...DEFAULT_AUTO_PRINT, ...JSON.parse(row.value) };
+  } catch {
+    return { ...DEFAULT_AUTO_PRINT };
+  }
+}
+
+export async function updateAutoPrint(input: Record<string, boolean>) {
+  const merged = { ...DEFAULT_AUTO_PRINT, ...input };
+  await prisma.settings.upsert({
+    where: { key: AUTO_PRINT_KEY },
+    update: { value: JSON.stringify(merged) },
+    create: { key: AUTO_PRINT_KEY, value: JSON.stringify(merged) },
+  });
+  return merged;
 }

@@ -39,6 +39,7 @@ import { SettingsSidebar, SETTINGS_TABS, type TabId } from "@/components/setting
 import { ActivityLog } from "@/components/audit/activity-log";
 import { BackupTab } from "@/components/settings/backup-tab";
 import { PrintSettingsTab } from "@/components/settings/print-settings-tab";
+import { AutoPrintTab } from "@/components/settings/auto-print-tab";
 import { DesktopAppTab } from "@/components/settings/desktop-app-tab";
 import { UpdateTab } from "@/components/settings/update-tab";
 import { LicenseTab } from "@/components/settings/license-tab";
@@ -907,6 +908,12 @@ export default function SettingsPage() {
           <div>
             <h3 className="mb-4 text-lg font-bold text-ink-900">Print & thermal</h3>
             <PrintSettingsTab />
+          </div>
+        )}
+        {tab === "autoPrint" && (
+          <div>
+            <h3 className="mb-4 text-lg font-bold text-ink-900">Automatic print</h3>
+            <AutoPrintTab />
           </div>
         )}
         {tab === "desktop" && (

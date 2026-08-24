@@ -4,14 +4,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { apiRequest } from "@/lib/apiClient";
-import type { CompanyProfile, Expense, TransactionDetail, Voucher } from "@/lib/api-types";
+import type { CompanyProfile, Expense, ReservationDetail, TransactionDetail, Voucher } from "@/lib/api-types";
 import { whatsappLink } from "@/lib/whatsapp";
 import { PRINT_DEFAULT_CONFIG, PRINT_DEFAULT_OPTIONS, PRINT_FORMATS, type PrintBooleanOptions, type PrintConfig, type PrintDocType, type PrintFormatId, type QrTarget, type PrintSetting } from "@/lib/constants";
-import { ExpenseVoucherDocument, ReceiptDocument, VoucherDocument, type BankAccount } from "@/components/print/documents";
+import { ExpenseVoucherDocument, ReceiptDocument, ReservationDocument, VoucherDocument, type BankAccount } from "@/components/print/documents";
 import { useToast } from "@/components/ui/toast";
 import { doPrint } from "@/lib/print";
 
-export type DirectDocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE";
+export type DirectDocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE" | "RESERVATION" | "CONSIGNMENT";
 
 const DOC_TYPE_TO_PRINT_DOC_TYPE: Record<DirectDocType, PrintDocType> = {
   SALE: "SALE",
@@ -20,6 +20,8 @@ const DOC_TYPE_TO_PRINT_DOC_TYPE: Record<DirectDocType, PrintDocType> = {
   PURCHASE_RETURN: "PURCHASE_RETURN",
   VOUCHER: "VOUCHER",
   EXPENSE: "EXPENSE",
+  RESERVATION: "RESERVATION",
+  CONSIGNMENT: "CONSIGNMENT",
 };
 
 function applySetting(setting: PrintSetting | undefined, options: PrintBooleanOptions, format: PrintFormatId, qrType: QrTarget, config: PrintConfig): [PrintBooleanOptions, PrintFormatId, QrTarget, PrintConfig] {
@@ -54,6 +56,7 @@ export function DirectPrint({
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [voucher, setVoucher] = useState<Voucher | null>(null);
   const [expense, setExpense] = useState<Expense | null>(null);
+  const [reservation, setReservation] = useState<ReservationDetail | null>(null);
   const printedRef = useRef(false);
 
   async function open() {
@@ -86,6 +89,8 @@ export function DirectPrint({
         setVoucher(await apiRequest<Voucher>(`/voucher/${id}`));
       } else if (type === "EXPENSE") {
         setExpense(await apiRequest<Expense>(`/expense/${id}`));
+      } else if (type === "RESERVATION" || type === "CONSIGNMENT") {
+        setReservation(await apiRequest<ReservationDetail>(`/reservation/${id}`));
       } else {
         setDetail(await apiRequest<TransactionDetail>(`/transaction/${id}`));
       }
@@ -113,6 +118,10 @@ export function DirectPrint({
     ) : type === "EXPENSE" ? (
       expense ? (
         <ExpenseVoucherDocument expense={expense} options={options} format={format} profile={profile} config={config} />
+      ) : null
+    ) : type === "RESERVATION" || type === "CONSIGNMENT" ? (
+      reservation ? (
+        <ReservationDocument reservation={reservation} options={options} format={format} profile={profile} qrUrl={qrUrl} qrType={qrType} config={config} />
       ) : null
     ) : detail ? (
       <ReceiptDocument

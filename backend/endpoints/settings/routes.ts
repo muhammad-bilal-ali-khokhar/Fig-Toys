@@ -4,6 +4,8 @@ import { requireAuth, requirePermission } from "../../core/middleware/auth";
 import { PERMISSIONS } from "../../core/lib/permissions";
 import { validate } from "../../core/middleware/validate";
 import {
+  autoPrintGetHandler,
+  autoPrintPutHandler,
   companyGetHandler,
   companyPutHandler,
   dashboardLayoutGetHandler,
@@ -13,7 +15,7 @@ import {
   themeGetHandler,
   themePutHandler,
 } from "./handlers";
-import { companyProfileSchema, dashboardLayoutSchema, soundPrefsSchema, themeSchema } from "./schemas";
+import { autoPrintSchema, companyProfileSchema, dashboardLayoutSchema, soundPrefsSchema, themeSchema } from "./schemas";
 
 const router = Router();
 
@@ -28,5 +30,7 @@ router.get("/theme", asyncHandler(themeGetHandler));
 router.put("/theme", validate(themeSchema), asyncHandler(themePutHandler));
 router.get("/dashboard-layout", asyncHandler(dashboardLayoutGetHandler));
 router.put("/dashboard-layout", validate(dashboardLayoutSchema), asyncHandler(dashboardLayoutPutHandler));
+router.get("/auto-print", asyncHandler(autoPrintGetHandler));
+router.put("/auto-print", requirePermission(PERMISSIONS.settingsWrite), validate(autoPrintSchema), asyncHandler(autoPrintPutHandler));
 
 export default router;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import JsBarcode from "jsbarcode";
-import type { CompanyProfile, Expense, TransactionDetail, Voucher } from "@/lib/api-types";
+import type { CompanyProfile, Expense, ReservationDetail, TransactionDetail, Voucher } from "@/lib/api-types";
 import { amountInWords, formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import {
@@ -33,6 +33,8 @@ export type BankAccount = {
 
 export const TYPE_TITLE: Record<string, string> = {
   ...RECEIPT_TEXT.document,
+  RESERVATION: "Reservation Slip",
+  CONSIGNMENT: "Consignment Slip",
   EXPENSE: EXPENSE_PRINT_TEXT.voucherTitle,
 };
 
@@ -924,3 +926,80 @@ export function ExpenseVoucherDocument({
     </div>
   );
 }
+
+export function ReservationDocument({
+  reservation,
+  options,
+  format,
+  profile,
+  qrUrl,
+  qrType = "whatsapp",
+  config: configProp,
+}: {
+  reservation: any;
+  options: PrintBooleanOptions;
+  format: PrintFormatId;
+  profile: CompanyProfile | null;
+  qrUrl?: string | null;
+  qrType?: QrTarget;
+  config?: PrintConfig;
+}) {
+  const isA4 = format === "a4";
+  const config = configProp ?? PRINT_DEFAULT_CONFIG;
+  const isConsignment = reservation.type === "CONSIGNMENT";
+  const balanceDue = parseFloat(reservation.total) - parseFloat(reservation.advance);
+  const divider = isA4 ? "border-t border-ink-200" : "border-t-2 border-dashed border-black";
+  const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: `${config.paddingMm}mm` } as const;
+  const densityClass = isA4 ? "" : config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
+  const pad = isA4 ? "px-12 py-10" : "";
+  const base = isA4 ? "text-sm" : "font-mono font-bold text-black";
+  return (
+    <div style={thermalStyle} className={`bg-white ${pad} ${base} ${densityClass} ${isA4 ? "text-ink-900" : "text-black"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          {options.header && (
+            <>
+              {config.showLogo && (profile?.logoUrl ?? "/icon.png") && <img src={profile?.logoUrl ?? "/icon.png"} alt="" className={`mb-2 max-h-16 w-auto object-contain ${isA4 ? "" : "grayscale contrast-125"}`} />}
+              <p style={isA4 ? {} : { fontSize: Math.round(18 * config.headerScale) }} className="break-words font-black uppercase tracking-wide text-black">{profile?.name ?? APP.nameFull}</p>
+              {options.shopInfo && hasShopInfo(profile) && <div className="mt-1.5 space-y-0.5 text-[12px] font-bold leading-tight text-black">{profile?.tagline && <p>{profile.tagline}</p>}{profile?.address && <p>{profile.address}</p>}{profile?.phone && <p className="font-black">☎ Contact: {profile.phone}</p>}</div>}
+            </>
+          )}
+        </div>
+        <div className="shrink-0 text-right"><p className="inline-block whitespace-nowrap rounded-lg border-2 border-ink-900 bg-white px-3 py-1 text-xs font-black uppercase tracking-widest text-ink-900">{isConsignment ? "Consignment" : "Reservation"}</p></div>
+      </div>
+      {!isA4 && <p style={{ fontSize: Math.round(18 * config.headerScale) }} className="mt-3 text-center font-black uppercase tracking-widest text-black">{isConsignment ? "Consignment Slip" : "Reservation Slip"}</p>}
+      <div className={`my-4 ${divider}`} />
+      <div className={isA4 ? "grid grid-cols-2 gap-x-10 gap-y-1" : "space-y-1.5"}>
+        {options.number && <PrintRow label="Document No." value={reservation.number} />}
+        {options.date && <PrintRow label="Date" value={formatDateTime(reservation.createdAt)} />}
+        {options.contact && <PrintRow label="Contact" value={reservation.contact.name} />}
+        {options.phone && reservation.contact.phone && <PrintRow label="Phone" value={reservation.contact.phone} />}
+        {options.cashier && <PrintRow label="Processed by" value={reservation.user.name} />}
+      </div>
+      <div className={`my-4 ${divider}`} />
+      <div>
+        <p className="text-[11px] font-black uppercase tracking-wider text-black">Items</p>
+        <div className="my-1 border-b-2 border-black" />
+        {reservation.items.map((item: any) => (
+          <div key={item.id} className="border-b border-dashed border-black py-2">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-[13px] font-black leading-tight text-black">{typeof item.product.brand === "string" ? item.product.brand : item.product.brand.name} {item.product.model} {item.product.storage ?? ""}{item.quantity > 1 ? ` ×${item.quantity}` : ""}</p>
+              <p className="whitespace-nowrap text-right text-[13px] font-black text-black">{formatPKR(item.total)}</p>
+            </div>
+            <p className="font-mono text-[11px] font-bold leading-tight text-black">IMEI: {item.unit?.imei ?? "—"}</p>
+          </div>
+        ))}
+      </div>
+      <div className={`my-3 ${divider}`} />
+      <div className="space-y-1.5 text-[13px]">
+        <PrintRow label={isConsignment ? "Agreed total" : "Total"} value={formatPKR(reservation.total)} bold />
+        {!isConsignment && <><PrintRow label="Advance" value={formatPKR(reservation.advance)} /><PrintRow label="Balance due" value={formatPKR(balanceDue)} /></>}
+      </div>
+      {options.note && reservation.note && <div className="mt-4"><p className="text-[11px] font-black uppercase tracking-wider text-black">Note</p><p className="mt-1 rounded-xl border border-black bg-white px-3 py-2 font-mono text-[12px] font-bold leading-tight text-black">{reservation.note}</p></div>}
+      {(qrUrl || options.barcode) && <div className={`${isA4 ? "mt-8" : "mt-5"} ${qrUrl && options.barcode ? "grid grid-cols-2 items-center" : "flex justify-center"}`}>{qrUrl && <img src={qrUrl} alt={`${qrType} QR`} width={isA4 ? 110 : config.qrSize} height={isA4 ? 110 : config.qrSize} className="mx-auto" />}{options.barcode && <div className="flex flex-col items-center"><ReceiptBarcode value={reservation.number} format={format} config={config} /><p className={`mt-2 font-mono tracking-widest ${isA4 ? "text-xs font-semibold text-ink-700" : "text-[11px] font-black text-black"}`}>{reservation.number}</p></div>}</div>}
+      {options.signature && <div className="avoid-break mt-8"><div className="w-full border-t-2 border-black pt-2 text-center text-[11px] font-black uppercase tracking-widest text-black">Authorized signature</div></div>}
+      {options.thanks && profile?.footerText && <div className={`${divider} mt-6 pt-4`}><p className="text-center font-mono text-[11px] font-black uppercase tracking-widest text-black">{profile.footerText}</p></div>}
+    </div>
+  );
+}
+

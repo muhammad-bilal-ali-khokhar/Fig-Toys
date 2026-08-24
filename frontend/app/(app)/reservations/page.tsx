@@ -21,6 +21,8 @@ import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { ReservationModifyPicker } from "@/components/transactions/reservation-modify-picker";
 import { ReservationReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
+import { useDashboardLayout } from "@/lib/dashboard-layout-context";
+import { triggerAutoPrint, useAutoPrint } from "@/lib/use-auto-print";
 import { ChevronLeftIcon, PlusIcon, ReservationIcon, SmartphoneIcon, XIcon } from "@/components/icons";
 import { SearchInput } from "@/components/ui/search-input";
 import { useScannerScan } from "@/components/scanner/global-scanner";
@@ -626,6 +628,10 @@ export default function ReservationsPage() {
 
   const isWalkIn = contactId === WALK_IN;
   const balanceDue = roundMoney(total - (advance === "" ? 0 : parseFloat(advance) || 0));
+  const { layout } = useDashboardLayout();
+  const isNewLayout = layout === "new";
+  const autoPrintEnabled = useAutoPrint(flow === "CONSIGNMENT" ? "CONSIGNMENT" : "RESERVATION");
+  useEffect(() => { if (reservation && autoPrintEnabled) triggerAutoPrint(true); }, [reservation, autoPrintEnabled]);
 
   useSaveShortcut(() => {
     void reserve();
@@ -733,6 +739,70 @@ export default function ReservationsPage() {
     );
   }
 
+  if (isNewLayout) {
+    const paymentSection = (
+      <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
+        <div className="rounded-3xl bg-white p-4">
+          <h3 className="text-sm font-semibold text-ink-900">{flow === "CONSIGNMENT" ? "Consignment" : "Advance payment"}</h3>
+          <p className="mt-1 text-xs text-ink-400">{flow === "CONSIGNMENT" ? "Agreed total" : "Total"} <span className="font-semibold text-ink-900">{formatPKR(total)}</span></p>
+          <div className="mt-3">
+            {flow === "CONSIGNMENT" ? (
+              <p className="rounded-2xl bg-ink-50 px-4 py-3 text-xs font-medium text-ink-500">Phone leaves the shop. Collect payment when it sells.</p>
+            ) : (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Advance payment</p>
+                <Input value={advance} onChange={(e) => setAdvance(clampMoneyInput(e.target.value))} placeholder="0 = nothing paid" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
+                {advance !== "" && !Number.isNaN(parseFloat(advance)) && <p className="mt-1.5 text-xs text-ink-500">Balance due <span className="font-semibold text-ink-900">{formatPKR(Math.max(0, balanceDue))}</span></p>}
+              </div>
+            )}
+          </div>
+        </div>
+        <PaymentSummaryCard title="Summary" total={total} lines={flow === "RESERVATION" && advance !== "" && !Number.isNaN(parseFloat(advance)) ? [{ label: "Advance", amount: parseFloat(advance) || 0 }, { label: "Balance due", amount: balanceDue }] : []}>
+          <Button className="w-full" type="submit" disabled={submitting || cart.length === 0}>{submitting ? "Saving…" : flow === "CONSIGNMENT" ? `Consign ${formatPKR(total)}` : `Reserve ${formatPKR(total)}`}<Kbd>Ctrl+S</Kbd></Button>
+        </PaymentSummaryCard>
+      </div>
+    );
+    return (
+      <>
+        <form className="flex h-full flex-col" onSubmit={(e) => { e.preventDefault(); void reserve(); }}>
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
+              <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Reservation" : "Reservation"}<span className="ml-2 text-sm font-medium text-ink-400">{flow === "CONSIGNMENT" ? "· On Consignment" : "· Hold at Shop"}</span></h1>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>Modify</Button>
+              <Link href="/reservations/all"><Button variant="ghost"><ReservationIcon className="h-4 w-4" />All Reservations</Button></Link>
+              <Link href="/reservations/cancel"><Button variant="ghost"><XIcon className="h-4 w-4" />Cancel</Button></Link>
+              <Button variant="destructive" onClick={reset}>Clear</Button>
+            </div>
+          </div>
+          <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer</p>{contactOptions.length > 0 && <Dropdown value={contactId} options={contactOptions} onChange={setContactId} searchable placeholder="Select customer" triggerClassName="bg-white" />}</div>
+            <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Reservation #</p><Input value={reserveNo} readOnly variant="white" className="bg-white" /></div>
+          </div>
+          {isWalkIn && <div className="mt-3 grid shrink-0 gap-3 rounded-2xl bg-white p-4 md:grid-cols-2"><div><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Customer name</p><Input value={walkInName} onChange={(e) => setWalkInName(e.target.value)} placeholder="Enter customer name" className="bg-ink-100" /></div><div><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Phone number</p><Input value={walkInPhone} onChange={(e) => setWalkInPhone(e.target.value)} placeholder="e.g. 0300-1234567" inputMode="tel" className="bg-ink-100" /></div></div>}
+          <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden lg:flex-row">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+              <section className="shrink-0"><div className="flex flex-wrap items-end gap-3">
+                <div ref={searchWrapRef} className="relative min-w-48 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p><SearchInput data-scanner-input="pos-search" value={q} onChange={setQ} onFocus={() => { setSearchFocused(true); if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q); }} onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); if (flatItems.length > 0) setHighlightedIndex((i) => (i + 1) % flatItems.length); } else if (e.key === "ArrowUp") { e.preventDefault(); if (flatItems.length > 0) setHighlightedIndex((i) => (i <= 0 ? flatItems.length - 1 : i - 1)); } else if (e.key === "Enter") { e.preventDefault(); if (flatItems.length > 0 && highlightedIndex >= 0 && highlightedIndex < flatItems.length) { activateFlatItem(flatItems[highlightedIndex]); } else { void handleSearchEnter(); } } else if (e.key === "Escape") { setSearchFocused(false); } }} placeholder="Scan IMEI / Barcode…" variant="white" className="bg-ink-100 h-10 text-sm rounded-[12px]" iconClassName="h-4 w-4" /></div>
+                <div className="min-w-64 max-w-[320px] flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p><Dropdown value={selProductId} options={productOptions} onChange={(v) => { setSelProductId(v); const pp = (products ?? []).find((x) => x.id === v); if (pp?.sellPrice) setAddPrice(String(parseFloat(pp.sellPrice) || "")); }} searchable placeholder="Select accessory…" triggerClassName="bg-white" /></div>
+                <div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={addQty} onChange={(e) => setAddQty(e.target.value.replace(/\D/g, ""))} placeholder="1" inputMode="numeric" className="bg-white text-center" /></div>
+                <div className="w-28"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p><Input value={addPrice} onChange={(e) => setAddPrice(clampMoneyInput(e.target.value))} placeholder="Auto" inputMode="decimal" className="bg-white" /></div>
+                <Button type="button" variant="secondary" onClick={handleAddClick} className="h-10 shrink-0 px-4 text-sm">Add</Button>
+              </div></section>
+              <div className="flex items-center justify-between shrink-0"><span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Reserved items</span><span className="text-xs text-ink-500">{totalQuantity} item(s)</span></div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white"><table className="w-full text-sm"><thead className="sticky top-0 z-10 bg-white"><tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500"><th className="px-4 py-3">Item</th><th className="w-14 px-4 py-3 text-center">Qty</th><th className="w-28 px-4 py-3 text-right">{flow === "CONSIGNMENT" ? "Agreed price" : "Price"}</th><th className="w-28 px-4 py-3 text-right">Amount</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{cart.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-ink-400">Cart is empty. Search and add items.</td></tr> : <><Fragment>{cartGroups.groups.map((g) => (<Fragment key={g.key}><tr className="bg-ink-50/80"><td className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{g.label}</span><span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500 ring-1 ring-ink-200">{g.lines.length} unit{g.lines.length === 1 ? "" : "s"}</span></div></td><td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-900">{g.lines.reduce((s,l)=>s+l.quantity,0)}</td><td className="px-4 py-2.5 text-right"><div className="w-20"><PriceInput value={g.unitPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupPrice(g.key, n)} className="bg-white px-2 text-right" /></div></td><td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">{formatPKR(roundMoney(g.lines.reduce((s,l)=>s+l.unitPrice*l.quantity,0)))}</td><td className="px-4 py-2.5" /></tr>{g.lines.map((line) => (<tr key={line.key} className="border-b border-ink-50 bg-white"><td className="px-4 py-2.5 pl-9"><span className="font-mono text-[13px] font-medium text-ink-900">{line.imei}</span></td><td className="px-4 py-2.5 text-center text-ink-700">{line.quantity}</td><td className="px-4 py-2.5 text-right"><div className="w-20"><PriceInput value={line.unitPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => setLinePrice(line.key, n)} className="px-2 text-right" /></div></td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(roundMoney(line.unitPrice*line.quantity))}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeLine(line.key)} className="rounded-lg p-1 text-ink-300 hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>))}</Fragment>{cartGroups.plain.map((line) => (<tr key={line.key} className="border-b border-ink-50 bg-white"><td className="px-4 py-3"><p className="font-medium text-ink-900">{line.label}</p><p className="text-[11px] text-ink-400">{line.imei ?? `${line.quantity} × ${formatPKR(line.unitPrice)}`}</p></td><td className="px-4 py-3 text-center text-ink-700">{line.quantity}</td><td className="px-4 py-3 text-right"><div className="ml-auto w-20"><PriceInput value={line.unitPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => setLinePrice(line.key, n)} className="px-2 text-right" /></div></td><td className="px-4 py-3 text-right font-semibold text-ink-900">{formatPKR(roundMoney(line.unitPrice*line.quantity))}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => removeLine(line.key)} className="rounded-lg p-1 text-ink-300 hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</>}</tbody></table></div>
+            </div>
+            {paymentSection}
+          </div>
+        </form>
+        <ReservationModifyPicker open={modifyPickerOpen} onClose={() => setModifyPickerOpen(false)} onSelect={(r) => loadForModify(r)} />
+        <Dialog open={stockDialog !== null} title="Not enough stock" message={<p className="text-sm text-ink-600">{stockDialog}</p>} confirmLabel="OK" onCancel={() => setStockDialog(null)} onConfirm={() => setStockDialog(null)} />
+      </>
+    );
+  }
+
   return (
     <>
     <form
@@ -786,6 +856,7 @@ export default function ReservationsPage() {
               onChange={setContactId}
               searchable
               placeholder="Select customer"
+              triggerClassName="bg-white"
             />
           )}
         </div>
@@ -949,6 +1020,7 @@ export default function ReservationsPage() {
               }}
               searchable
               placeholder="Select accessory…"
+              triggerClassName="bg-white"
             />
           </div>
           <div className="w-20">

@@ -23,7 +23,7 @@ import {
   WalletIcon,
 } from "@/components/icons";
 
-export type TabId = "shop" | "preferences" | "financial" | "bank" | "sounds" | "users" | "audit" | "backup" | "print" | "desktop" | "update" | "license" | "theme" | "appearance";
+export type TabId = "shop" | "preferences" | "financial" | "bank" | "sounds" | "users" | "audit" | "backup" | "print" | "autoPrint" | "desktop" | "update" | "license" | "theme" | "appearance";
 
 export const SETTINGS_TABS: {
   id: TabId;
@@ -42,6 +42,7 @@ export const SETTINGS_TABS: {
   { id: "audit", label: "Activity Log", icon: <HistoryIcon className="h-4 w-4" />, permission: PERMISSIONS.auditView },
   { id: "backup", label: "Backup & restore", icon: <PrinterIcon className="h-4 w-4" />, permission: PERMISSIONS.backup },
   { id: "print", label: "Print & thermal", icon: <PrinterIcon className="h-4 w-4" />, permission: PERMISSIONS.printView },
+  { id: "autoPrint", label: "Automatic print", icon: <PrinterIcon className="h-4 w-4" /> },
   { id: "desktop", label: "Desktop app", icon: <SettingsIcon className="h-4 w-4" /> },
   { id: "update", label: "Update", icon: <UpdaterIcon className="h-4 w-4" />, electronOnly: true },
   { id: "license", label: "License", icon: <LockIcon className="h-4 w-4" /> },

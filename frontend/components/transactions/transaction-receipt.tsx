@@ -138,7 +138,7 @@ export function TransactionReceipt({
 
       <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center">
         <DirectPrint type={type} id={detail.id} render={(open, busy) => (
-          <Button id="receipt-print-btn" variant="primary" className="h-11 w-full sm:w-auto" onClick={open} disabled={busy}>
+          <Button id="receipt-print-btn" data-auto-print="true" variant="primary" className="h-11 w-full sm:w-auto" onClick={open} disabled={busy}>
             <PrinterIcon className="h-4 w-4" />
             {busy ? "Preparing…" : "Print"}
           </Button>
@@ -220,7 +220,7 @@ export function VoucherReceipt({
 
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         <DirectPrint type="VOUCHER" id={voucher.id} render={(open, busy) => (
-          <Button variant="secondary" onClick={open} disabled={busy}>
+          <Button id="receipt-print-btn" data-auto-print="true" variant="secondary" onClick={open} disabled={busy}>
             <PrinterIcon className="h-4 w-4" />
             {busy ? "Preparing…" : "Print"}
           </Button>
@@ -283,7 +283,7 @@ export function ExpenseReceipt({
 
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         <DirectPrint type="EXPENSE" id={expense.id} render={(open, busy) => (
-          <Button variant="secondary" onClick={open} disabled={busy}>
+          <Button id="receipt-print-btn" data-auto-print="true" variant="secondary" onClick={open} disabled={busy}>
             <PrinterIcon className="h-4 w-4" />
             {busy ? "Preparing…" : "Print"}
           </Button>
@@ -389,10 +389,12 @@ export function ReservationReceipt({
       </div>
 
       <div className="mt-4 flex flex-wrap justify-center gap-2">
-        <Button variant="secondary" onClick={() => void doPrint()}>
-          <PrinterIcon className="h-4 w-4" />
-          Print
-        </Button>
+        <DirectPrint type={isConsignment ? "CONSIGNMENT" : "RESERVATION"} id={reservation.id} render={(open, busy) => (
+          <Button id="receipt-print-btn" data-auto-print="true" variant="secondary" onClick={open} disabled={busy}>
+            <PrinterIcon className="h-4 w-4" />
+            {busy ? "Preparing…" : "Print"}
+          </Button>
+        )} />
         {onModify && (
           <Button variant="secondary" onClick={() => onModify(reservation)}>
             Modify

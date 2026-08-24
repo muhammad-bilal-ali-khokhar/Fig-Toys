@@ -1,15 +1,17 @@
 import type { Request, Response } from "express";
 import {
+  getAutoPrint,
   getCompanyProfile,
   getDashboardLayout,
   getSoundPrefs,
   getTheme,
+  updateAutoPrint,
   updateCompanyProfile,
   updateDashboardLayout,
   updateSoundPrefs,
   updateTheme,
 } from "./service";
-import type { CompanyProfileInput, DashboardLayoutInput, SoundPrefsInput, ThemeInput } from "./schemas";
+import type { AutoPrintInput, CompanyProfileInput, DashboardLayoutInput, SoundPrefsInput, ThemeInput } from "./schemas";
 
 export async function companyGetHandler(req: Request, res: Response) {
   res.json({ data: await getCompanyProfile() });
@@ -41,4 +43,12 @@ export async function dashboardLayoutGetHandler(req: Request, res: Response) {
 
 export async function dashboardLayoutPutHandler(req: Request, res: Response) {
   res.json({ data: await updateDashboardLayout((req.body as DashboardLayoutInput).layout) });
+}
+
+export async function autoPrintGetHandler(req: Request, res: Response) {
+  res.json({ data: await getAutoPrint() });
+}
+
+export async function autoPrintPutHandler(req: Request, res: Response) {
+  res.json({ data: await updateAutoPrint(req.body as AutoPrintInput) });
 }

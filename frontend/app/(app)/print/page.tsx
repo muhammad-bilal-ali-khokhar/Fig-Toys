@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { BalancesReport, Brand, Category, Color, CompanyProfile, Contact, Expense, ExpenseReport, InventoryData, InventoryProduct, ProfitReport, PurchaseReport, ReportRange, SalesReport, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
+import type { BalancesReport, Brand, Category, Color, CompanyProfile, Contact, Expense, ExpenseReport, InventoryData, InventoryProduct, ProfitReport, PurchaseReport, ReportRange, ReservationDetail, SalesReport, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { whatsappLink } from "@/lib/whatsapp";
@@ -34,6 +34,7 @@ import {
 import {
   ExpenseVoucherDocument,
   ReceiptDocument,
+  ReservationDocument,
   VoucherDocument,
   type BankAccount,
 } from "@/components/print/documents";
@@ -56,7 +57,7 @@ import { ExpenseSheetDocument } from "./components/expense-sheet-document";
 import { PrintModal } from "./components/print-modal";
 import { PrintOptionsPanel, defaultOptionsFor } from "./components/print-options-panel";
 
-type DocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE";
+ type DocType = "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "VOUCHER" | "EXPENSE" | "RESERVATION" | "CONSIGNMENT";
 
 const DOC_TYPES: { value: DocType; label: string; hint: string }[] = [
   { value: "SALE", label: "Sale", hint: "Customer sale receipt" },
@@ -65,6 +66,8 @@ const DOC_TYPES: { value: DocType; label: string; hint: string }[] = [
   { value: "PURCHASE_RETURN", label: "Purchase return", hint: "Return to a supplier" },
   { value: "VOUCHER", label: "Voucher", hint: "Cash receiving / payment voucher" },
   { value: "EXPENSE", label: "Expense voucher", hint: "Print a single expense voucher" },
+  { value: "RESERVATION", label: "Reservation", hint: "Customer reservation slip" },
+  { value: "CONSIGNMENT", label: "Consignment", hint: "Consignment slip for shopkeeper" },
 ];
 
 const TYPE_DOT: Record<string, string> = {
@@ -74,6 +77,8 @@ const TYPE_DOT: Record<string, string> = {
   PURCHASE_RETURN: "bg-ink-500",
   VOUCHER: "bg-brand-600",
   EXPENSE: "bg-error",
+  RESERVATION: "bg-warning",
+  CONSIGNMENT: "bg-ink-900",
   SALES_REPORT: "bg-brand-500",
   PURCHASES_REPORT: "bg-ink-300",
   PROFIT_REPORT: "bg-success",
@@ -188,7 +193,7 @@ function PrintStudioContent() {
     if (deepLinkType === "inventory") return "INVENTORY";
     if (deepLinkType === "expense") return "EXPENSE_SHEET";
     if (deepLinkType === "contacts") return "CONTACTS";
-    if (deepLinkType === "SALE" || deepLinkType === "PURCHASE" || deepLinkType === "SALE_RETURN" || deepLinkType === "PURCHASE_RETURN" || deepLinkType === "VOUCHER" || deepLinkType === "EXPENSE") {
+    if (deepLinkType === "SALE" || deepLinkType === "PURCHASE" || deepLinkType === "SALE_RETURN" || deepLinkType === "PURCHASE_RETURN" || deepLinkType === "VOUCHER" || deepLinkType === "EXPENSE" || deepLinkType === "RESERVATION" || deepLinkType === "CONSIGNMENT") {
       return deepLinkType as PrintDocType;
     }
     if (deepLinkType && isReportDocType(deepLinkType)) {
@@ -197,7 +202,7 @@ function PrintStudioContent() {
     return "SALE";
   });
   const layoutType = docToLayoutType(printDocType);
-  const docType = printDocType === "SALE" || printDocType === "PURCHASE" || printDocType === "SALE_RETURN" || printDocType === "PURCHASE_RETURN" || printDocType === "VOUCHER" || printDocType === "EXPENSE" ? (printDocType as DocType) : "SALE";
+  const docType = printDocType === "SALE" || printDocType === "PURCHASE" || printDocType === "SALE_RETURN" || printDocType === "PURCHASE_RETURN" || printDocType === "VOUCHER" || printDocType === "EXPENSE" || printDocType === "RESERVATION" || printDocType === "CONSIGNMENT" ? (printDocType as DocType) : "SALE";
   const [typePickerOpen, setTypePickerOpen] = useState(!deepLinkType);
   const [showHideOpen, setShowHideOpen] = useState(false);
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
@@ -207,6 +212,8 @@ function PrintStudioContent() {
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [reservations, setReservations] = useState<ReservationDetail[]>([]);
+  const [loadingReservations, setLoadingReservations] = useState(false);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
@@ -249,6 +256,8 @@ function PrintStudioContent() {
   const selectedDoc = documents.find((d) => d.id === selectedId) ?? null;
   const selectedVoucher = vouchers.find((v) => v.id === selectedId) ?? null;
   const selectedExpense = expenses.find((e) => e.id === selectedId) ?? null;
+  const selectedReservation = reservations.find((r) => r.id === selectedId) ?? null;
+  useEffect(() => { setSelectedId(null); setDetail(null); }, [printDocType]);
   const showCost = canViewCosts(user) && options.cost === true;
   const activeCategories = categories.filter((c) => c.active);
   const activeBrands = brands.filter((b) => b.active);
@@ -326,7 +335,9 @@ function PrintStudioContent() {
           ? selectedVoucher !== null
           : docType === "EXPENSE"
             ? selectedExpense !== null
-            : detail !== null;
+            : docType === "RESERVATION" || docType === "CONSIGNMENT"
+              ? selectedReservation !== null
+              : detail !== null;
   const pdfFileName = layoutType === "report"
     ? REPORT_DOC_TYPES.find((t) => t.value === reportType)?.value.toLowerCase().replace("_", "-") ?? "report"
     : layoutType === "inventory"
@@ -339,7 +350,9 @@ function PrintStudioContent() {
             ? selectedVoucher?.number ?? "voucher"
             : docType === "EXPENSE"
               ? selectedExpense?.number ?? "expense"
-              : selectedDoc?.number ?? "document";
+              : docType === "RESERVATION" || docType === "CONSIGNMENT"
+                ? selectedReservation?.number ?? "reservation"
+                : selectedDoc?.number ?? "document";
 
   const docOptions =
     docType === "EXPENSE"
@@ -348,6 +361,13 @@ function PrintStudioContent() {
           label: `${e.number} · ${EXPENSE_CATEGORY_LABELS[e.category] ?? e.category}`,
           leading: <span className={`h-2 w-2 shrink-0 rounded-full ${TYPE_DOT[e.category] ?? "bg-ink-200"}`} />,
           trailing: <span className="text-xs text-ink-400">{new Date(e.date).toLocaleDateString()}</span>,
+        }))
+      : docType === "RESERVATION" || docType === "CONSIGNMENT"
+        ? reservations.filter((r) => r.type === docType).map((r) => ({
+          value: r.id,
+          label: `${r.number} · ${r.contact.name}`,
+          leading: <span className={`h-2 w-2 shrink-0 rounded-full ${r.type === "CONSIGNMENT" ? "bg-ink-900" : "bg-warning"}`} />,
+          trailing: <span className="text-xs text-ink-400">{new Date(r.createdAt).toLocaleDateString()}</span>,
         }))
       : docType === "VOUCHER"
         ? vouchers.map((v) => ({
@@ -518,6 +538,13 @@ function PrintStudioContent() {
   }, [docType, layoutType, loadExpenses]);
 
   useEffect(() => {
+    if (docType !== "RESERVATION" && docType !== "CONSIGNMENT") return;
+    let cancel=false;
+    (async()=>{ setLoadingReservations(true); try{ const list=await apiRequest<ReservationDetail[]>("/reservation"); if(!cancel) setReservations(list??[]);}catch(e){ if(!cancel) toast(e instanceof Error?e.message:"Failed to load reservations","error");} finally{ if(!cancel) setLoadingReservations(false);} })();
+    return()=>{cancel=true;};
+  }, [docType, toast]);
+
+  useEffect(() => {
     if (layoutType !== "inventory") return;
     let cancelled = false;
     (async () => {
@@ -569,7 +596,7 @@ function PrintStudioContent() {
   }, [layoutType, toast]);
 
   useEffect(() => {
-    if (!selectedId || docType === "VOUCHER") {
+    if (!selectedId || docType === "VOUCHER" || docType === "RESERVATION" || docType === "CONSIGNMENT" || docType === "EXPENSE") {
       setDetail(null);
       setQrUrl(null);
       return;
@@ -1148,6 +1175,16 @@ function PrintStudioContent() {
                   {selectedId ? "Loading…" : "Pick an expense from the list to preview it."}
                 </p>
               </div>
+            )
+          ) : docType === "RESERVATION" || docType === "CONSIGNMENT" ? (
+            loadingReservations ? (
+              <p className="py-10 text-sm text-ink-400">Loading reservations…</p>
+            ) : selectedReservation ? (
+              <div id="print-area" style={{ width: fmt.previewWidth }} className="shrink-0 bg-white shadow-lg transition-[width]">
+                <ReservationDocument reservation={selectedReservation} options={options as any} format={format} profile={profile} qrUrl={qrUrl} qrType={qrType} config={config} />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-center"><PrinterIcon className="h-8 w-8 text-ink-300" /><p className="text-sm text-ink-400">{selectedId ? "Loading…" : "Pick a reservation from the list to preview it."}</p></div>
             )
           ) : detail ? (
               <div

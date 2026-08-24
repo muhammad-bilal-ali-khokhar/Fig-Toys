@@ -19,6 +19,7 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
+import { triggerAutoPrint, useAutoPrint } from "@/lib/use-auto-print";
 import { BankPaymentRow, PaymentSummaryCard } from "@/components/payment-bottom";
 import { BankDepositSheet } from "@/components/bank-deposit-sheet";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
@@ -574,21 +575,21 @@ export default function PurchaseOrdersPage() {
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
             <div className="shrink-0">
               <div className="flex flex-wrap items-end gap-3">
-                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Vendor</p>{contactOptions.length > 0 && (<Dropdown value={vendorId} options={contactOptions} onChange={setVendorId} searchable placeholder="Select…" />)}</div>
+                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Vendor</p>{contactOptions.length > 0 && (<Dropdown value={vendorId} options={contactOptions} onChange={setVendorId} triggerClassName="bg-white" searchable placeholder="Select…" />)}</div>
                 <div className="w-28 shrink-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Order #</p><Input value={poNo} readOnly variant="white" className="bg-white text-center px-2" /></div>
                 <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date & time</p><DatePicker value={poDate} onChange={setPoDate} withTime /></div>
               </div>
             </div>
-            <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); addRow(); }}><div className="flex flex-wrap items-end gap-3"><div className="min-w-64 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} searchable placeholder="Select product…" /></div><div className="w-32"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div><div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div><Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div></form></section>
+            <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); addRow(); }}><div className="flex flex-wrap items-end gap-3"><div className="min-w-64 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div><div className="w-32"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div><div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div><Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div></form></section>
             <div className="mt-3 flex-1 min-h-0 w-full min-w-0 overflow-y-auto overscroll-none rounded-2xl bg-white"><table className="w-full text-sm"><thead className="sticky top-0 z-10 bg-white"><tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500"><th className="px-4 py-3">Item</th><th className="w-20 px-4 py-3 text-center">Qty</th><th className="w-28 px-4 py-3 text-right">Cost</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => { const grouped = new Map<string, typeof rows>(); for (const row of rows) { const key = row.productId; const arr = grouped.get(key) ?? []; arr.push(row); grouped.set(key, arr); } return Array.from(grouped.entries()).map(([productId, groupRows]) => (<Fragment key={productId}><tr className="bg-ink-50/80"><td colSpan={4} className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span><span className="text-xs text-ink-400">{groupRows.length} × {formatPKR(parseFloat(groupRows[0].costPrice) || 0)}</span></div></td></tr>{groupRows.map((row) => (<tr key={row.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60"><td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{row.productLabel}</span></td><td className="px-4 py-2.5 text-center"><Input value={String(row.quantity)} onChange={(e) => updateRowQty(row.key, e.target.value)} inputMode="numeric" className="w-16 py-1 text-center" /></td><td className="px-4 py-2.5 text-right"><Input value={row.costPrice} onChange={(e) => updateRowCost(row.key, e.target.value)} inputMode="numeric" className="w-28 py-1 text-right" /></td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>)); })()}{rows.length === 0 && (<tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">No items added yet. Pick a product above and press Add.</td></tr>)}</tbody></table></div>
           </div>
-          <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[340px] lg:max-w-[400px]">
+          <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
             <div className="flex h-full flex-col gap-3">
               <div className="flex-1 rounded-2xl bg-white p-4">
                 <div className="flex items-center justify-between"><h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">Payment</h3><p className="text-xs text-ink-400">Total <span className="font-semibold text-ink-900">{formatPKR(subtotal)}</span></p></div>
                 <div className="mt-3 space-y-2">
-                  <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, subtotal - (parseFloat(creditAmount) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(subtotal - (parseFloat(creditAmount) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill cash</Button></div>
-                  <div className="flex items-end gap-2"><div className="flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={creditAmount} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, subtotal - (parseFloat(cash) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCreditAmount(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="bg-ink-100" /></div><Button className="h-9 shrink-0 px-3 text-xs active:scale-[0.97] transition-transform duration-100" onClick={() => setCreditAmount(clampMoneyInput(String(subtotal - (parseFloat(cash) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill credit</Button></div>
+                  <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, subtotal - (parseFloat(creditAmount) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-8 shrink-0 whitespace-nowrap px-2.5 text-[11px] active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(subtotal - (parseFloat(creditAmount) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill cash</Button></div>
+                  <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={creditAmount} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, subtotal - (parseFloat(cash) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCreditAmount(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-8 shrink-0 whitespace-nowrap px-2.5 text-[11px] active:scale-[0.97] transition-transform duration-100" onClick={() => setCreditAmount(clampMoneyInput(String(subtotal - (parseFloat(cash) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill credit</Button></div>
                 </div>
                 <div className="mt-3"><BankPaymentRow bankRows={bankRows} bankAccounts={bankAccounts} onBankSheetOpen={() => setBankSheetOpen(true)} onAddBank={() => { if (bankRows.length === 0) { const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0]; setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]); } setBankSheetOpen(true); }} /></div>
               </div>
@@ -646,7 +647,7 @@ export default function PurchaseOrdersPage() {
               value={vendorId}
               options={contactOptions}
               onChange={setVendorId}
-              searchable
+              triggerClassName="bg-white" searchable
               placeholder="Select…"
             />
           )}
@@ -677,7 +678,7 @@ export default function PurchaseOrdersPage() {
                 value={selProductId}
                 options={productOptions}
                 onChange={onProductSelect}
-                searchable
+                triggerClassName="bg-white" searchable
                 placeholder="Select product…"
               />
             </div>
@@ -688,7 +689,7 @@ export default function PurchaseOrdersPage() {
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="Auto-filled"
                 inputMode="decimal"
-                className="bg-ink-100"
+                className="!h-8 bg-ink-100 text-sm"
               />
             </div>
             <div className="w-20">
@@ -697,7 +698,7 @@ export default function PurchaseOrdersPage() {
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
                 inputMode="numeric"
-                className="bg-ink-100"
+                className="!h-8 bg-ink-100 text-sm"
               />
             </div>
             <Button type="submit">
@@ -813,11 +814,11 @@ export default function PurchaseOrdersPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
-                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
                   </div>
                   <div>
                     <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
-                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="bg-ink-100" />
+                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">

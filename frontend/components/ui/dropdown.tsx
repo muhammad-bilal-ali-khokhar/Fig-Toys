@@ -322,7 +322,7 @@ export function Dropdown<T extends string>({
           typeof trigger === "function" ? trigger(open) : trigger
         ) : (
           <div
-            className={`flex h-9 items-center justify-between rounded-2xl bg-ink-100 px-3.5 text-sm ${triggerClassName ?? ""}`}
+            className={`flex h-9 items-center justify-between rounded-2xl px-3.5 text-sm ${triggerClassName?.includes("bg-") ? triggerClassName : `bg-ink-100 ${triggerClassName ?? ""}`}`}
           >
             <span className="truncate text-ink-900">{selectedLabel}</span>
           </div>

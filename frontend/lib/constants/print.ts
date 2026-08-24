@@ -9,6 +9,8 @@ export type PrintDocType =
   | "PURCHASE_RETURN"
   | "VOUCHER"
   | "EXPENSE"
+  | "RESERVATION"
+  | "CONSIGNMENT"
   | "EXPENSE_SHEET"
   | "INVENTORY"
   | "CONTACTS"
@@ -129,6 +131,8 @@ export const RECEIPT_TEXT = {
     PURCHASE: "Purchase Invoice",
     SALE_RETURN: "Sales Return Receipt",
     PURCHASE_RETURN: "Purchase Return Invoice",
+    RESERVATION: "Reservation Slip",
+    CONSIGNMENT: "Consignment Slip",
     fallback: "Transaction Document",
   },
   receiptNo: "Receipt No.",

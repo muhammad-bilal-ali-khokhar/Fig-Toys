@@ -7,6 +7,8 @@ const docTypes = [
   "PURCHASE_RETURN",
   "VOUCHER",
   "EXPENSE",
+  "RESERVATION",
+  "CONSIGNMENT",
   "EXPENSE_SHEET",
   "INVENTORY",
   "CONTACTS",
