@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.2.22
+
+
+
 ## v0.2.21
 
 - **Your POS and Reservations tables are now smoother and perfectly matched.** Both lists live inside a clean white card with fixed height so only the rows scroll while headers stay put. Same widths, same hover and the same polished look everywhere so switching between selling and reserving feels seamless.
