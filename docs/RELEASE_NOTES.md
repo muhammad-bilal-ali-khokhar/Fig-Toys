@@ -1,5 +1,13 @@
 ## Unreleased
 
+## v0.2.16
+
+- **Your inventory now has a full ledger.** Tap any product name in Inventory and see its complete story. Every purchase, sale and return plus every IMEI with status, all in one sheet. Works for both phones and accessories. No more hunting through transactions.
+- **Cleaner one click installer.** The setup now installs straight away with no license page to click through. Double click and it is done.
+- **Purchase returns finally show barcodes.** Accessories now display their barcode right in the search list and in your cart, so you can verify the exact item before returning. Phones still show IMEI as before.
+- **Smarter payment messages.** Reservations and POS no longer say Fully paid when your cart is empty. The message only appears when there is a real total and it is actually settled.
+- **Updates now speak your language.** No internet shows a friendly check your Wi-Fi message with guidance, instead of a raw error code. Slow connection hints stay as before.
+
 ## v0.2.15
 
 - **Reservations now work exactly like sales.** Every reservation advance can be split across Cash, Card, Bank and Credit just like a sale, with Fill buttons and bank picker in the upper Payment card and a clean total below. The reservation screen now matches POS spacing, inputs and panels perfectly.

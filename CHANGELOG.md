@@ -4,6 +4,15 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
+## v0.2.16
+
+- Released on: 2026-08-25
+
+- fix: show accessory barcode in purchase return (was IMEI-only)
+- fix: hide fully-paid banner when total is 0; map offline errors to no-internet warning on updates
+- feat: product ledger from inventory — tap any product to see its full history
+- fix: remove NSIS license page for true one-click install
+
 ## v0.2.15
 
 - Released on: 2026-08-24
