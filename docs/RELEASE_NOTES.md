@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.2.12
+
+
+
 ## v0.2.11
 
 - **A fresh sign in that sells your shop. Your login now shows a dark feature wall with your shop name, tagline and six clear cards for Sale Invoice, Inventory, Contacts, Purchases, Money and Reports. Clean, premium and fast on every screen.**
