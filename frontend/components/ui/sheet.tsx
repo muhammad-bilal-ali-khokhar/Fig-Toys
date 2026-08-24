@@ -30,7 +30,7 @@ export function Sheet({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-ink-900/40 p-4">
       <div className={`flex w-full ${width} max-h-[min(88vh,640px)] flex-col overflow-hidden rounded-2xl bg-white p-4`}>
         <div className="flex shrink-0 items-center justify-between gap-3">
           <h3 className="text-lg font-bold text-ink-900">{title}</h3>

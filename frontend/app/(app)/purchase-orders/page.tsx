@@ -392,7 +392,7 @@ export default function PurchaseOrdersPage() {
       },
     ];
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Link href="/purchases">
@@ -452,7 +452,7 @@ export default function PurchaseOrdersPage() {
 
   if (view === "list") {
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setView("form")} className="text-ink-400 hover:text-ink-700">
@@ -479,8 +479,8 @@ export default function PurchaseOrdersPage() {
         ) : (
           <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-white">
-                <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
+              <thead className="sticky top-0 bg-white">
+                <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
                   <th className="px-4 py-3">Order</th>
                   <th className="px-4 py-3">Vendor</th>
                   <th className="px-4 py-3">Items</th>
@@ -582,7 +582,7 @@ export default function PurchaseOrdersPage() {
     const creditAmtNL = parseFloat(creditAmount) || 0;
     const bankAmtNL = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
@@ -594,8 +594,8 @@ export default function PurchaseOrdersPage() {
             <Button variant="destructive" onClick={clearAll}>Clear</Button>
           </div>
         </div>
-        <div className="mt-3 flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
             <div className="shrink-0">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Vendor</p>{contactOptions.length > 0 && (<Dropdown value={vendorId} options={contactOptions} onChange={setVendorId} triggerClassName="bg-white" searchable placeholder="Select…" />)}</div>
@@ -604,10 +604,10 @@ export default function PurchaseOrdersPage() {
               </div>
             </div>
             <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); addRow(); }}><div className="flex flex-wrap items-end gap-3"><div className="min-w-64 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div>{!quickAddEnabled && (<><div className="w-32"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div><div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div><Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></>)}</div></form></section>
-            <div className="mt-3 flex-1 min-h-0 w-full min-w-0 overflow-y-auto overscroll-none rounded-2xl bg-white"><table className="w-full text-sm"><thead className="sticky top-0 z-10 bg-white"><tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500"><th className="px-4 py-3">Item</th><th className="w-20 px-4 py-3 text-center">Qty</th><th className="w-28 px-4 py-3 text-right">Cost</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => { const grouped = new Map<string, typeof rows>(); for (const row of rows) { const key = row.productId; const arr = grouped.get(key) ?? []; arr.push(row); grouped.set(key, arr); } return Array.from(grouped.entries()).map(([productId, groupRows]) => (<Fragment key={productId}><tr className="bg-ink-50/80"><td colSpan={4} className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span><span className="text-xs text-ink-400">{groupRows.length} × {formatPKR(parseFloat(groupRows[0].costPrice) || 0)}</span></div></td></tr>{groupRows.map((row) => (<tr key={row.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60"><td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{row.productLabel}</span></td><td className="px-4 py-2.5 text-center"><Input value={String(row.quantity)} onChange={(e) => updateRowQty(row.key, e.target.value)} inputMode="numeric" className="w-16 py-1 text-center" /></td><td className="px-4 py-2.5 text-right"><Input value={row.costPrice} onChange={(e) => updateRowCost(row.key, e.target.value)} inputMode="numeric" className="w-28 py-1 text-right" /></td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>)); })()}{rows.length === 0 && (<tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">No items added yet. Pick a product above and press Add.</td></tr>)}</tbody></table></div>
+            <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white"><table className="w-full text-sm"><thead className="sticky top-0 bg-white"><tr className="text-left text-xs uppercase tracking-wide text-ink-500"><th className="px-4 py-3">Item</th><th className="w-20 px-4 py-3 text-center">Qty</th><th className="w-28 px-4 py-3 text-right">Cost</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => { const grouped = new Map<string, typeof rows>(); for (const row of rows) { const key = row.productId; const arr = grouped.get(key) ?? []; arr.push(row); grouped.set(key, arr); } return Array.from(grouped.entries()).map(([productId, groupRows]) => (<Fragment key={productId}><tr className="bg-ink-50/80"><td colSpan={4} className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span><span className="text-xs text-ink-400">{groupRows.length} × {formatPKR(parseFloat(groupRows[0].costPrice) || 0)}</span></div></td></tr>{groupRows.map((row) => (<tr key={row.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60"><td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{row.productLabel}</span></td><td className="px-4 py-2.5 text-center"><Input value={String(row.quantity)} onChange={(e) => updateRowQty(row.key, e.target.value)} inputMode="numeric" className="w-16 py-1 text-center" /></td><td className="px-4 py-2.5 text-right"><Input value={row.costPrice} onChange={(e) => updateRowCost(row.key, e.target.value)} inputMode="numeric" className="w-28 py-1 text-right" /></td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>)); })()}{rows.length === 0 && (<tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">No items added yet. Pick a product above and press Add.</td></tr>)}</tbody></table></div>
           </div>
           <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
-            <div className="flex h-full flex-col gap-3">
+            <div className="flex h-full flex-col gap-4">
               <div className="flex-1 rounded-2xl bg-white p-4">
                 <div className="flex items-center justify-between"><h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">Payment</h3><p className="text-xs text-ink-400">Total <span className="font-semibold text-ink-900">{formatPKR(subtotal)}</span></p></div>
                 <div className="mt-3 space-y-2">
@@ -634,7 +634,7 @@ export default function PurchaseOrdersPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700">
@@ -724,10 +724,10 @@ export default function PurchaseOrdersPage() {
         <span className="text-xs text-ink-500">{rows.length} {flow === "ACCESSORY" ? "item(s)" : "unit(s)"}</span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-white">
-            <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
+          <thead className="sticky top-0 bg-white">
+            <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
               <th className="px-4 py-3">Item</th>
               {flow === "ACCESSORY" ? (
                 <>

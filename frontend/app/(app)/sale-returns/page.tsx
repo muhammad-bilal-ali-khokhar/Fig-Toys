@@ -321,32 +321,36 @@ export default function SaleReturnsPage() {
   async function handleEnterOrScan(value: string) {
     const t = value.trim();
     if (!t) return;
+    const clearInput = () => { setQ(""); setResults([]); setHighlightedIndex(-1); };
     if (/^\d{15}$/.test(t)) {
-      setQ("");
+      clearInput();
       await tryAddImei(t);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const found = await runSearch(t);
     if (found.length === 0) {
+      clearInput();
       toast("No product matches that barcode or name", "error");
       return;
     }
     if (found.length > 1) {
+      clearInput();
       toast("Multiple products. Tap one to pick a unit", "error");
       return;
     }
     const product = found[0];
     if (product.units.length === 0) {
+      clearInput();
       toast("No sold units for this product", "error");
       return;
     }
     if (product.units.length > 1) {
+      clearInput();
       toast("Multiple units. Tap the IMEI", "error");
       return;
     }
-    setResults([]);
-    setHighlightedIndex(-1);
+    clearInput();
     await tryAddImei(product.units[0].imei);
   }
 
@@ -616,7 +620,7 @@ export default function SaleReturnsPage() {
   }
 
   return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Sale Return" : "Sale Return"}</h1>
           <div className="flex flex-wrap items-center gap-2">
@@ -626,8 +630,8 @@ export default function SaleReturnsPage() {
             <Button variant="destructive" onClick={reset}>Clear</Button>
           </div>
         </div>
-        <div className="mt-3 flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
             <div className="shrink-0">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex-1 min-w-0">
@@ -672,10 +676,10 @@ export default function SaleReturnsPage() {
                 )}
               </div>
             </section>
-            <div className="mt-3 flex-1 min-h-0 w-full min-w-0 overflow-y-auto overscroll-none rounded-2xl bg-white">
+            <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10 bg-white">
-                  <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
                     <th className="px-4 py-3">Item</th>
                     <th className="w-32 px-4 py-3">Sale #</th>
                     <th className="w-28 px-4 py-3 text-right">Refund</th>
@@ -714,7 +718,7 @@ export default function SaleReturnsPage() {
             </div>
           </div>
           <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
-            <div className="flex h-full flex-col gap-3">
+            <div className="flex h-full flex-col gap-4">
               <div className="flex-1 rounded-2xl bg-white p-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">Refund</h3>

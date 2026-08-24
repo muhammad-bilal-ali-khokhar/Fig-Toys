@@ -271,33 +271,39 @@ export default function ReservationsPage() {
 
   async function handleSearchEnter() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    const rawQ = q;
     const found = await runSearch(q);
-    if (found.length === 0) return;
+    const clearInput = () => { setQ(""); setResults([]); setHighlightedIndex(-1); };
+    if (found.length === 0) { clearInput(); if (rawQ.trim().length >= 2) toast("No units found for IMEI / Barcode.", "error"); return; }
     if (found.length > 1) {
+      clearInput();
       toast("Multiple products. Tap one to add", "error");
       return;
     }
     const product = found[0];
     if (product.units.length === 1) {
-      if (addLine(product, product.units[0], undefined, 1)) {
-        setQ("");
-        setResults([]);
+      const ok = addLine(product, product.units[0], undefined, 1);
+      if (ok) {
+        clearInput();
         toast(`${product.brand} ${product.model} · ${product.units[0].imei} added`, "success");
+      } else {
+        clearInput();
       }
     } else if (product.units.length === 0) {
       const prod = (products ?? []).find((p) => p.id === product.id);
       const available = prod?.inStock ?? Infinity;
       const existingQty = cart.find((l) => l.key === `prod-${product.id}`)?.quantity ?? 0;
       if (existingQty + 1 > available) {
+        clearInput();
         setStockDialog(`Only ${available} pcs available for ${product.brand} ${product.model}. You tried to add ${existingQty + 1} pcs.`);
         return;
       }
       const ok = addLine(product, undefined, undefined, 1);
-      if (!ok) return;
-      setQ("");
-      setResults([]);
+      if (!ok) { clearInput(); return; }
+      clearInput();
       toast(`${product.brand} ${product.model} added`, "success");
     } else {
+      clearInput();
       toast("Multiple units. Tap the IMEI", "error");
     }
   }
@@ -408,32 +414,37 @@ export default function ReservationsPage() {
       if (!term) return;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       const found = await runSearch(term);
-      if (found.length === 0) return;
+      const clearInput = () => { setQ(""); setResults([]); setHighlightedIndex(-1); };
+      if (found.length === 0) { clearInput(); return; }
       if (found.length > 1) {
+        clearInput();
         toast("Multiple products. Tap one to add", "error");
         return;
       }
       const product = found[0];
       if (product.units.length === 1) {
-        if (addLine(product, product.units[0], undefined, 1)) {
-          setQ("");
-          setResults([]);
+        const ok = addLine(product, product.units[0], undefined, 1);
+        if (ok) {
+          clearInput();
           toast(`${product.brand} ${product.model} · ${product.units[0].imei} added`, "success");
+        } else {
+          clearInput();
         }
       } else if (product.units.length === 0) {
         const prod = (products ?? []).find((p) => p.id === product.id);
         const available = prod?.inStock ?? Infinity;
         const existingQty = cart.find((l) => l.key === `prod-${product.id}`)?.quantity ?? 0;
         if (existingQty + 1 > available) {
+          clearInput();
           setStockDialog(`Only ${available} pcs available for ${product.brand} ${product.model}. You tried to add ${existingQty + 1} pcs.`);
           return;
         }
         const ok = addLine(product, undefined, undefined, 1);
-        if (!ok) return;
-        setQ("");
-        setResults([]);
+        if (!ok) { clearInput(); return; }
+        clearInput();
         toast(`${product.brand} ${product.model} added`, "success");
       } else {
+        clearInput();
         toast("Multiple units. Tap the IMEI", "error");
       }
     })();

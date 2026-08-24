@@ -10,9 +10,10 @@ import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, CARRIER_OPTIONS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { hasPermission } from "@/lib/roles";
-import { formatPKR, clampMoneyInput } from "@/lib/money";
+import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { PriceInput } from "@/components/ui/price-input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,10 +21,11 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
 import { triggerAutoPrint, useAutoPrint } from "@/lib/use-auto-print";
-import { BankPaymentRow, PaymentSummaryCard } from "@/components/payment-bottom";
+import { BankPaymentRow } from "@/components/payment-bottom";
+import { DiscountFields } from "@/components/discount-fields";
+import { TypePill } from "@/components/ui/type-pill";
 import { BankDepositSheet } from "@/components/bank-deposit-sheet";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
-import { useDashboardLayout } from "@/lib/dashboard-layout-context";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { playPop, playSuccess } from "@/lib/sound";
@@ -43,7 +45,15 @@ type PendingUnit = {
   carrier: "NON_PTA" | "PTA" | "SIM_LOCKED";
   batteryHealth: string;
   grade: string;
+  discountPct: number;
+  discountFlat: number;
 };
+
+function rowDiscount(row: PendingUnit) {
+  const price = parseFloat(row.costPrice) || 0;
+  const combined = (price * row.discountPct) / 100 + row.discountFlat;
+  return Math.min(Math.max(combined, 0), price);
+}
 
 type PopupInfo = {
   productId: string;
@@ -62,8 +72,6 @@ let keyCounter = 0;
 export default function PurchasesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { layout } = useDashboardLayout();
-  const isNewLayout = layout === "new";
   const searchParams = useSearchParams();
   const { data: contacts } = useApi<Contact[]>("/contact");
   const { data: products } = useApi<ProductSummary[]>("/product");
@@ -221,10 +229,10 @@ export default function PurchasesPage() {
     .map((c) => ({ value: c.id, label: c.name }));
 
   const subtotal = useMemo(
-    () => rows.reduce((sum, r) => sum + (parseFloat(r.costPrice) || 0) * r.quantity, 0),
+    () => roundMoney(rows.reduce((sum, r) => sum + ((parseFloat(r.costPrice) || 0) - rowDiscount(r)) * r.quantity, 0)),
     [rows],
   );
-  const total = Math.max(0, subtotal - (subtotal * discountPct) / 100 - (parseFloat(discount) || 0));
+  const total = Math.max(0, roundMoney(subtotal - (subtotal * discountPct) / 100 - (parseFloat(discount) || 0)));
 
   useEffect(() => {
     if (total > 0 && !creditAmount.trim() && bankRows.length === 0) {
@@ -345,6 +353,8 @@ export default function PurchasesPage() {
       carrier: popup.carrier,
       batteryHealth: popup.batteryHealth,
       grade: popup.grade,
+      discountPct: 0,
+      discountFlat: 0,
     }));
     setRows((prev) => [...prev, ...newRows]);
     setPopup(null);
@@ -367,6 +377,22 @@ export default function PurchasesPage() {
     setRows((prev) =>
       prev.map((r) => (r.key === key ? { ...r, quantity: Number.isFinite(n) && n >= 1 ? n : 1 } : r)),
     );
+  }
+
+  function updateRowPrice(key: string, n: number) {
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, costPrice: String(n) } : r)));
+  }
+
+  function updateRowDiscount(key: string, patch: { pct: number; flat: number }) {
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, discountPct: patch.pct, discountFlat: patch.flat } : r)));
+  }
+
+  function updateGroupPrice(productId: string, n: number) {
+    setRows((prev) => prev.map((r) => (r.productId === productId ? { ...r, costPrice: String(n) } : r)));
+  }
+
+  function updateGroupDiscount(productId: string, patch: { pct: number; flat: number }) {
+    setRows((prev) => prev.map((r) => (r.productId === productId ? { ...r, discountPct: patch.pct, discountFlat: patch.flat } : r)));
   }
 
   function openBarcodePopup() {
@@ -444,23 +470,33 @@ export default function PurchasesPage() {
         toast("Enter a barcode", "error");
         return;
       }
-      setRows((prev) => [
-        ...prev,
-        {
-          key: String(keyCounter++),
-          productId: barcodePopup.productId,
-          productLabel: barcodePopup.productLabel,
-          imei: "",
-          barcode: bc,
-          costPrice: barcodePopup.price,
-          quantity: barcodePopup.qty,
-          colorId: null,
-          colorLabel: null,
-          carrier: "PTA" as const,
-          batteryHealth: "",
-          grade: "A",
-        },
-      ]);
+      setRows((prev) => {
+        const idx = prev.findIndex((r) => r.productId === barcodePopup.productId && r.barcode === bc && r.costPrice === barcodePopup.price);
+        if (idx !== -1) {
+          const next = [...prev];
+          next[idx] = { ...next[idx], quantity: next[idx].quantity + barcodePopup.qty };
+          return next;
+        }
+        return [
+          ...prev,
+          {
+            key: String(keyCounter++),
+            productId: barcodePopup.productId,
+            productLabel: barcodePopup.productLabel,
+            imei: "",
+            barcode: bc,
+            costPrice: barcodePopup.price,
+            quantity: barcodePopup.qty,
+            colorId: null,
+            colorLabel: null,
+            carrier: "PTA" as const,
+            batteryHealth: "",
+            grade: "A",
+            discountPct: 0,
+            discountFlat: 0,
+          },
+        ];
+      });
       toast(`${barcodePopup.qty} × ${barcodePopup.productLabel} added`, "success");
     } else {
       const list = (values ?? barcodes).map((v) => v.trim()).filter(Boolean);
@@ -468,22 +504,34 @@ export default function PurchasesPage() {
         toast("Enter at least one barcode", "error");
         return;
       }
-      const newRows = list.map((bc) => ({
-        key: String(keyCounter++),
-        productId: barcodePopup.productId,
-        productLabel: barcodePopup.productLabel,
-        imei: "",
-        barcode: bc,
-        costPrice: barcodePopup.price,
-        quantity: 1,
-        colorId: null,
-        colorLabel: null,
-        carrier: "PTA" as const,
-        batteryHealth: "",
-        grade: "A",
-      }));
-      setRows((prev) => [...prev, ...newRows]);
-      toast(`${newRows.length} unit(s) added`, "success");
+      const counts = new Map<string, number>();
+      for (const bc of list) counts.set(bc, (counts.get(bc) ?? 0) + 1);
+      setRows((prev) => {
+        const next = [...prev];
+        for (const [bc, qty] of counts) {
+          const idx = next.findIndex((r) => r.productId === barcodePopup.productId && r.barcode === bc && r.costPrice === barcodePopup.price);
+          if (idx !== -1) next[idx] = { ...next[idx], quantity: next[idx].quantity + qty };
+          else
+            next.push({
+              key: String(keyCounter++),
+              productId: barcodePopup.productId,
+              productLabel: barcodePopup.productLabel,
+              imei: "",
+              barcode: bc,
+              costPrice: barcodePopup.price,
+              quantity: qty,
+              colorId: null,
+              colorLabel: null,
+              carrier: "PTA" as const,
+              batteryHealth: "",
+              grade: "A",
+              discountPct: 0,
+              discountFlat: 0,
+            });
+        }
+        return next;
+      });
+      toast(`${list.length} unit(s) added`, "success");
     }
     setBarcodePopup(null);
     setBarcodes([]);
@@ -579,6 +627,8 @@ export default function PurchasesPage() {
         carrier: "NON_PTA" as const,
         batteryHealth: "",
         grade: "A",
+        discountPct: 0,
+        discountFlat: parseFloat(item.discount ?? "0") || 0,
       })),
     );
     const cashPayment = txn.payments.find((p) => p.method === "CASH");
@@ -617,25 +667,26 @@ export default function PurchasesPage() {
       toast("Add at least one item first", "error");
       return;
     }
-    const validItems = rows.map((r) =>
-      flow === "ACCESSORY"
+    const validItems = rows.map((r) => {
+      const netCost = Math.max(0, (parseFloat(r.costPrice) || 0) - rowDiscount(r));
+      return flow === "ACCESSORY"
         ? {
             productId: r.productId,
             barcode: r.barcode || undefined,
-            costPrice: parseFloat(r.costPrice) || 0,
+            costPrice: netCost,
             quantity: r.quantity,
           }
         : {
             productId: r.productId,
             imei: r.imei.trim(),
-            costPrice: parseFloat(r.costPrice) || 0,
+            costPrice: netCost,
             condition: tab,
             grade: tab === "USED" ? r.grade : undefined,
             carrier: r.carrier,
             batteryHealth: tab === "USED" && r.batteryHealth ? Number(r.batteryHealth) : undefined,
             colorId: r.colorId ?? undefined,
-          },
-    );
+          };
+    });
     if (flow === "ACCESSORY") {
       if (validItems.some((i) => !i.productId)) {
         toast("Every accessory needs a product", "error");
@@ -787,12 +838,11 @@ export default function PurchasesPage() {
     );
   }
 
-  if (isNewLayout) {
     const cashAmtNL = parseFloat(cash) || 0;
     const creditAmtNL = parseFloat(creditAmount) || 0;
     const bankAmtNL = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
@@ -807,14 +857,14 @@ export default function PurchasesPage() {
           </div>
         </div>
         {po && (
-          <div className="mt-3 rounded-2xl border border-brand-200 bg-brand-50 p-3">
+          <div className="mt-3 shrink-0 rounded-2xl border border-brand-200 bg-brand-50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-ink-900">Receiving <span className="font-mono">{po.number}</span> · {po.contact.name}{parseFloat(po.advance) > 0 && <span className="ml-2 text-xs font-normal text-ink-600">Advance {formatPKR(po.advance)} already paid</span>}</p><Link href="/purchase-orders" className="text-xs text-brand-700 hover:underline">Back to orders</Link></div>
             <p className="mt-1 text-xs text-ink-500">Pick each item to enter {flow === "ACCESSORY" ? "barcodes" : "IMEIs"} — it will be saved as a real purchase with stock.</p>
             <div className="mt-3 grid gap-2">{po.items.map((it) => { const remaining = it.quantity - it.receivedQuantity; if (remaining <= 0) return null; const added = rows.filter((r) => r.productId === it.product.id).reduce((s, r) => s + r.quantity, 0); const label = `${it.product.brand?.name ?? ""} ${it.product.model} ${it.product.storage ?? ""} ${it.product.ram ?? ""}`.trim() || it.product.model; const isAcc = it.product.category?.type === "ACCESSORY"; const done = added >= remaining; return (<div key={it.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink-900">{label}</p><p className="text-xs text-ink-500">Qty {remaining} · {formatPKR(it.costPrice)} each {added > 0 && `· Added ${added}/${remaining}`}</p></div><Button size="sm" variant={done ? "ghost" : "secondary"} disabled={done} onClick={() => (isAcc ? promptPoBarcode(it) : promptPoImei(it))}>{done ? "Added" : flow === "ACCESSORY" ? "Add barcodes" : "Add IMEIs"}</Button></div>); })}</div>
           </div>
         )}
-        <div className="mt-3 flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+        <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
             <div className="shrink-0">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">{tab === "NEW" ? "Vendor" : "Seller"}</p>{contactOptions.length > 0 && (<Dropdown value={contactId} options={contactOptions} onChange={setContactId} triggerClassName="bg-white" searchable placeholder="Select…" />)}</div>
@@ -823,11 +873,36 @@ export default function PurchasesPage() {
                 <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Discount</p><div className="flex items-center gap-2"><PriceInput value={discountPct} max={100} onChange={setDiscountPct} className="flex-1 min-w-0 bg-white" suffix="%" /><PriceInput value={parseFloat(discount) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => setDiscount(n > 0 ? String(n) : "")} className="flex-1 min-w-0 bg-white" suffix="Rs" /></div></div>
               </div>
             </div>
-            <section className="shrink-0"><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">{flow === "ACCESSORY" ? "Add accessories" : "Add units"}</p><form onSubmit={(e) => { e.preventDefault(); if (flow === "ACCESSORY") openBarcodePopup(); else openImeiPopup(); }}><div className="flex flex-wrap items-end gap-3"><div className="min-w-64 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div><div className="w-32"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div><div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div>{flow !== "ACCESSORY" && (<div className="w-40"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p><Dropdown value={colorId} options={colorOptions} onChange={setColorId} triggerClassName="bg-white" searchable placeholder="Select…" /></div>)}{flow === "USED" && (<><div className="w-36"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Carrier</p><Dropdown triggerClassName="bg-white" value={carrier} options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))} onChange={(value) => setCarrier(value)} /></div><div className="w-28"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p><Input value={batteryHealth} onChange={(e) => setBatteryHealth(e.target.value)} inputMode="numeric" placeholder="Optional" className="bg-white" /></div><div className="w-24"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p><Dropdown triggerClassName="bg-white" value={grade} options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))} onChange={setGrade} /></div></>)}<Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div></form></section>
-            <div className="mt-3 flex-1 min-h-0 w-full min-w-0 overflow-y-auto overscroll-none rounded-2xl bg-white"><table className="w-full text-sm"><thead className="sticky top-0 z-10 bg-white"><tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500"><th className="px-4 py-3">Item</th>{flow === "ACCESSORY" ? (<><th className="px-4 py-3">Barcode</th><th className="w-20 px-4 py-3 text-center">Qty</th><th className="w-28 px-4 py-3 text-right">Cost</th></>) : (<><th className="px-4 py-3">IMEI</th><th className="px-4 py-3">Color</th>{flow === "USED" && <th className="px-4 py-3">Carrier</th>}{flow === "USED" && <th className="px-4 py-3">Battery</th>}{flow === "USED" && <th className="px-4 py-3">Grade</th>}<th className="w-28 px-4 py-3 text-right">Cost</th></>)}<th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => { const grouped = new Map<string, typeof rows>(); for (const row of rows) { const key = row.productId; const arr = grouped.get(key) ?? []; arr.push(row); grouped.set(key, arr); } return Array.from(grouped.entries()).map(([productId, groupRows]) => (<Fragment key={productId}><tr className="bg-ink-50/80"><td colSpan={flow === "ACCESSORY" ? 4 : (flow === "USED" ? 8 : 5)} className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span><span className="text-xs text-ink-400">{groupRows.length} × {formatPKR(parseFloat(groupRows[0].costPrice) || 0)}</span></div></td></tr>{groupRows.map((row) => (<tr key={row.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60"><>{flow === "ACCESSORY" ? (<><td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{row.barcode || "—"}</span></td><td className="px-4 py-2.5 text-center"><Input value={String(row.quantity)} onChange={(e) => updateRowQty(row.key, e.target.value)} inputMode="numeric" className="w-16 py-1 text-center" /></td><td className="px-4 py-2.5 text-right"><Input value={row.costPrice} onChange={(e) => updateRowCost(row.key, e.target.value)} inputMode="numeric" className="w-28 py-1 text-right" /></td></>) : (<><td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{row.imei}</span></td><td className="px-4 py-2.5 text-ink-700">{row.colorLabel ?? "—"}</td>{flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{CARRIER_LABELS[row.carrier]}</td>}{flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{row.batteryHealth ? `${row.batteryHealth}%` : "—"}</td>}{flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{row.grade}</td>}<td className="px-4 py-2.5 text-right"><Input value={row.costPrice} onChange={(e) => updateRowCost(row.key, e.target.value)} inputMode="numeric" className="w-28 py-1 text-right" /></td></>)}</><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>)); })()}{rows.length === 0 && (<tr><td colSpan={flow === "ACCESSORY" ? 4 : (flow === "USED" ? 8 : 5)} className="px-4 py-8 text-center text-sm text-ink-400">No items added yet. Pick a product above and press Add.</td></tr>)}</tbody></table></div>
+            <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); if (flow === "ACCESSORY") openBarcodePopup(); else openImeiPopup(); }}><div className="flex flex-col gap-3"><div className="flex flex-wrap items-end gap-3"><div className="min-w-[200px] flex-[2]"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div>{flow !== "ACCESSORY" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p><Dropdown value={colorId} options={colorOptions} onChange={setColorId} triggerClassName="bg-white" searchable placeholder="Select…" /></div>)}<Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div>{flow === "USED" && (<div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Carrier</p><Dropdown triggerClassName="bg-white" value={carrier} options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))} onChange={(value) => setCarrier(value)} /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p><Input value={batteryHealth} onChange={(e) => setBatteryHealth(e.target.value)} inputMode="numeric" placeholder="Optional" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p><Dropdown triggerClassName="bg-white" value={grade} options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))} onChange={setGrade} /></div></div>)}</div></form></section>
+            <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white"><table className="min-w-[480px] w-full table-fixed text-sm"><thead className="sticky top-0 bg-white"><tr className="text-left text-xs uppercase tracking-wide text-ink-500"><th className="w-[180px] px-4 py-3 text-center">Item</th><th className="w-14 px-4 py-3 text-center">Qty</th><th className="w-20 px-4 py-3 text-center">Cost</th><th className="w-32 px-4 py-3 text-center">Disc</th><th className="w-24 px-4 py-3 text-center">Amount</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => {
+              const groups = new Map<string, PendingUnit[]>();
+              const plain: PendingUnit[] = [];
+              for (const r of rows) {
+                if (flow === "ACCESSORY") plain.push(r);
+                else {
+                  const arr = groups.get(r.productId) ?? [];
+                  arr.push(r);
+                  groups.set(r.productId, arr);
+                }
+              }
+              const groupEntries = Array.from(groups.entries());
+              return (<>
+                {groupEntries.map(([productId, groupRows]) => {
+                  const totalQty = groupRows.reduce((s, l) => s + l.quantity, 0);
+                  const groupPrice = parseFloat(groupRows[0].costPrice) || 0;
+                  const groupAmount = roundMoney(groupRows.reduce((s, l) => s + ((parseFloat(l.costPrice) || 0) - rowDiscount(l)) * l.quantity, 0));
+                  return (<Fragment key={productId}><tr className="bg-ink-50/80 transition-colors duration-150"><td className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span></div></td><td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-900">{totalQty}</td><td className="px-4 py-2.5 text-right"><div className="w-28"><PriceInput value={groupPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupPrice(productId, n)} className="bg-ink-100 px-2 text-right" /></div></td><td className="px-4 py-2.5 text-right"><DiscountFields pct={groupRows[0].discountPct} flat={groupRows[0].discountFlat} maxFlat={groupPrice} onChange={({ pct, flat }) => updateGroupDiscount(productId, { pct, flat })} /></td><td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">{formatPKR(groupAmount)}</td><td className="px-4 py-2.5" /></tr>{groupRows.map((row) => (<tr key={row.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-4 py-2.5 pl-9"><div className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-medium text-ink-900">{row.imei}</span>{row.colorLabel && <Badge variant="neutral">{row.colorLabel}</Badge>}{flow === "USED" && row.carrier && <Badge variant="neutral">{CARRIER_LABELS[row.carrier]}</Badge>}{flow === "USED" && row.grade && <TypePill tone="grey">{row.grade}</TypePill>}{flow === "USED" && row.batteryHealth && <Badge variant="neutral">{row.batteryHealth}%</Badge>}</div></td><td className="px-4 py-2.5 text-center text-ink-700">{row.quantity}</td><td className="px-4 py-2.5 text-right"><div className="w-28"><PriceInput value={parseFloat(row.costPrice) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowPrice(row.key, n)} className="px-2 text-right" /></div></td><td className="px-4 py-2.5"><DiscountFields pct={row.discountPct} flat={row.discountFlat} maxFlat={parseFloat(row.costPrice) || 0} onChange={({ pct, flat }) => updateRowDiscount(row.key, { pct, flat })} /></td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(roundMoney(((parseFloat(row.costPrice) || 0) - rowDiscount(row)) * row.quantity))}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>);
+                })}
+                {plain.map((row) => {
+                  const amount = roundMoney(((parseFloat(row.costPrice) || 0) - rowDiscount(row)) * row.quantity);
+                  return (<tr key={row.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-ink-300" /><div className="min-w-0"><p className="truncate font-medium text-ink-900">{row.productLabel}{row.barcode && <span className="text-ink-500"> · {row.barcode}</span>}</p><p className="text-[11px] text-ink-400">{`${row.quantity} × ${formatPKR(parseFloat(row.costPrice) || 0)}`}</p></div></div></td><td className="px-4 py-3 text-center text-ink-700">{row.quantity}</td><td className="px-4 py-3 text-right"><div className="w-28"><PriceInput value={parseFloat(row.costPrice) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowPrice(row.key, n)} className="px-2 text-right" /></div></td><td className="px-4 py-3"><DiscountFields pct={row.discountPct} flat={row.discountFlat} maxFlat={parseFloat(row.costPrice) || 0} onChange={({ pct, flat }) => updateRowDiscount(row.key, { pct, flat })} /></td><td className="px-4 py-3 text-right font-semibold text-ink-900">{formatPKR(amount)}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>);
+                })}
+                {rows.length === 0 && (<tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-ink-400">No items added yet. Pick a product above and press Add.</td></tr>)}
+              </>);
+            })()}</tbody></table></div>
           </div>
-          <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
-            <div className="flex h-full flex-col gap-3">
+          <div className="flex min-h-0 w-full flex-col gap-3 lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
+            <div className="flex h-full flex-col gap-4">
               <div className="flex-1 rounded-2xl bg-white p-4">
                 <div className="flex items-center justify-between"><h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">Payment</h3><p className="text-xs text-ink-400">Total <span className="font-semibold text-ink-900">{formatPKR(total)}</span></p></div>
                 <div className="mt-3 space-y-2">
@@ -855,626 +930,4 @@ export default function PurchasesPage() {
         {barcodePopup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{barcodePopup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{formatPKR(barcodePopup.price)} each</p><div className="my-4"><Checkbox checked={sameBarcode} onChange={setSameBarcode} label={`Same barcode for all ${barcodePopup.qty} pcs`} /></div>{sameBarcode ? (<div className="flex items-center gap-2"><Input value={singleBarcode} onChange={(e) => setSingleBarcode(e.target.value)} placeholder="Scan or type barcode" className="flex-1" /><Button variant="grey" onClick={() => setSingleBarcode("")}>Clear</Button></div>) : (<div className="-mr-1 h-64 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{barcodes.map((val, i) => (<div key={i} className="flex items-center gap-2"><span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span><Input ref={(el) => { barcodeFieldRefs.current[i] = el; }} value={val} onChange={(e) => updateBarcode(i, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleBarcodeEnter(i); } }} placeholder={`Barcode ${i + 1}`} className="min-w-0 flex-1" />{val.trim() ? (<CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />) : (<button type="button" onClick={() => clearBarcode(i)} className="shrink-0 text-ink-300 hover:text-error">✕</button>)}</div>))}</div>)}<div className="mt-5 flex shrink-0 justify-end gap-2"><Button variant="grey" onClick={closeBarcodePopup}>Cancel</Button><Button onClick={() => commitBarcodes()}>{sameBarcode ? `Add ${barcodePopup.qty} pcs` : `Add ${barcodes.filter((v) => v.trim()).length} pcs`}</Button></div></div></div>)}
       </div>
     );
-  }
-
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setFlow(null)}
-            className="text-ink-400 hover:text-ink-700"
-          >
-            <ChevronLeftIcon className="h-5 w-5" />
-          </button>
-          <h1 className="text-lg font-bold text-ink-900">
-            {modifyId ? "Modify Purchase" : "Purchase"}
-            <span className="ml-2 text-sm font-medium text-ink-400">
-              {flow === "ACCESSORY" ? "· Accessories" : flow === "USED" ? "· Used Phone" : "· New Phone"}
-            </span>
-          </h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ScannerButton label="Scan IMEI" variant="ghost" />
-          <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>
-            Modify
-          </Button>
-          <Link href="/purchase-returns">
-            <Button variant="ghost">
-              Purchase Returns
-            </Button>
-          </Link>
-          <Link href="/reports/purchases">
-            <Button variant="ghost">
-              <ReportsIcon className="h-4 w-4" />
-              Reports
-            </Button>
-          </Link>
-          <Button variant="destructive" onClick={clearAll}>
-            Clear
-          </Button>
-        </div>
-      </div>
-      {po && (
-        <div className="mt-3 rounded-2xl border border-brand-200 bg-brand-50 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-ink-900">
-              Receiving <span className="font-mono">{po.number}</span> · {po.contact.name}
-              {parseFloat(po.advance) > 0 && <span className="ml-2 text-xs font-normal text-ink-600">Advance {formatPKR(po.advance)} already paid</span>}
-            </p>
-            <Link href="/purchase-orders" className="text-xs text-brand-700 hover:underline">Back to orders</Link>
-          </div>
-          <p className="mt-1 text-xs text-ink-500">Pick each item to enter {flow === "ACCESSORY" ? "barcodes" : "IMEIs"} — it will be saved as a real purchase with stock.</p>
-          <div className="mt-3 grid gap-2">
-            {po.items.map((it) => {
-              const remaining = it.quantity - it.receivedQuantity;
-              if (remaining <= 0) return null;
-              const added = rows.filter((r) => r.productId === it.product.id).reduce((s, r) => s + r.quantity, 0);
-              const label = `${it.product.brand?.name ?? ""} ${it.product.model} ${it.product.storage ?? ""} ${it.product.ram ?? ""}`.trim() || it.product.model;
-              const isAcc = it.product.category?.type === "ACCESSORY";
-              const done = added >= remaining;
-              return (
-                <div key={it.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-ink-900">{label}</p>
-                    <p className="text-xs text-ink-500">Qty {remaining} · {formatPKR(it.costPrice)} each {added > 0 && `· Added ${added}/${remaining}`}</p>
-                  </div>
-                  <Button size="sm" variant={done ? "ghost" : "secondary"} disabled={done} onClick={() => (isAcc ? promptPoBarcode(it) : promptPoImei(it))}>
-                    {done ? "Added" : flow === "ACCESSORY" ? "Add barcodes" : "Add IMEIs"}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      <div className="mt-4 flex shrink-0 flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">
-            {tab === "NEW" ? "Vendor" : "Seller"}
-          </p>
-          {contactOptions.length > 0 && (
-            <Dropdown
-              value={contactId}
-              options={contactOptions}
-              onChange={setContactId}
-              triggerClassName="bg-white" searchable
-              placeholder="Select…"
-            />
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Purchase #</p>
-          <Input value={purchaseNo} readOnly variant="white" />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date</p>
-          <DatePicker value={purchaseDate} onChange={setPurchaseDate} />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Discount</p>
-          <div className="flex items-center gap-2">
-            <PriceInput
-              value={discountPct}
-              max={100}
-              onChange={setDiscountPct}
-              className="flex-1 min-w-0 bg-ink-100"
-              suffix="%"
-            />
-            <PriceInput
-              value={parseFloat(discount) || 0}
-              max={MAX_MONEY_AMOUNT}
-              onChange={(n) => setDiscount(n > 0 ? String(n) : "")}
-              className="flex-1 min-w-0 bg-ink-100"
-              suffix="Rs"
-            />
-          </div>
-        </div>
-      </div>
-
-      <section className="mt-3 shrink-0">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-500">
-          {flow === "ACCESSORY" ? "Add accessories" : "Add units"}
-        </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (flow === "ACCESSORY") openBarcodePopup();
-            else openImeiPopup();
-          }}
-        >
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-64 flex-1">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p>
-            <Dropdown
-              value={selProductId}
-              options={productOptions}
-              onChange={onProductSelect}
-              triggerClassName="bg-white" searchable
-              placeholder="Select product…"
-            />
-          </div>
-          <div className="w-32">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p>
-            <Input
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="Auto-filled"
-              inputMode="decimal"
-              className="!h-8 bg-ink-100 text-sm"
-            />
-          </div>
-          <div className="w-20">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p>
-            <Input
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              inputMode="numeric"
-              className="!h-8 bg-ink-100 text-sm"
-            />
-          </div>
-          {flow !== "ACCESSORY" && (
-            <div className="w-40">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p>
-              <Dropdown
-                value={colorId}
-                options={colorOptions}
-                onChange={setColorId}
-                triggerClassName="bg-white" searchable
-                placeholder="Select…"
-              />
-            </div>
-          )}
-          {flow === "USED" && (
-            <>
-              <div className="w-36">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Carrier</p>
-                <Dropdown triggerClassName="bg-white"
-                  value={carrier}
-                  options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))}
-                  onChange={(value) => setCarrier(value)}
-                />
-              </div>
-              <div className="w-28">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p>
-                <Input
-                  value={batteryHealth}
-                  onChange={(e) => setBatteryHealth(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="Optional"
-                  className="!h-8 bg-ink-100 text-sm"
-                />
-              </div>
-              <div className="w-24">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p>
-                <Dropdown triggerClassName="bg-white"
-                  value={grade}
-                  options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))}
-                  onChange={setGrade}
-                />
-              </div>
-            </>
-          )}
-          <Button type="submit">
-            <PlusIcon className="h-4 w-4" />
-            Add
-          </Button>
-        </div>
-        </form>
-      </section>
-
-      <div className="mt-3 mb-3 flex shrink-0 items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Purchase items</span>
-        <span className="text-xs text-ink-500">{rows.length} {flow === "ACCESSORY" ? "item(s)" : "unit(s)"}</span>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-white">
-            <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
-              <th className="px-4 py-3">Item</th>
-              {flow === "ACCESSORY" ? (
-                <>
-                  <th className="px-4 py-3">Barcode</th>
-                  <th className="w-20 px-4 py-3 text-center">Qty</th>
-                  <th className="w-28 px-4 py-3 text-right">Cost</th>
-                </>
-              ) : (
-                <>
-                  <th className="px-4 py-3">IMEI</th>
-                  <th className="px-4 py-3">Color</th>
-                  {flow === "USED" && <th className="px-4 py-3">Carrier</th>}
-                  {flow === "USED" && <th className="px-4 py-3">Battery</th>}
-                  {flow === "USED" && <th className="px-4 py-3">Grade</th>}
-                  <th className="w-28 px-4 py-3 text-right">Cost</th>
-                </>
-              )}
-              <th className="w-12 px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {(() => {
-              const grouped = new Map<string, typeof rows>();
-              for (const row of rows) {
-                const key = row.productId;
-                const arr = grouped.get(key) ?? [];
-                arr.push(row);
-                grouped.set(key, arr);
-              }
-              return Array.from(grouped.entries()).map(([productId, groupRows]) => (
-                <Fragment key={productId}>
-                  <tr className="bg-ink-50/80">
-                    <td colSpan={flow === "ACCESSORY" ? 4 : (flow === "USED" ? 8 : 5)} className="px-4 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
-                        <span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span>
-                        <span className="text-xs text-ink-400">{groupRows.length} × {formatPKR(parseFloat(groupRows[0].costPrice) || 0)}</span>
-                      </div>
-                    </td>
-                  </tr>
-                  {groupRows.map((row) => (
-                    <tr key={row.key} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
-                      {flow === "ACCESSORY" ? (
-                        <>
-                          <td className="px-4 py-2.5 pl-9">
-                            <span className="text-[13px] font-medium text-ink-900">{row.barcode || "—"}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-center">
-                            <Input
-                              value={String(row.quantity)}
-                              onChange={(e) => updateRowQty(row.key, e.target.value)}
-                              inputMode="numeric"
-                              className="w-16 py-1 text-center"
-                            />
-                          </td>
-                          <td className="px-4 py-2.5 text-right">
-                            <Input
-                              value={row.costPrice}
-                              onChange={(e) => updateRowCost(row.key, e.target.value)}
-                              inputMode="numeric"
-                              className="w-28 py-1 text-right"
-                            />
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-4 py-2.5 pl-9">
-                            <span className="text-[13px] font-medium text-ink-900">{row.imei}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-ink-700">{row.colorLabel ?? "—"}</td>
-                          {flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{CARRIER_LABELS[row.carrier]}</td>}
-                          {flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{row.batteryHealth ? `${row.batteryHealth}%` : "—"}</td>}
-                          {flow === "USED" && <td className="px-4 py-2.5 text-ink-700">{row.grade}</td>}
-                          <td className="px-4 py-2.5 text-right">
-                            <Input
-                              value={row.costPrice}
-                              onChange={(e) => updateRowCost(row.key, e.target.value)}
-                              inputMode="numeric"
-                              className="w-28 py-1 text-right"
-                            />
-                          </td>
-                        </>
-                      )}
-                      <td className="px-4 py-2.5 text-right">
-                        <button
-                          type="button"
-                          onClick={() => removeRow(row.key)}
-                          title="Remove"
-                          className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"
-                        >
-                          <XIcon className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </Fragment>
-              ));
-            })()}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={flow === "ACCESSORY" ? 4 : (flow === "USED" ? 8 : 5)} className="px-4 py-8 text-center text-sm text-ink-400">
-                  No items added yet. Pick a product above and press Add.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-6 grid shrink-0 gap-4 lg:grid-cols-3">
-        <div className="rounded-3xl bg-white lg:col-span-2">
-          <div className="flex items-center justify-between px-5 py-4">
-            <h3 className="text-sm font-semibold text-ink-900">Payment</h3>
-            <p className="text-xs text-ink-400">
-              Total <span className="font-semibold text-ink-900">{formatPKR(total)}</span>
-            </p>
-          </div>
-          <div className="px-5 pb-5">
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p>
-                    <Input value={cash} onChange={(e) => setCash(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
-                  </div>
-                  <div>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p>
-                    <Input value={creditAmount} onChange={(e) => setCreditAmount(clampMoneyInput(e.target.value))} placeholder="0" inputMode="decimal" className="!h-8 bg-ink-100 text-sm" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="secondary"
-                    className="px-3 py-1.5 text-xs"
-                    onClick={() =>
-                      setCash(
-                        clampMoneyInput(
-                          String(
-                            total -
-                              (parseFloat(creditAmount) || 0) -
-                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                          ),
-                        ),
-                      )
-                    }
-                  >
-                    Fill remaining as cash
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="px-3 py-1.5 text-xs"
-                    onClick={() =>
-                      setCreditAmount(
-                        clampMoneyInput(
-                          String(
-                            total -
-                              (parseFloat(cash) || 0) -
-                              bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-                          ),
-                        ),
-                      )
-                    }
-                  >
-                    Fill remaining as credit
-                  </Button>
-                </div>
-              </div>
-
-              <BankPaymentRow
-                bankRows={bankRows}
-                bankAccounts={bankAccounts}
-                onBankSheetOpen={() => setBankSheetOpen(true)}
-                onAddBank={() => {
-                  if (bankRows.length === 0) {
-                    const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0];
-                    setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]);
-                  }
-                  setBankSheetOpen(true);
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <PaymentSummaryCard
-          title="Summary"
-          total={total}
-          lines={[
-            ...(discountPct > 0 || (parseFloat(discount) || 0) > 0
-              ? [{ label: `Discount${discountPct > 0 ? ` ${discountPct}%` : ""}`, amount: -((subtotal * discountPct) / 100 + (parseFloat(discount) || 0)) }]
-              : []),
-            ...(parseFloat(cash) > 0 ? [{ label: "Cash", amount: parseFloat(cash) }] : []),
-            ...(parseFloat(creditAmount) > 0 ? [{ label: "Credit", amount: parseFloat(creditAmount) }] : []),
-            ...(bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) > 0
-              ? [{ label: "Bank", amount: bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) }]
-              : []),
-          ]}
-        >
-          <Button className="w-full" onClick={submit} disabled={submitting || rows.length === 0}>
-            {submitting
-              ? modifyId ? "Updating…" : "Recording…"
-              : modifyId
-                ? `Update purchase · ${formatPKR(total)}`
-                : `Pay ${formatPKR(total)}`}
-          </Button>
-        </PaymentSummaryCard>
-      </div>
-
-      <BankDepositSheet
-        open={bankSheetOpen}
-        onClose={() => setBankSheetOpen(false)}
-        bankRows={bankRows}
-        onBankRowsChange={setBankRows}
-        bankAccounts={bankAccounts}
-      />
-
-      {popup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
-          <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5">
-            <h3 className="text-lg font-bold text-ink-900">{popup.productLabel}</h3>
-            <p className="mt-0.5 text-xs text-ink-500">
-              {[popup.colorLabel, popup.batteryHealth ? `Battery ${popup.batteryHealth}%` : null]
-                .filter(Boolean)
-                .join(" · ")}
-              {" · "}
-              {formatPKR(popup.price)} each
-            </p>
-
-            <div className="my-4 flex items-center justify-center gap-1 text-4xl font-bold">
-              <span className={popupImeis.filter((v) => v.length === 15).length === popup.qty ? "text-brand-600" : "text-ink-900"}>
-                {popupImeis.filter((v) => v.length === 15).length}
-              </span>
-              <span className="text-ink-400">/</span>
-              <span className="text-ink-400">{popup.qty}</span>
-            </div>
-
-            <div className="-mr-1 mt-4 h-72 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">
-              {popupImeis.map((val, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span>
-                  <Input
-                    ref={(el) => {
-                      imeiFieldRefs.current[i] = el;
-                    }}
-                    data-scanner-input="imei"
-                    value={val}
-                    onChange={(e) => updatePopupImei(i, e.target.value.replace(/\D/g, "").slice(0, 15))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handlePopupImeiEnter(i);
-                      }
-                    }}
-                    placeholder={`IMEI ${i + 1}`}
-                    variant="filled"
-                    className={`min-w-0 flex-1 rounded-xl py-1.5 font-mono text-xs ${val.length === 15 ? "border border-brand-500/50" : ""}`}
-                  />
-                  {val.length === 15 ? (
-                    <CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => clearPopupImei(i)}
-                      className="shrink-0 text-ink-300 hover:text-error"
-                      aria-label="Clear IMEI"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 flex shrink-0 justify-end gap-2">
-              <ScannerButton label="Scan" variant="grey" />
-              <Button variant="grey" onClick={closePopup}>
-                Cancel
-              </Button>
-              <Button
-                onClick={() => commit(popupImeis.filter((v) => v.length === 15))}
-                disabled={popupImeis.filter((v) => v.length === 15).length === 0}
-              >
-                {popupImeis.filter((v) => v.length === 15).length === popup.qty
-                  ? "Add all"
-                  : `Add ${popupImeis.filter((v) => v.length === 15).length} unit(s)`}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {barcodePopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4">
-          <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5">
-            <h3 className="text-lg font-bold text-ink-900">{barcodePopup.productLabel}</h3>
-            <p className="mt-0.5 text-xs text-ink-500">{formatPKR(barcodePopup.price)} each</p>
-
-            <div className="my-4">
-              <Checkbox
-                checked={sameBarcode}
-                onChange={setSameBarcode}
-                label={`Use the same barcode for all ${barcodePopup.qty} units`}
-                description="When a set or bundle shares one barcode"
-              />
-            </div>
-
-            {sameBarcode ? (
-              <div className="-mx-1 h-72 space-y-2 overflow-y-auto overscroll-none px-1 py-1">
-                <Input
-                  data-scanner-input="barcode"
-                  value={singleBarcode}
-                  onChange={(e) => setSingleBarcode(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      commitBarcodes();
-                    }
-                  }}
-                  placeholder={`Barcode for all ${barcodePopup.qty} units`}
-                  variant="filled"
-                  autoFocus
-                  className="w-full rounded-xl py-1.5 font-mono text-xs"
-                />
-              </div>
-            ) : (
-              <>
-                <div className="my-4 flex items-center justify-center gap-1 text-4xl font-bold">
-                  <span className={barcodes.filter((v) => v.trim() !== "").length === barcodePopup.qty ? "text-brand-600" : "text-ink-900"}>
-                    {barcodes.filter((v) => v.trim() !== "").length}
-                  </span>
-                  <span className="text-ink-400">/</span>
-                  <span className="text-ink-400">{barcodePopup.qty}</span>
-                </div>
-
-                <div className="-mr-1 mt-4 h-72 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">
-                  {barcodes.map((val, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span>
-                      <Input
-                        ref={(el) => {
-                          barcodeFieldRefs.current[i] = el;
-                        }}
-                        data-scanner-input="barcode"
-                        value={val}
-                        onChange={(e) => updateBarcode(i, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleBarcodeEnter(i);
-                          }
-                        }}
-                        placeholder={`Barcode ${i + 1}`}
-                        variant="filled"
-                        className={`min-w-0 flex-1 rounded-xl py-1.5 font-mono text-xs ${val.trim() !== "" ? "border border-brand-500/50" : ""}`}
-                      />
-                      {val.trim() !== "" ? (
-                        <CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => clearBarcode(i)}
-                          className="shrink-0 text-ink-300 hover:text-error"
-                          aria-label="Clear barcode"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            <div className="mt-5 flex shrink-0 justify-end gap-2">
-              <ScannerButton label="Scan IMEI" variant="ghost" />
-              <Button variant="grey" onClick={closeBarcodePopup}>
-                Cancel
-              </Button>
-              <Button onClick={() => commitBarcodes()}>Add</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ModifyPicker
-        open={modifyPickerOpen}
-        onClose={() => setModifyPickerOpen(false)}
-        type="PURCHASE"
-        onSelect={(txn) => {
-          void (async () => {
-            try {
-              const detail = await apiRequest<TransactionDetail>(`/transaction/${txn.id}`);
-              loadForModify(detail);
-            } catch {
-              toast("Could not load the purchase", "error");
-            }
-          })();
-        }}
-      />
-    </div>
-  );
 }

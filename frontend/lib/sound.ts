@@ -18,16 +18,61 @@ function enabled(kind: SoundKind) {
   return prefs[kind];
 }
 
-function getCtx() {
-  if (typeof window === "undefined") return null;
-  if (!ctx) ctx = new AudioContext();
-  if (ctx.state === "suspended") void ctx.resume();
-  return ctx;
+let unlockBound = false;
+
+function ensureUnlockListeners() {
+  if (unlockBound || typeof window === "undefined" || typeof document === "undefined") return;
+  unlockBound = true;
+  const unlock = () => {
+    if (ctx && ctx.state === "suspended") void ctx.resume();
+  };
+  document.addEventListener("click", unlock, { capture: true });
+  document.addEventListener("keydown", unlock, { capture: true });
+  document.addEventListener("touchend", unlock, { capture: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && ctx?.state === "suspended") void ctx.resume();
+  });
+  window.addEventListener("pageshow", unlock);
+  window.addEventListener("focus", unlock);
 }
 
-function tone(freq: number, start: number, duration: number, gainValue = 0.15, type: OscillatorType = "sine") {
-  const audio = getCtx();
+async function getCtx(): Promise<AudioContext | null> {
+  if (typeof window === "undefined") return null;
+  ensureUnlockListeners();
+  if (!ctx || ctx.state === "closed") {
+    try {
+      ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    } catch {
+      return null;
+    }
+  }
+  if (ctx.state === "suspended") {
+    try {
+      await ctx.resume();
+    } catch {
+      return null;
+    }
+  }
+  if ((ctx.state as string) === "interrupted") {
+    try {
+      await ctx.resume();
+    } catch {
+      return null;
+    }
+  }
+  return ctx.state === "running" ? ctx : ctx;
+}
+
+async function tone(freq: number, start: number, duration: number, gainValue = 0.15, type: OscillatorType = "sine") {
+  const audio = await getCtx();
   if (!audio) return;
+  if (audio.state !== "running") {
+    try {
+      await audio.resume();
+    } catch {
+      return;
+    }
+  }
   const osc = audio.createOscillator();
   const gain = audio.createGain();
   const t0 = audio.currentTime + start;
@@ -40,6 +85,14 @@ function tone(freq: number, start: number, duration: number, gainValue = 0.15, t
   gain.connect(audio.destination);
   osc.start(t0);
   osc.stop(t0 + duration + 0.05);
+  osc.onended = () => {
+    try {
+      osc.disconnect();
+      gain.disconnect();
+    } catch {
+      /* ignore */
+    }
+  };
 }
 
 export function playSuccess() {

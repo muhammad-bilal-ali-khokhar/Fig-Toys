@@ -148,6 +148,7 @@ export function GlobalSearch({ variant = "light" }: { variant?: "light" | "dark"
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const pendingEnterRef = useRef(false);
   const isDark = variant === "dark";
 
   useEffect(() => {
@@ -179,6 +180,28 @@ export function GlobalSearch({ variant = "light" }: { variant?: "light" | "dark"
 
   const hasSelectableResults = !!results && results.length > 0;
   const selectableKeys = useMemo(() => (results ?? []).map((r) => `${r.kind}|${r.id}`), [results]);
+
+  useEffect(() => {
+    if (!pendingEnterRef.current || loading) return;
+    if (!results || results.length === 0) {
+      pendingEnterRef.current = false;
+      return;
+    }
+    const key = selectableKeys[0];
+    if (!key) {
+      pendingEnterRef.current = false;
+      return;
+    }
+    pendingEnterRef.current = false;
+    const r = byKey.get(key);
+    if (!r) return;
+    setQuery("");
+    setResults(null);
+    setOpen(false);
+    setActiveIndex(-1);
+    setActiveResult(r);
+    inputRef.current?.blur();
+  }, [results, loading, selectableKeys, byKey]);
 
   const measure = useCallback(() => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -259,6 +282,9 @@ export function GlobalSearch({ variant = "light" }: { variant?: "light" | "dark"
           e.preventDefault();
           handleSelect(key);
         }
+      } else if (loading && query.trim()) {
+        e.preventDefault();
+        pendingEnterRef.current = true;
       } else {
         e.preventDefault();
       }

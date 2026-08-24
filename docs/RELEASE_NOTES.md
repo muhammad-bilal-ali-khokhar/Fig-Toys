@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **Faster scanning that never slows you down. Press Enter and your IMEI and barcode field clears instantly whether the item was found, out of stock or not found, so you can scan the next phone right away.**
+- **Alerts you will always see. Stock and price warnings now float beautifully above every menu and search list, never hidden behind a dropdown.**
+- **Sound that stays with you all day. Success and tap sounds now play reliably even after hours in the browser or waking your PC, so every scan feels confirmed.**
+
 ## v0.2.13
 
 - **One tap adding for accessories. Turn on Quick Add in Settings and your POS picker adds accessories straight to the cart. No quantity or price typing, with instant stock checks so you never oversell.**

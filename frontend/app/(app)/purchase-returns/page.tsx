@@ -343,32 +343,36 @@ export default function PurchaseReturnsPage() {
   async function handleEnterOrScan(value: string) {
     const t = value.trim();
     if (!t) return;
+    const clearInput = () => { setQ(""); setResults([]); setHighlightedIndex(-1); };
     if (/^\d{15}$/.test(t)) {
-      setQ("");
+      clearInput();
       await tryAddImei(t);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const found = await runSearch(t);
     if (found.length === 0) {
+      clearInput();
       toast("No product matches that barcode or name", "error");
       return;
     }
     if (found.length > 1) {
+      clearInput();
       toast("Multiple products. Tap one to pick a unit", "error");
       return;
     }
     const product = found[0];
     if (product.units.length === 0) {
+      clearInput();
       toast("No in-stock units for this product", "error");
       return;
     }
     if (product.units.length > 1) {
+      clearInput();
       toast("Multiple units. Tap the IMEI", "error");
       return;
     }
-    setResults([]);
-    setHighlightedIndex(-1);
+    clearInput();
     await tryAddImei(product.units[0].imei);
   }
 
@@ -688,7 +692,7 @@ export default function PurchaseReturnsPage() {
 
   if (isNewLayout) {
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Purchase Return" : "Purchase Return"}</h1>
           <div className="flex flex-wrap items-center gap-2">
@@ -698,8 +702,8 @@ export default function PurchaseReturnsPage() {
             <Button variant="destructive" onClick={reset}>Clear</Button>
           </div>
         </div>
-        <div className="mt-3 flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
             <div className="shrink-0">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex-1 min-w-0">
@@ -712,10 +716,10 @@ export default function PurchaseReturnsPage() {
               </div>
             </div>
             <section className="shrink-0"><div className="flex flex-wrap items-end gap-3"><div ref={searchWrapRef} className="relative min-w-48 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p><SearchInput data-scanner-input="purchase-return-search" value={q} onChange={setQ} onFocus={() => { setSearchFocused(true); if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q); }} onKeyDown={(e) => { const hasResults = flatUnitsForNew.length > 0; if (e.key === "ArrowDown") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i + 1) % flatUnitsForNew.length); } else if (e.key === "ArrowUp") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i <= 0 ? flatUnitsForNew.length - 1 : i - 1)); } else if (e.key === "Enter") { e.preventDefault(); if (hasResults && highlightedIndex >= 0 && highlightedIndex < flatUnitsForNew.length) { pickUnit(flatUnitsForNew[highlightedIndex].unit); } else { void handleEnterOrScan(q); } } else if (e.key === "Escape") { setSearchFocused(false); } }} placeholder="Scan IMEI / Barcode…" variant="white" className="bg-ink-100 h-10 text-sm rounded-[12px]" iconClassName="h-4 w-4" />{panelPos && results.length === 0 && (<div style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"><p className="text-sm text-ink-400">{searching ? "Searching…" : q.trim().length >= 2 ? "No in-stock units for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}</p></div>)}{panelPos && results.length > 0 && (<div ref={listRef} style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5">{flatUnitsForNew.map((item, idx) => { const product = results[item.productIndex]; const isActive = idx === highlightedIndex; return (<button key={item.unit.id} data-flat={idx} type="button" onClick={() => pickUnit(item.unit)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{[brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ")} <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span></p><p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500"><Badge variant="neutral">{item.unit.condition}</Badge><Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge></p></div><span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span></button>); })}</div>)}</div><div className="min-w-64 max-w-[320px] flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p><Dropdown value={selProductId} options={productOptions} onChange={(v) => { if (quickAddEnabled) { const p = (products ?? []).find((x) => x.id === v); if (!p) return; const fake: SearchResult = { id: p.id, brand: p.brand, model: p.model, storage: p.storage, ram: p.ram, screenSize: p.screenSize, color: p.color, category: { id: p.categoryId, name: p.categoryName, type: p.categoryType }, sellPrice: p.sellPrice, units: [] }; addAccessoryScanned(fake as any); setSelProductId(null); return; } setSelProductId(v); const p = (products ?? []).find((x) => x.id === v); if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || "")); }} triggerClassName="bg-white" searchable placeholder="Select accessory…" /></div>{!quickAddEnabled && (<><div className="w-20"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={returnQty} onChange={(e) => setReturnQty(e.target.value.replace(/\D/g, ""))} placeholder="1" inputMode="numeric" className="bg-white text-center" /></div><div className="w-28"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Price</p><Input value={returnPrice} onChange={(e) => setReturnPrice(clampMoneyInput(e.target.value))} placeholder="Auto" inputMode="decimal" className="bg-white" /></div><Button type="button" variant="secondary" onClick={() => { if (selProductId) { const p = (products ?? []).find((x) => x.id === selProductId); if (p) { if (p.categoryType === "PHONE") { toast("Phones require IMEI — scan the serial", "error"); return; } const fake: SearchResult = { id: p.id, brand: p.brand, model: p.model, storage: p.storage, ram: p.ram, screenSize: p.screenSize, color: p.color, category: { id: p.categoryId, name: p.categoryName, type: p.categoryType }, sellPrice: p.sellPrice, units: [] }; addAccessoryQuantity(fake); return; } } void handleEnterOrScan(q); }} className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></>)} </div></section>
-            <div className="mt-3 flex-1 min-h-0 w-full min-w-0 overflow-y-auto overscroll-none rounded-2xl bg-white"><table className="min-w-[480px] w-full table-fixed text-sm"><thead className="sticky top-0 z-10 bg-white"><tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500"><th className="px-4 py-3">Item</th><th className="px-4 py-3">Purchase #</th><th className="w-28 px-4 py-3 text-right">Refund</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => { const grouped = new Map<string, typeof cart>(); for (const line of cart) { const key = line.purchaseId || line.productLabel; const arr = grouped.get(key) ?? []; arr.push(line); grouped.set(key, arr); } return Array.from(grouped.entries()).map(([key, groupLines]) => (<Fragment key={key}><tr className="bg-ink-50/80"><td colSpan={4} className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupLines[0].productLabel}</span><span className="text-xs text-ink-400">{groupLines[0].purchaseNumber ? `${groupLines[0].purchaseNumber} · ` : ""}{groupLines.length} pcs</span></div></td></tr>{groupLines.map((line) => (<tr key={line.id} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60"><td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{line.imei ?? `${line.quantity} pcs × ${formatPKR(line.cost)}`}</span></td><td className="px-4 py-2.5 text-ink-700">{line.purchaseNumber || "—"}</td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(line.cost * line.quantity)}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeLine(line.id)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>)); })()}{cart.length === 0 && (<tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">Cart is empty. Scan or search for in-stock units.</td></tr>)}</tbody></table></div>
+            <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white"><table className="min-w-[480px] w-full table-fixed text-sm"><thead className="sticky top-0 bg-white"><tr className="text-left text-xs uppercase tracking-wide text-ink-500"><th className="px-4 py-3">Item</th><th className="px-4 py-3">Purchase #</th><th className="w-28 px-4 py-3 text-right">Refund</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => { const grouped = new Map<string, typeof cart>(); for (const line of cart) { const key = line.purchaseId || line.productLabel; const arr = grouped.get(key) ?? []; arr.push(line); grouped.set(key, arr); } return Array.from(grouped.entries()).map(([key, groupLines]) => (<Fragment key={key}><tr className="bg-ink-50/80"><td colSpan={4} className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupLines[0].productLabel}</span><span className="text-xs text-ink-400">{groupLines[0].purchaseNumber ? `${groupLines[0].purchaseNumber} · ` : ""}{groupLines.length} pcs</span></div></td></tr>{groupLines.map((line) => (<tr key={line.id} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60"><td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{line.imei ?? `${line.quantity} pcs × ${formatPKR(line.cost)}`}</span></td><td className="px-4 py-2.5 text-ink-700">{line.purchaseNumber || "—"}</td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(line.cost * line.quantity)}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeLine(line.id)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>)); })()}{cart.length === 0 && (<tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-ink-400">Cart is empty. Scan or search for in-stock units.</td></tr>)}</tbody></table></div>
           </div>
           <div className="flex min-h-0 w-full flex-col gap-3 overflow-hidden lg:w-auto lg:min-w-[300px] lg:max-w-[340px]">
-            <div className="flex h-full flex-col gap-3">
+            <div className="flex h-full flex-col gap-4">
               <div className="flex-1 rounded-2xl bg-white p-4">
                 <div className="flex items-center justify-between"><h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">Refund</h3><p className="text-xs text-ink-400">Total <span className="font-semibold text-ink-900">{formatPKR(refundTotalForNew)}</span></p></div>
                 <div className="mt-3 space-y-2">
@@ -1028,10 +1032,10 @@ export default function PurchaseReturnsPage() {
         <span className="text-xs text-ink-500">{cart.length} unit(s)</span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-none rounded-2xl bg-white">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-white">
-            <tr className="border-b border-ink-100 text-left text-xs uppercase tracking-wide text-ink-500">
+          <thead className="sticky top-0 bg-white">
+            <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
               <th className="px-4 py-3">Item</th>
               <th className="px-4 py-3">Purchase #</th>
               <th className="w-28 px-4 py-3 text-right">Refund</th>
