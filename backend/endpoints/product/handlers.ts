@@ -4,6 +4,7 @@ import {
   bulkDeleteProducts,
   createProduct,
   getProduct,
+  getProductLedger,
   importProducts,
   listProducts,
   searchProducts,
@@ -29,6 +30,10 @@ export async function listHandler(req: Request, res: Response) {
 export async function getHandler(req: Request, res: Response) {
   const product = await getProduct(req.params.id);
   res.json({ data: stripCosts(product, hasPermissionList(req.user?.permissions, PERMISSIONS.reportProfit)) });
+}
+
+export async function ledgerHandler(req: Request, res: Response) {
+  res.json({ data: await getProductLedger(req.params.id) });
 }
 
 export async function createHandler(req: Request, res: Response) {

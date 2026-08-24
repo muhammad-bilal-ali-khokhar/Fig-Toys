@@ -5,7 +5,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Brand, Category, Color, InventoryData, InventoryProduct, Unit } from "@/lib/api-types";
+import type { Brand, Category, Color, InventoryData, InventoryProduct, ProductLedger, Unit } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { canViewCosts, hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
@@ -124,6 +124,7 @@ export default function InventoryPage() {
   const [lowStockQ, setLowStockQ] = useState("");
   const [lowStockStatus, setLowStockStatus] = useState<"all" | "out" | "low">("all");
   const [selectedTxnId, setSelectedTxnId] = useState<string | null>(null);
+  const [productLedgerId, setProductLedgerId] = useState<string | null>(null);
   const [view, setView] = useState<InventoryViewSettings>(DEFAULT_INVENTORY_VIEW);
 
   const viewCosts = canViewCosts(user);
@@ -668,7 +669,7 @@ export default function InventoryPage() {
                         ? [g.accessory.color]
                         : [];
                   return (
-                    <tr key={g.product.id} className="border-b border-ink-100 transition hover:bg-ink-50">
+                    <tr key={g.product.id} onClick={() => setProductLedgerId(g.product.id)} className="cursor-pointer border-b border-ink-100 transition hover:bg-ink-50">
                       <td className="px-5 py-3">
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-ink-900">
@@ -739,7 +740,7 @@ export default function InventoryPage() {
               <tbody>
                 {pageGroups.map((g) => (
                   <Fragment key={g.product.id}>
-                    <tr className="border-y border-ink-100 bg-ink-50/70">
+                    <tr onClick={() => setProductLedgerId(g.product.id)} className="cursor-pointer border-y border-ink-100 bg-ink-50/70 hover:bg-ink-100">
                       <td colSpan={unitColSpan} className="px-4 py-2">
                         <div className="flex w-full items-center gap-2 text-left">
                           <span className="truncate font-semibold text-ink-900">
@@ -1271,7 +1272,83 @@ export default function InventoryPage() {
           onChanged={refetch}
         />
       )}
+      {productLedgerId && (
+        <ProductLedgerSheet id={productLedgerId} onClose={() => setProductLedgerId(null)} onOpenTxn={setSelectedTxnId} />
+      )}
     </div>
+  );
+}
+
+function ProductLedgerSheet({ id, onClose, onOpenTxn }: { id: string; onClose: () => void; onOpenTxn: (txnId: string) => void }) {
+  const { data, loading } = useApi<ProductLedger>(`/product/${id}/ledger`);
+  return (
+    <Sheet open title={data ? `${data.product.brand} ${data.product.model}${data.product.storage ? ` ${data.product.storage}` : ""}` : "Product ledger"} onClose={onClose} width="max-w-2xl">
+      {loading || !data ? (
+        <p className="py-8 text-center text-sm text-ink-400">Loading ledger…</p>
+      ) : (
+        <div className="space-y-5">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-ink-50 px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-ink-400">In stock</p>
+              <p className="mt-0.5 text-sm font-bold text-ink-900">{data.units.filter((u) => u.status === "IN_STOCK").length} / {data.units.length} units</p>
+            </div>
+            <div className="rounded-2xl bg-ink-50 px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-ink-400">Sell / Cost</p>
+              <p className="mt-0.5 text-sm font-bold text-ink-900">{formatPKR(data.product.sellPrice)}<span className="font-normal text-ink-400"> / {formatPKR(data.product.costPrice)}</span></p>
+            </div>
+            <div className="rounded-2xl bg-ink-50 px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-ink-400">SKU</p>
+              <p className="mt-0.5 font-mono text-xs font-semibold text-ink-900">{data.product.sku ?? "—"}</p>
+            </div>
+          </div>
+          {data.units.length > 0 && (
+            <div className="rounded-2xl border border-ink-100">
+              <p className="border-b border-ink-100 px-4 py-2 text-xs font-bold uppercase tracking-widest text-ink-500">IMEIs ({data.units.length})</p>
+              <div className="max-h-36 overflow-auto p-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {data.units.map((u) => (
+                    <span key={u.id} className={`rounded-full px-2.5 py-1 font-mono text-xs ${u.status === "IN_STOCK" ? "bg-success/10 text-success" : u.status === "SOLD" ? "bg-ink-100 text-ink-500" : "bg-warning/10 text-warning"}`}>{u.imei} · {u.status}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-ink-500">Transaction ledger — last 100</p>
+            {data.ledger.length === 0 ? (
+              <p className="rounded-2xl bg-ink-50 px-4 py-6 text-center text-sm text-ink-400">No purchases or sales yet for this product.</p>
+            ) : (
+              <div className="divide-y divide-ink-100 overflow-hidden rounded-2xl border border-ink-100">
+                {data.ledger.map((r) => (
+                  <button key={r.id} type="button" onClick={() => onOpenTxn(r.transactionId)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-ink-50">
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${r.type === "PURCHASE" ? "bg-brand-50 text-brand-700" : r.type === "SALE" ? "bg-success/10 text-success" : r.type.includes("RETURN") ? "bg-warning/10 text-warning" : "bg-ink-100 text-ink-600"}`}>{r.type.replace("_"," ")}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-700">{r.number} · {r.contact}</span>
+                    <span className="shrink-0 text-xs text-ink-500">{new Date(r.date).toLocaleDateString()} · x{r.qty}</span>
+                    <span className="shrink-0 text-sm font-semibold text-ink-900">{formatPKR(Number(r.total))}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-ink-500">Stock movements</p>
+            {data.movements.length === 0 ? (
+              <p className="rounded-2xl bg-ink-50 px-4 py-4 text-center text-sm text-ink-400">No movements recorded.</p>
+            ) : (
+              <div className="divide-y divide-ink-100 overflow-hidden rounded-2xl border border-ink-100">
+                {data.movements.map((m) => (
+                  <div key={m.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-ink-600">{m.type}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-ink-700">{m.note ?? "—"} {m.unit ? `· ${m.unit.imei}` : ""}</span>
+                    <span className="shrink-0 text-xs text-ink-400">{new Date(m.createdAt).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Sheet>
   );
 }
 

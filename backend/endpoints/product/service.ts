@@ -390,6 +390,52 @@ export async function importProducts(rows: ImportProductInput[], userId: string)
   return { created, skipped };
 }
 
+export async function getProductLedger(id: string) {
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: {
+      brand: { select: { name: true } },
+      color: { select: { name: true } },
+      category: { select: { id: true, name: true, type: true } },
+    },
+  });
+  if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+  const [items, movements, units] = await Promise.all([
+    prisma.transactionItem.findMany({
+      where: { productId: id },
+      orderBy: { transaction: { createdAt: "desc" } },
+      include: { transaction: { include: { contact: true, user: true } }, unit: { select: { id: true, imei: true, status: true } } },
+      take: 100,
+    }),
+    prisma.stockMovement.findMany({
+      where: { productId: id },
+      orderBy: { createdAt: "desc" },
+      include: { unit: { select: { id: true, imei: true, status: true } } },
+      take: 100,
+    }),
+    prisma.unit.findMany({ where: { productId: id }, select: { id: true, imei: true, status: true, condition: true } }),
+  ]);
+  return {
+    product: { ...product, brand: product.brand.name, color: product.color?.name ?? null },
+    units,
+    ledger: items.map((it) => ({
+      id: it.id,
+      transactionId: it.transactionId,
+      type: it.transaction.type,
+      number: it.transaction.number,
+      date: it.transaction.createdAt,
+      qty: it.quantity,
+      unitPrice: it.unitPrice,
+      discount: it.discount,
+      total: it.total,
+      contact: it.transaction.contact.name,
+      user: it.transaction.user.name,
+      unit: it.unit,
+    })),
+    movements,
+  };
+}
+
 export async function bulkDeleteProducts(ids: string[], userId: string) {
   const products = await prisma.product.findMany({
     where: { id: { in: ids } },

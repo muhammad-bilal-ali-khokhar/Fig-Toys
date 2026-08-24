@@ -8,6 +8,7 @@ import {
   createHandler,
   getHandler,
   importHandler,
+  ledgerHandler,
   listHandler,
   searchHandler,
   updateHandler,
@@ -20,6 +21,7 @@ router.use(requireAuth);
 
 router.get("/", requirePermission(PERMISSIONS.productView), asyncHandler(listHandler));
 router.get("/search", requirePermission(PERMISSIONS.productView), asyncHandler(searchHandler));
+router.get("/:id/ledger", requirePermission(PERMISSIONS.productView), asyncHandler(ledgerHandler));
 router.get("/:id", requirePermission(PERMISSIONS.productView), asyncHandler(getHandler));
 router.post("/import", requirePermission(PERMISSIONS.productImport), validate(importProductsSchema), asyncHandler(importHandler));
 router.post("/", requirePermission(PERMISSIONS.productCreate), validate(productSchema), asyncHandler(createHandler));

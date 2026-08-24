@@ -574,6 +574,13 @@ export type DeviceLedgerRow = {
   user: string;
 };
 
+export type ProductLedger = {
+  product: { id: string; brand: string; color: string | null; model: string; storage: string | null; sku: string | null; sellPrice: string; costPrice: string };
+  units: { id: string; imei: string; status: string; condition: string }[];
+  ledger: { id: string; transactionId: string; type: string; number: string; date: string; qty: number; unitPrice: string; discount: string; total: string; contact: string; user: string; unit: { id: string; imei: string; status: string } | null }[];
+  movements: StockMovement[];
+};
+
 export type DeviceLedger = {
   unit: DeviceLedgerUnit;
   movements: StockMovement[];
