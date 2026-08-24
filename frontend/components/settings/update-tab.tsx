@@ -208,6 +208,7 @@ export function UpdateTab() {
   }
 
   const appBusy = Boolean(state?.checking || state?.downloading || (state as unknown as { installing?: boolean })?.installing);
+  const isNoInternet = Boolean(state?.error && /No internet/i.test(state.error));
   const isTimeoutError = Boolean(state?.error && /timeout|Slow connection/i.test(state.error));
   const directUrl = state?.url || (state?.available ? `${UPDATE.downloadSite}/v${state.version}/Fig.Mobile.POS-setup.exe` : "");
 
@@ -256,6 +257,7 @@ export function UpdateTab() {
             </Button>
           </div>
         )}
+        {isNoInternet && <p className="mb-3 rounded-2xl bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-700">No internet connection. Check your Wi-Fi or cable, then tap Check again. If you are on mobile data, make sure Fig POS is allowed to use data.</p>}
         {isTimeoutError && <p className="mb-3 rounded-2xl bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-700">{UPDATE.timeoutHint}</p>}
         {state?.available && state?.size && <p className="mb-2 text-xs text-ink-500">Size {state.size} · 64-bit · Windows 10 / 11 · Differential download — only changed blocks</p>}
         {Boolean((state as unknown as { installing?: boolean })?.installing) && (

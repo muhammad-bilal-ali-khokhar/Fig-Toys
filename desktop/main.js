@@ -222,11 +222,13 @@ function isNewerVersion(remote, local) {
 function friendlyUpdateError(err) {
   const raw = err && err.message ? String(err.message) : String(err || "");
   const name = err && err.name ? String(err.name) : "";
-  if (/Cannot find channel.*latest\.yml|ERR_UPDATER_CHANNEL_NOT_FOUND|channel.*not found/i.test(raw)) return "Update check temporarily unavailable. Please use Direct download from the download site or try again in a few minutes. If this keeps happening, tap Copy error and share with support.";
+  const combined = `${raw} ${name}`.toLowerCase();
+  if (/cannot find channel.*latest\.yml|err_updater_channel_not_found|channel.*not found/i.test(raw)) return "Update check temporarily unavailable. Please use Direct download from the download site or try again in a few minutes. If this keeps happening, tap Copy error and share with support.";
+  if (/err_internet_disconnected|err_name_not_resolved|enotfound|econnrefused|fetch failed|network|getaddrinfo|offline|failed to fetch|no internet/i.test(combined)) return "No internet connection. Please check your Wi-Fi or mobile data and tap Check again. If you are online, try Direct download.";
   if (name === "AbortError" || /aborted.*timeout|timeout|aborted/i.test(raw)) return "Slow connection — check timed out. Please check your internet and tap Check again.";
-  if (/HTTP\s*404/i.test(raw) && /latest\.yml/i.test(raw)) return "Update info not yet published. Please use Direct download for now and try again after the next release finishes publishing.";
-  if (/HTTP\s*\d+/.test(raw)) return raw;
-  if (/ERR_UPDATER_INVALID_SIGNATURE/i.test(raw)) return "Update signature check failed — please use Direct download from the download site.";
+  if (/http\s*404/i.test(raw) && /latest\.yml/i.test(raw)) return "Update info not yet published. Please use Direct download for now and try again after the next release finishes publishing.";
+  if (/http\s*\d+/.test(raw)) return raw;
+  if (/err_updater_invalid_signature/i.test(raw)) return "Update signature check failed — please use Direct download from the download site.";
   return raw || "Could not check for updates.";
 }
 
