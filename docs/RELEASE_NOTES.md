@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.21
+
 - **Your POS and Reservations tables are now smoother and perfectly matched.** Both lists live inside a clean white card with fixed height so only the rows scroll while headers stay put. Same widths, same hover and the same polished look everywhere so switching between selling and reserving feels seamless.
 - **Edit accessory quantity right in the cart.** For chargers, cases and other non phone items you can now tap the Qty box directly in POS and Reservations. The field is grey for clarity with smart stock checks so you never oversell.
 - **Cleaner purchase returns.** Stock counts no longer clutter the accessory picker so finding the right item is faster and the list stays tidy.

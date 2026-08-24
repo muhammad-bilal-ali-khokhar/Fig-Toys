@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.20
+## v0.2.21
+
+- Released on: 2026-08-24
+
+- feat: POS and Reservations tables unify, editable accessory qty, purchase return cleanup
 
 - Released on: 2026-08-24
 
