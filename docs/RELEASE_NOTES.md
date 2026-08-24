@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.14
+
 - **Faster scanning that never slows you down. Press Enter and your IMEI and barcode field clears instantly whether the item was found, out of stock or not found, so you can scan the next phone right away.**
 - **Alerts you will always see. Stock and price warnings now float beautifully above every menu and search list, never hidden behind a dropdown.**
 - **Sound that stays with you all day. Success and tap sounds now play reliably even after hours in the browser or waking your PC, so every scan feels confirmed.**
