@@ -367,7 +367,6 @@ export default function ExpensesPage() {
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
                             href={`/print?type=EXPENSE&id=${e.id}`}
-                            target="_blank"
                             className="rounded-xl bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-600 transition hover:bg-ink-200"
                           >
                             <PrinterIcon className="mr-0.5 inline h-3 w-3" />
