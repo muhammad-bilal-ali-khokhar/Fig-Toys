@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
@@ -220,6 +220,25 @@ function PrintStudioContent() {
   const [selectedId, setSelectedId] = useState<string | null>(deepLinkId);
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(false);
+  useEffect(() => {
+    if (deepLinkId && deepLinkId !== selectedId) setSelectedId(deepLinkId);
+  }, [deepLinkId]);
+  useEffect(() => {
+    if (!deepLinkType) return;
+    const next =
+      deepLinkType === "inventory"
+        ? "INVENTORY"
+        : deepLinkType === "expense"
+          ? "EXPENSE_SHEET"
+          : deepLinkType === "contacts"
+            ? "CONTACTS"
+            : (["SALE", "PURCHASE", "SALE_RETURN", "PURCHASE_RETURN", "VOUCHER", "EXPENSE", "RESERVATION", "CONSIGNMENT"] as const).includes(deepLinkType as never)
+              ? (deepLinkType as PrintDocType)
+              : isReportDocType(deepLinkType)
+                ? (deepLinkType as PrintDocType)
+                : null;
+    if (next && next !== printDocType) setPrintDocType(next);
+  }, [deepLinkType]);
   const [rawUnits, setRawUnits] = useState<Unit[]>([]);
   const [rawProducts, setRawProducts] = useState<InventoryProduct[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
@@ -257,7 +276,13 @@ function PrintStudioContent() {
   const selectedVoucher = vouchers.find((v) => v.id === selectedId) ?? null;
   const selectedExpense = expenses.find((e) => e.id === selectedId) ?? null;
   const selectedReservation = reservations.find((r) => r.id === selectedId) ?? null;
-  useEffect(() => { setSelectedId(null); setDetail(null); }, [printDocType]);
+  const prevPrintDocType = useRef(printDocType);
+  useEffect(() => {
+    if (prevPrintDocType.current === printDocType) return;
+    prevPrintDocType.current = printDocType;
+    if (deepLinkId && deepLinkId === selectedId) return;
+    setSelectedId(null); setDetail(null);
+  }, [printDocType, deepLinkId, selectedId]);
   const showCost = canViewCosts(user) && options.cost === true;
   const activeCategories = categories.filter((c) => c.active);
   const activeBrands = brands.filter((b) => b.active);

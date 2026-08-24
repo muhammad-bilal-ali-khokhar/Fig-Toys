@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **A fresh sign in that sells your shop. Your login now shows a dark feature wall with your shop name, tagline and six clear cards for Sale Invoice, Inventory, Contacts, Purchases, Money and Reports. Clean, premium and fast on every screen.**
+- **Print Studio opens exactly where you need it. Links to sales, purchases, reservations or reports now land on the right document and stay selected when you switch types, so your receipt is always ready to print without hunting.**
+
 ## v0.2.10
 
 - **Automatic print you control. Turn on automatic print for each document in Settings Automatic print and your sale, purchase, sale return, purchase return, orders, reservations and vouchers will print the moment you save. No extra clicks, perfect for busy counters.**
