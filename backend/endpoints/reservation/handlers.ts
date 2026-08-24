@@ -31,7 +31,7 @@ export async function createHandler(req: Request, res: Response) {
 
 export async function cancelHandler(req: Request, res: Response) {
   const body = (req.body ?? {}) as CancelReservationInput;
-  res.json({ data: await cancelReservation(req.params.id, req.user!.id, body.refunded ?? false) });
+  res.json({ data: await cancelReservation(req.params.id, req.user!.id, body.refunded ?? false, (body as any).payments) });
 }
 
 export async function refundHandler(req: Request, res: Response) {

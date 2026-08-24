@@ -168,21 +168,27 @@ export async function createReservation(input: CreateReservationInput, userId: s
   return attachPayments(reservation as any);
 }
 
-async function attachPayments<T extends { id: string }>(reservation: T): Promise<T & { payments: { method: string; amount: number; bankAccountId: string | null }[] }> {
+async function attachPayments<T extends { id: string }>(reservation: T): Promise<T & { payments: { method: string; amount: number; bankAccountId: string | null; bankAccount?: { id: string; name: string; bankName: string } | null }[] }> {
   const movements = await prisma.moneyMovement.findMany({
     where: { sourceType: "RESERVATION", sourceId: reservation.id },
     select: { account: true, amount: true, bankAccountId: true, note: true },
   });
-  const payments: { method: string; amount: number; bankAccountId: string | null }[] = movements.map((m) => {
+  const bankIds = movements.map((m) => m.bankAccountId).filter(Boolean) as string[];
+  const banks = bankIds.length
+    ? await prisma.bankAccount.findMany({ where: { id: { in: bankIds } }, select: { id: true, name: true, bankName: true } })
+    : [];
+  const bankMap = new Map(banks.map((b) => [b.id, b]));
+  const payments: { method: string; amount: number; bankAccountId: string | null; bankAccount?: { id: string; name: string; bankName: string } | null }[] = movements.map((m) => {
     const note = m.note ?? "";
-    if (note.includes("(card)")) return { method: "CARD", amount: Number(m.amount), bankAccountId: null };
-    if (note.includes("(credit)")) return { method: "CREDIT", amount: Number(m.amount), bankAccountId: null };
-    return { method: m.account === "bank" ? "BANK_TRANSFER" : "CASH", amount: Number(m.amount), bankAccountId: m.bankAccountId };
+    if (note.includes("(card)")) return { method: "CARD", amount: Number(m.amount), bankAccountId: null, bankAccount: null };
+    if (note.includes("(credit)")) return { method: "CREDIT", amount: Number(m.amount), bankAccountId: null, bankAccount: null };
+    const isBank = m.account === "bank";
+    return { method: isBank ? "BANK_TRANSFER" : "CASH", amount: Number(m.amount), bankAccountId: m.bankAccountId, bankAccount: isBank && m.bankAccountId ? bankMap.get(m.bankAccountId) ?? null : null };
   });
   const advance = Number((reservation as any).advance ?? 0);
   const moved = payments.reduce((s, p) => s + p.amount, 0);
   if (advance > moved + 0.001) {
-    payments.push({ method: "CASH", amount: Math.round((advance - moved) * 100) / 100, bankAccountId: null });
+    payments.push({ method: "CASH", amount: Math.round((advance - moved) * 100) / 100, bankAccountId: null, bankAccount: null });
   }
   return Object.assign(reservation, { payments }) as any;
 }
@@ -233,7 +239,7 @@ export async function checkReservationConflicts(unitIds: string[], saleContactId
     }));
 }
 
-export async function cancelReservation(id: string, userId: string, refunded: boolean) {
+export async function cancelReservation(id: string, userId: string, refunded: boolean, paymentsInput?: { method: string; amount: number; bankAccountId?: string | null }[]) {
   const reservation = await prisma.reservation.findUnique({
     where: { id },
     include: { items: true },
@@ -274,14 +280,21 @@ export async function cancelReservation(id: string, userId: string, refunded: bo
           where: { id },
           data: { status: "CANCELLED", refundStatus: "PAID", refundedAt: new Date() },
         });
-        await moneyOut(tx, {
-          account: "cash",
-          amount: advance,
-          sourceType: "RESERVATION",
-          sourceId: reservation.id,
-          note: `Refund advance on ${reservation.number}`,
-          userId,
-        });
+        const refundPayments = paymentsInput && paymentsInput.length > 0 ? paymentsInput : [{ method: "CASH", amount: advance, bankAccountId: null }];
+        for (const p of refundPayments) {
+          const amt = Number(p.amount) || 0;
+          if (amt <= 0) continue;
+          if (p.method === "CASH") {
+            await moneyOut(tx, { account: "cash", amount: amt, sourceType: "RESERVATION", sourceId: reservation.id, note: `Refund advance on ${reservation.number} (cash)`, userId });
+          } else if (p.method === "BANK_TRANSFER") {
+            await moneyOut(tx, { account: "bank", amount: amt, bankAccountId: (p as any).bankAccountId ?? undefined, sourceType: "RESERVATION", sourceId: reservation.id, note: `Refund advance on ${reservation.number} (bank)`, userId });
+          } else if (p.method === "CARD") {
+            await tx.moneyMovement.create({ data: { date: new Date(), kind: "OUT", amount: amt, account: "cash", sourceType: "RESERVATION", sourceId: reservation.id, note: `Refund advance on ${reservation.number} (card)`, createdById: userId } });
+          } else if (p.method === "CREDIT") {
+            await tx.creditAccount.upsert({ where: { contactId: reservation.contactId }, create: { contactId: reservation.contactId, limit: 0, balance: amt }, update: { balance: { increment: amt } } });
+            await tx.moneyMovement.create({ data: { date: new Date(), kind: "OUT", amount: amt, account: "cash", sourceType: "RESERVATION", sourceId: reservation.id, note: `Refund advance on ${reservation.number} (credit)`, createdById: userId } });
+          }
+        }
       } else {
         await tx.creditAccount.upsert({
           where: { contactId: reservation.contactId },

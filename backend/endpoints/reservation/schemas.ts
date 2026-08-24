@@ -26,6 +26,7 @@ export const createReservationSchema = z.object({
 
 export const cancelReservationSchema = z.object({
   refunded: z.boolean().optional().default(false),
+  payments: z.array(paymentSchema).optional(),
 });
 
 export type CancelReservationInput = z.infer<typeof cancelReservationSchema>;
