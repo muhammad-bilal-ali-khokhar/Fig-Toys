@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.26
+
 - **Receipts that show the deal.** Discounts now print right on your receipts and invoices, with the original price struck through, the discount amount and the percentage for both single items and the whole bill. No discount means no clutter, exactly as before.
 - **Payments that behave when bills hit zero.** Full discount sales no longer lock the payment boxes or demand a payment amount. Charge a free sale in one tap.
 - **Add items back to back without the cleanup.** After you tap Add on POS, Sale Returns, Purchases, Purchase Returns and Purchase Orders, the quantity, price and product pickers reset themselves so you are instantly ready for the next item. Faster counters, fewer mistakes.
