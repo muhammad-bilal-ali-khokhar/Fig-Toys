@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.23
+## v0.2.24
+
+- Released on: 2026-08-26
+
+- feat: used phone vendor contact type, sell below cost warning, ledger opening balance, contacts quick filters, dashboard defaults to today
 
 - Released on: 2026-08-25
 

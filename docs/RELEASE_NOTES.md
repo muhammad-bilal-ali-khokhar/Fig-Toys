@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.24
+
 - **Meet the Used Phone Vendor contact type.** Now you can keep your used phone suppliers and walk in sellers separate from regular vendors. Pick Used phone vendor when adding a contact and they appear everywhere you buy used stock, with their own clear label on every list so your contacts stay organized at a glance.
 - **Sell below cost with confidence.** The POS now warns you clearly when a price drops under purchase cost, and one tap lets you proceed anyway. No more blocked sales when a deal calls for it.
 - **Contact ledger that always adds up.** Opening balance is now included, so picking Today or any period shows the true closing balance carried forward from all history.
