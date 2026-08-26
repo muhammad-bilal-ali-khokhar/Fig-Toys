@@ -299,6 +299,10 @@ export default function PurchasesPage() {
       toast("Enter a cost price", "error");
       return;
     }
+    if ((parseFloat(price) || 0) <= 0) {
+      toast("Cost price must be greater than 0", "error");
+      return;
+    }
     const color = colorOptions.find((c) => c.value === colorId);
     const carrierFromProduct = ((p as any).carrier as "PTA" | "NON_PTA" | "SIM_LOCKED" | null) ?? "PTA";
     playPop();
@@ -369,6 +373,10 @@ export default function PurchasesPage() {
     if (!cur) return;
     commitGuardRef.current = true;
     setTimeout(() => { commitGuardRef.current = false; }, 500);
+    if ((parseFloat(cur.price) || 0) <= 0) {
+      toast("Cost price must be greater than 0", "error");
+      return;
+    }
     const seen = new Set<string>();
     for (const imei of imeis) {
       if (seen.has(imei)) {
@@ -449,6 +457,10 @@ export default function PurchasesPage() {
       toast("Enter a cost price", "error");
       return;
     }
+    if ((parseFloat(price) || 0) <= 0) {
+      toast("Cost price must be greater than 0", "error");
+      return;
+    }
     const label = `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""}`.trim();
     playPop();
     setBarcodePopup({
@@ -503,6 +515,10 @@ export default function PurchasesPage() {
 
   function commitBarcodes(values?: string[]) {
     if (!barcodePopup) return;
+    if ((parseFloat(barcodePopup.price) || 0) <= 0) {
+      toast("Cost price must be greater than 0", "error");
+      return;
+    }
     if (sameBarcode) {
       const bc = singleBarcode.trim();
       if (!bc) {

@@ -163,7 +163,12 @@ export default function PurchaseOrdersPage() {
     if (quickAddEnabled) {
       const p = (products ?? []).find((x) => x.id === value);
       if (!p) return;
-      const cost = p.costPrice ? String(p.costPrice) : "0";
+      const cost = String(p.costPrice ?? "");
+      if ((parseFloat(cost) || 0) <= 0) {
+        toast(`${p.brand} ${p.model} has no cost price. Add it with the cost box below.`, "error");
+        setSelProductId(value);
+        return;
+      }
       setRows((prev) => [
         ...prev,
         {
@@ -200,6 +205,10 @@ export default function PurchaseOrdersPage() {
     }
     if (!price.trim() || isNaN(parseFloat(price))) {
       toast("Enter a cost price", "error");
+      return;
+    }
+    if ((parseFloat(price) || 0) <= 0) {
+      toast("Cost price must be greater than 0", "error");
       return;
     }
     setRows((prev) => [

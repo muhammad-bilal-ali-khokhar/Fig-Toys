@@ -44,6 +44,7 @@ import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Sheet } from "@/components/ui/sheet";
+import { InventoryFilterSheet } from "@/components/inventory/inventory-filter-sheet";
 import { useToast } from "@/components/ui/toast";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
@@ -155,28 +156,6 @@ function collectSubtreeIds(node: Category): Set<string> {
   for (const ch of node.children ?? []) for (const id of collectSubtreeIds(ch)) ids.add(id);
   return ids;
 }
-function flattenSubcategoryOptions(cats: Category[], prefix = ""): { value: string; label: string }[] {
-  const out: { value: string; label: string }[] = [];
-  for (const c of cats) {
-    if (!c.active) continue;
-    const label = prefix ? `${prefix} › ${c.name}` : c.name;
-    out.push({ value: c.id, label });
-    if (c.children?.length) out.push(...flattenSubcategoryOptions(c.children, label));
-  }
-  return out;
-}
-const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "All statuses" },
-  ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
-];
-const CARRIER_FILTER_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "All carriers" },
-  ...Object.entries(CARRIER_LABELS).map(([value, label]) => ({ value, label })),
-];
-const CONDITION_FILTER_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "All conditions" },
-  ...Object.entries(CONDITION_LABELS).map(([value, label]) => ({ value, label })),
-];
 
 function PrintStudioContent() {
   const params = useSearchParams();
@@ -342,11 +321,6 @@ function PrintStudioContent() {
   const inStockCount = filteredUnits.filter((u) => u.status === "IN_STOCK").length + filteredProducts.reduce((s, p) => s + p.qty, 0);
   const rawTotalCount = rawUnits.length + rawProducts.reduce((s, p) => s + p.qty, 0);
   const activeFilterCount = [q.trim(), categoryId, subcategoryId, brandId, colorId, status, carrier, condition, vendor].filter(Boolean).length;
-  const selectedCategory = subcategoryId || categoryId ? findCategory(activeCategories, subcategoryId || categoryId) : null;
-  const subcategoryOptions = selectedCategory
-    ? [{ value: "", label: "All subcategories" }, ...flattenSubcategoryOptions(selectedCategory.children ?? [])]
-    : [{ value: "", label: "Select a category first" }];
-  const activeColors = colors.filter((c) => c.active);
   const contactsReceivable = contacts.reduce((sum, c) => sum + (parseFloat(c.receivable) || 0), 0);
   const contactsPayable = contacts.reduce((sum, c) => sum + (parseFloat(c.payable) || 0), 0);
   const reportReady =
@@ -1388,55 +1362,18 @@ function PrintStudioContent() {
         />
       </Sheet>
 
-      <Sheet open={invFiltersOpen} title="Inventory filters" onClose={() => setInvFiltersOpen(false)} width="max-w-md">
-        <div className="space-y-4">
-          <div>
-            <SearchInput value={q} onChange={setQ} placeholder="Keyword: IMEI, brand, model, color…" variant="white" wrapperClassName="w-full" />
-            <p className="mt-1 text-xs text-ink-400">Shows phones + accessories matching keyword</p>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
-            <Dropdown value={categoryId} onChange={(v) => { setCategoryId(v); setSubcategoryId(""); }} searchable placeholder="All categories" options={[{ value: "", label: "All categories" }, ...parentCategories.map((c) => ({ value: c.id, label: c.name }))]} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Subcategory</label>
-            <Dropdown value={subcategoryId} onChange={setSubcategoryId} searchable placeholder={categoryId ? "All subcategories" : "Select a category first"} options={subcategoryOptions} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Brand</label>
-            <Dropdown value={brandId} onChange={setBrandId} searchable placeholder="All brands" options={[{ value: "", label: "All brands" }, ...activeBrands.map((b) => ({ value: b.id, label: b.name }))]} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Color</label>
-            <Dropdown value={colorId} onChange={setColorId} searchable placeholder="All colors" options={[{ value: "", label: "All colors" }, ...activeColors.map((c) => ({ value: c.id, label: c.name }))]} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Status</label>
-            <Dropdown value={status} onChange={setStatus} options={STATUS_FILTER_OPTIONS} placeholder="All statuses" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Carrier</label>
-            <Dropdown value={carrier} onChange={setCarrier} options={CARRIER_FILTER_OPTIONS} placeholder="All carriers" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Condition</label>
-            <Dropdown value={condition} onChange={setCondition} options={CONDITION_FILTER_OPTIONS} placeholder="All conditions" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Vendor</label>
-            <Dropdown value={vendor} onChange={setVendor} searchable placeholder="All vendors" options={[{ value: "", label: "All vendors" }, ...vendorOptions.map((v) => ({ value: v, label: v }))]} />
-          </div>
-          <div className="flex items-center justify-between pt-2">
-            <p className="text-sm text-ink-500">{totalFilteredCount} of {rawTotalCount} pcs</p>
-            <div className="flex items-center gap-2">
-              <Button variant="grey" onClick={() => { setQ(""); setCategoryId(""); setSubcategoryId(""); setBrandId(""); setColorId(""); setStatus(""); setCarrier(""); setCondition(""); setVendor(""); }}>
-                Reset
-              </Button>
-              <Button onClick={() => setInvFiltersOpen(false)}>Show {totalFilteredCount} pcs</Button>
-            </div>
-          </div>
-        </div>
-      </Sheet>
+      <InventoryFilterSheet
+        open={invFiltersOpen}
+        onClose={() => setInvFiltersOpen(false)}
+        filters={{ q, categoryId, subcategoryId, brandId, colorId, status, carrier, condition, vendor }}
+        onChange={(f) => { setQ(f.q); setCategoryId(f.categoryId); setSubcategoryId(f.subcategoryId); setBrandId(f.brandId); setColorId(f.colorId); setStatus(f.status); setCarrier(f.carrier); setCondition(f.condition); setVendor(f.vendor); }}
+        categories={categories}
+        brands={brands}
+        colors={colors}
+        vendorOptions={vendorOptions}
+        filteredCount={totalFilteredCount}
+        totalCount={rawTotalCount}
+      />
 
       {typeof document !== "undefined" &&
         createPortal(

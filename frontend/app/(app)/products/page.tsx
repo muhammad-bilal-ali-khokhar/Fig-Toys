@@ -305,6 +305,14 @@ export default function ProductsPage() {
       const isUsedCat = cat.name.toLowerCase().includes("used");
       if (isUsedCat) { toast("Carrier is required for Used phones", "error"); return; }
     }
+    if ((parseFloat(values.sellPrice) || 0) <= 0) {
+      toast("Sell price must be greater than 0", "error");
+      return;
+    }
+    if (viewCosts && (parseFloat(values.costPrice) || 0) <= 0) {
+      toast("Cost price must be greater than 0", "error");
+      return;
+    }
     setSaving(true);
     try {
       const body: any = {
