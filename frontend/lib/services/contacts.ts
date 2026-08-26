@@ -23,7 +23,7 @@ export type ContactDeleteResult = {
 };
 
 export type ParsedContact = {
-  type: "CUSTOMER" | "VENDOR" | "WALK_IN" | "BOTH";
+  type: "CUSTOMER" | "VENDOR" | "WALK_IN" | "BOTH" | "USED_VENDOR";
   name: string;
   phone?: string;
   email?: string;
@@ -76,8 +76,12 @@ export function parseContactsCsv(text: string): ParsedContact[] {
     if (!name) continue;
     const rawType = at("type").trim().toLowerCase();
     const type = rawType.startsWith("vend")
-      ? "VENDOR"
-      : rawType.includes("walk")
+      ? rawType.includes("used")
+        ? "USED_VENDOR"
+        : "VENDOR"
+      : rawType.includes("used")
+        ? "USED_VENDOR"
+        : rawType.includes("walk")
         ? "WALK_IN"
         : rawType.includes("both") || rawType.includes("&")
           ? "BOTH"

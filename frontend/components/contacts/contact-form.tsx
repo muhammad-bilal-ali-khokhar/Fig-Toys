@@ -11,7 +11,7 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { ImagePicker } from "@/components/products/image-picker";
 
 export type ContactFormValues = {
-  type: "CUSTOMER" | "VENDOR" | "WALK_IN" | "BOTH";
+  type: "CUSTOMER" | "VENDOR" | "WALK_IN" | "BOTH" | "USED_VENDOR";
   name: string;
   phone: string;
   email: string;
@@ -43,6 +43,7 @@ export const EMPTY_CONTACT_FORM: ContactFormValues = {
 const TYPE_OPTIONS = [
   { value: "CUSTOMER", label: "Customer" },
   { value: "VENDOR", label: "Vendor" },
+  { value: "USED_VENDOR", label: "Used phone vendor" },
   { value: "BOTH", label: "Customer & vendor" },
 ];
 

@@ -20,6 +20,7 @@ enum ContactType {
   CUSTOMER
   VENDOR
   BOTH
+  USED_VENDOR
 }
 
 enum UnitCondition {

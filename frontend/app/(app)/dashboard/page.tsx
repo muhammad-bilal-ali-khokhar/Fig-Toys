@@ -11,10 +11,8 @@ import { NewDashboard } from "@/components/dashboard/layouts/new-dashboard";
 export default function DashboardPage() {
   const { layout } = useDashboardLayout();
   const [range, setRange] = useState<ReportRange>(() => {
-    const to = new Date();
-    const from = new Date(to);
-    from.setDate(from.getDate() - 13);
-    return { from: toISODate(from), to: toISODate(to) };
+    const today = toISODate(new Date());
+    return { from: today, to: today };
   });
   const params = new URLSearchParams();
   if (range.from) params.set("from", range.from);

@@ -33,8 +33,16 @@ export function useContacts() {
   const { data, loading, refetch } = useApi<Contact[]>("/contact");
   const { toast } = useToast();
 
+  const TYPE_GROUPS: Record<string, string[]> = {
+    customers: ["CUSTOMER", "WALK_IN", "BOTH"],
+    vendors: ["VENDOR", "USED_VENDOR", "BOTH"],
+  };
   const [q, setQ] = useState(() => searchParams.get("search") ?? searchParams.get("q") ?? "");
-  const [type, setType] = useState("");
+  const [type, setType] = useState(() => {
+    const group = searchParams.get("type") ?? "";
+    if (TYPE_GROUPS[group]) return group;
+    return searchParams.get("contactType") ?? "";
+  });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -55,7 +63,8 @@ export function useContacts() {
   const filtered = useMemo(() => {
     const list = data ?? [];
     return list.filter((c) => {
-      if (type && c.type !== type) return false;
+      const allowed = TYPE_GROUPS[type];
+      if (type && !(allowed ?? [type]).includes(c.type)) return false;
       const query = q.trim().toLowerCase();
       if (!query) return true;
       return [c.name, c.phone ?? "", c.email ?? "", c.city ?? "", c.cnic ?? "", c.notes ?? ""]
@@ -115,6 +124,9 @@ export function useContacts() {
     const qp = searchParams.get("search") ?? searchParams.get("q");
     if (qp !== null) setQ(qp);
     else setQ("");
+    const group = searchParams.get("type") ?? "";
+    if (TYPE_GROUPS[group]) setType(group);
+    else setType(searchParams.get("contactType") ?? "");
   }, [searchParams]);
 
   useEffect(() => {

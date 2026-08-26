@@ -51,6 +51,7 @@ const CONTACT_TYPE_TONES: Record<string, TypePillTone> = {
   VENDOR: "grey",
   WALK_IN: "white",
   BOTH: "brand",
+  USED_VENDOR: "grey",
 };
 
 export const CONTACT_TYPE_LABELS: Record<string, string> = {
@@ -58,6 +59,7 @@ export const CONTACT_TYPE_LABELS: Record<string, string> = {
   VENDOR: "Vendor",
   WALK_IN: "Walk-in",
   BOTH: "Customer & vendor",
+  USED_VENDOR: "Used phone vendor",
 };
 
 export function ContactTypePill({ type }: { type: string }) {

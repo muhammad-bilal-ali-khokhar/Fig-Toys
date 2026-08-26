@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const contactSchema = z.object({
-  type: z.enum(["WALK_IN", "CUSTOMER", "VENDOR", "BOTH"]).default("WALK_IN"),
+  type: z.enum(["WALK_IN", "CUSTOMER", "VENDOR", "BOTH", "USED_VENDOR"]).default("WALK_IN"),
   name: z.string().trim().min(1, "Name is required"),
   phone: z.string().trim().optional(),
   email: z.string().trim().email("Invalid email").optional().or(z.literal("")),
@@ -18,7 +18,7 @@ export const contactSchema = z.object({
 export type ContactInput = z.infer<typeof contactSchema>;
 
 export const importContactSchema = z.object({
-  type: z.enum(["WALK_IN", "CUSTOMER", "VENDOR", "BOTH"]).default("WALK_IN"),
+  type: z.enum(["WALK_IN", "CUSTOMER", "VENDOR", "BOTH", "USED_VENDOR"]).default("WALK_IN"),
   name: z.string().trim().min(1, "Name is required"),
   phone: z.string().trim().optional(),
   email: z.string().trim().optional(),

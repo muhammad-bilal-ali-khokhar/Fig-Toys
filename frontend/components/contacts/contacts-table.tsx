@@ -69,6 +69,9 @@ export function ContactsTable({
       <tbody>
         {items.map((c) => {
           const isSelected = selected.has(c.id);
+          const creditBal = parseFloat(c.creditBalance) || 0;
+          const debit = (parseFloat(c.receivable) || 0) + Math.max(0, creditBal);
+          const credit = (parseFloat(c.payable) || 0) + Math.max(0, -creditBal);
           const used = creditUsed(c);
           const remaining = creditRemaining(c);
           const limit = parseFloat(c.creditLimit) || 0;
@@ -150,15 +153,15 @@ export function ContactsTable({
                 )}
               </td>
               <td className="px-5 py-3 text-right font-medium">
-                {parseFloat(c.receivable) > 0 ? (
-                  <span className="text-brand-600">{formatPKR(c.receivable)}</span>
+                {debit > 0 ? (
+                  <span className="text-brand-600">{formatPKR(debit)}</span>
                 ) : (
                   <span className="text-ink-300">—</span>
                 )}
               </td>
               <td className="px-5 py-3 text-right font-medium">
-                {parseFloat(c.payable) > 0 ? (
-                  <span className="text-ink-900">{formatPKR(c.payable)}</span>
+                {credit > 0 ? (
+                  <span className="text-ink-900">{formatPKR(credit)}</span>
                 ) : (
                   <span className="text-ink-300">—</span>
                 )}

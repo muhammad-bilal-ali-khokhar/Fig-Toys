@@ -125,7 +125,7 @@ export default function PurchaseOrdersPage() {
   }, [view]);
 
   const contactOptions = (contacts ?? [])
-    .filter((c) => c.type === "VENDOR" || c.type === "BOTH")
+    .filter((c) => c.type === "VENDOR" || c.type === "BOTH" || c.type === "USED_VENDOR")
     .map((c) => ({
       value: c.id,
       label: c.name,

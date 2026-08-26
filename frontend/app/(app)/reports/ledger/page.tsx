@@ -66,7 +66,11 @@ export default function LedgerPage() {
         <>
           <div className="grid gap-3 sm:grid-cols-3">
             <KpiCard label="Contact" value={data.contact.name} sub={data.contact.phone ?? "No phone"} />
-            <KpiCard label="Entries" value={String(data.rows.length)} sub="Movements in this period" />
+            <KpiCard
+              label="Opening balance"
+              value={formatPKR(data.opening)}
+              sub={data.opening > 0 ? "Owed before this period" : data.opening < 0 ? "You owed before this period" : "Nothing before this period"}
+            />
             <KpiCard
               label="Closing balance"
               value={formatPKR(data.closing)}

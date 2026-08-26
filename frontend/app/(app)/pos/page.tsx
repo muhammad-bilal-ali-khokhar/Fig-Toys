@@ -144,7 +144,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
   const [selProductId, setSelProductId] = useState<string | null>(null);
   const [lastSale, setLastSale] = useState<TransactionDetail | null>(null);
   const [stockDialog, setStockDialog] = useState<string | null>(null);
-  const [lowPriceDialog, setLowPriceDialog] = useState<{ label: string } | null>(null);
+  const [lowPriceDialog, setLowPriceDialog] = useState<{ label: string; proceed: () => void } | null>(null);
   const { enabled: quickAddEnabled } = useQuickAdd();
 
   useEffect(() => {
@@ -539,6 +539,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     unit?: { id: string; imei: string; condition?: "NEW" | "USED"; carrier?: "NON_PTA" | "PTA" | "SIM_LOCKED" },
     priceOverride?: number,
     qtyOverride?: number,
+    force?: boolean,
   ): boolean {
     if (!unit && result.category.type === "PHONE") {
       toast("IMEI/Serial required for phones — scan the serial", "error");
@@ -563,8 +564,8 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     const costRaw = unitCostRaw ?? result.costPrice ?? (products ?? []).find((p) => p.id === result.id)?.costPrice ?? null;
     const costPrice = costRaw ? parseFloat(String(costRaw)) : 0;
     const isLow = costPrice > 0 && nextPrice < costPrice;
-    if (isLow) {
-      setLowPriceDialog({ label });
+    if (isLow && !force) {
+      setLowPriceDialog({ label, proceed: () => { addLine(result, unit, priceOverride, qtyOverride, true); } });
       return false;
     }
     if (already) {
@@ -602,39 +603,39 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
     setCart((prev) => prev.filter((l) => l.key !== key));
   }
 
-  function updateLine(key: string, patch: Partial<CartLine>) {
+  function updateLine(key: string, patch: Partial<CartLine>, force?: boolean) {
     const line = cart.find((l) => l.key === key);
     const cost = line?.costPrice ?? 0;
     const nextPrice = patch.unitPrice ?? line?.unitPrice ?? 0;
     const nextPct = patch.discountPct ?? line?.discountPct ?? 0;
     const nextFlat = patch.discountFlat ?? line?.discountFlat ?? 0;
     const eff = Math.max(0, nextPrice - (nextPrice * nextPct) / 100 - nextFlat);
-    if (cost > 0 && (patch.unitPrice != null || patch.discountPct != null || patch.discountFlat != null) && eff < cost) {
-      setLowPriceDialog({ label: line?.label ?? "Item" });
+    if (cost > 0 && !force && (patch.unitPrice != null || patch.discountPct != null || patch.discountFlat != null) && eff < cost) {
+      setLowPriceDialog({ label: line?.label ?? "Item", proceed: () => { updateLine(key, patch, true); } });
       return;
     }
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
-  function updateGroupPrice(groupKey: string, unitPrice: number) {
+  function updateGroupPrice(groupKey: string, unitPrice: number, force?: boolean) {
     const sample = cart.find((l) => `${l.productId}:${l.condition ?? ""}` === groupKey);
     const cost = sample?.costPrice ?? 0;
-    if (cost > 0 && unitPrice < cost) {
-      setLowPriceDialog({ label: sample?.label ?? "Item" });
+    if (cost > 0 && !force && unitPrice < cost) {
+      setLowPriceDialog({ label: sample?.label ?? "Item", proceed: () => { updateGroupPrice(groupKey, unitPrice, true); } });
       return;
     }
     setCart((prev) => prev.map((l) => (`${l.productId}:${l.condition ?? ""}` === groupKey ? { ...l, unitPrice } : l)));
   }
 
-  function updateGroupDiscount(groupKey: string, patch: Partial<CartLine>) {
+  function updateGroupDiscount(groupKey: string, patch: Partial<CartLine>, force?: boolean) {
     const sample = cart.find((l) => `${l.productId}:${l.condition ?? ""}` === groupKey);
     const cost = sample?.costPrice ?? 0;
     const nextPct = patch.discountPct ?? sample?.discountPct ?? 0;
     const nextFlat = patch.discountFlat ?? sample?.discountFlat ?? 0;
     const unitPrice = sample?.unitPrice ?? 0;
     const eff = Math.max(0, unitPrice - (unitPrice * nextPct) / 100 - nextFlat);
-    if (cost > 0 && eff < cost) {
-      setLowPriceDialog({ label: sample?.label ?? "Item" });
+    if (cost > 0 && !force && eff < cost) {
+      setLowPriceDialog({ label: sample?.label ?? "Item", proceed: () => { updateGroupDiscount(groupKey, patch, true); } });
       return;
     }
     setCart((prev) => prev.map((l) => (`${l.productId}:${l.condition ?? ""}` === groupKey ? { ...l, ...patch } : l)));
@@ -1163,7 +1164,7 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
         <BankDepositSheet open={bankSheetOpen} onClose={() => setBankSheetOpen(false)} bankRows={bankRows} onBankRowsChange={setBankRows} bankAccounts={bankAccounts} />
         <Dialog open={conflicts !== null} title="Reserved items, different customer" message={<div className="space-y-3"><p>These units are reserved for someone else. Selling them to <span className="font-semibold text-ink-900">{(contacts?.find((c) => c.id === contactId)?.name ?? "this customer")}</span> will complete the reservation(s).</p>{conflicts?.map((conflict) => (<div key={conflict.reservationId} className="rounded-xl bg-warning/10 p-3"><p className="text-sm font-semibold text-ink-900">{conflict.reservationNumber} · {conflict.contactName}{conflict.contactPhone ? ` · ${conflict.contactPhone}` : ""}</p><p className="mt-0.5 text-xs text-ink-500">Total {formatPKR(parseFloat(conflict.total))} · Advance {formatPKR(parseFloat(conflict.advance))}</p><p className="mt-1 font-mono text-[11px] text-ink-500">{conflict.units.map((u) => u.imei).join(", ")}</p></div>))}</div>} confirmLabel="Sell anyway" destructive onCancel={() => setConflicts(null)} onConfirm={() => { confirmedRef.current = true; setConflicts(null); void pay(); }} />
         <Dialog open={stockDialog !== null} title="Not enough stock" message={<p className="text-sm text-ink-600">{stockDialog}</p>} confirmLabel="OK" onCancel={() => setStockDialog(null)} onConfirm={() => setStockDialog(null)} />
-        <Dialog open={lowPriceDialog !== null} title="Cannot sell below purchase cost" message={<p className="text-sm text-ink-600">{lowPriceDialog?.label} — cannot sell below purchase cost.</p>} confirmLabel="OK" onCancel={() => setLowPriceDialog(null)} onConfirm={() => setLowPriceDialog(null)} />
+        <Dialog open={lowPriceDialog !== null} title="Selling below purchase cost?" message={<p className="text-sm text-ink-600">{lowPriceDialog?.label} is priced below its purchase cost. You can still sell it, but this sale will show a loss.</p>} confirmLabel="Sell anyway" destructive onCancel={() => setLowPriceDialog(null)} onConfirm={() => { lowPriceDialog?.proceed(); setLowPriceDialog(null); }} />
       </div>
     );
 }

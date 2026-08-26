@@ -297,7 +297,7 @@ export type InventoryData = {
 
 export type Contact = {
   id: string;
-  type: "WALK_IN" | "CUSTOMER" | "VENDOR" | "BOTH";
+  type: "WALK_IN" | "CUSTOMER" | "VENDOR" | "BOTH" | "USED_VENDOR";
   name: string;
   phone: string | null;
   email: string | null;
@@ -318,7 +318,7 @@ export type Contact = {
 
 export type ContactDuplicate = {
   id: string;
-  type: "WALK_IN" | "CUSTOMER" | "VENDOR" | "BOTH";
+  type: "WALK_IN" | "CUSTOMER" | "VENDOR" | "BOTH" | "USED_VENDOR";
   name: string;
   phone: string | null;
   email: string | null;
@@ -865,6 +865,7 @@ export type LedgerRow = {
 
 export type LedgerReport = {
   contact: { id: string; name: string; phone: string | null; type: string };
+  opening: number;
   rows: LedgerRow[];
   closing: number;
 };

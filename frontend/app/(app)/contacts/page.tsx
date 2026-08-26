@@ -17,8 +17,11 @@ import { ContactsTable } from "@/components/contacts/contacts-table";
 
 const TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "All types" },
+  { value: "customers", label: "Customers (all)" },
+  { value: "vendors", label: "Vendors (all)" },
   { value: "CUSTOMER", label: "Customer" },
   { value: "VENDOR", label: "Vendor" },
+  { value: "USED_VENDOR", label: "Used phone vendor" },
   { value: "WALK_IN", label: "Walk-in" },
   { value: "BOTH", label: "Customer & vendor" },
 ];
@@ -134,6 +137,26 @@ export default function ContactsPage() {
           variant="white"
           wrapperClassName="min-w-[220px] flex-1"
         />
+        <div className="flex items-center gap-1 rounded-xl bg-white p-1">
+          {[
+            { value: "", label: "All" },
+            { value: "customers", label: "Customers" },
+            { value: "vendors", label: "Vendors" },
+          ].map((opt) => (
+            <button
+              key={opt.value || "all"}
+              type="button"
+              onClick={() => setType(opt.value)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                type === opt.value
+                  ? "bg-brand-600 text-white"
+                  : "text-ink-500 hover:bg-ink-50 hover:text-ink-900"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <Button variant="grey" onClick={() => setFiltersOpen(true)}>
           <FilterIcon className="h-4 w-4" />
           Filters

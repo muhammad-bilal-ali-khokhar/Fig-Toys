@@ -772,6 +772,40 @@ export async function ledgerReport(contactId: string, r: Range) {
   });
   if (!contact) throw new ApiError(404, "report.contact_not_found", "Contact not found");
 
+  let opening = 0;
+  if (r.from) {
+    const start = new Date(dateAtZone(r.from, "00:00:00", r.tz ?? DEFAULT_TIMEZONE).getTime() - 1);
+    const [prevTxns, prevPayments, prevVouchers, prevExpenses] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { contactId, createdAt: { lt: start } },
+        select: { type: true, total: true },
+      }),
+      prisma.payment.findMany({
+        where: { transaction: { contactId }, createdAt: { lt: start } },
+        select: { amount: true, transaction: { select: { type: true } } },
+      }),
+      prisma.voucher.findMany({
+        where: { contactId, status: "ACTIVE", date: { lt: start } },
+        select: { type: true, amount: true },
+      }),
+      prisma.expense.aggregate({
+        where: { contactId, date: { lt: start } },
+        _sum: { amount: true },
+      }),
+    ]);
+    for (const t of prevTxns) {
+      const isDebit = t.type === "SALE" || t.type === "PURCHASE_RETURN";
+      opening += isDebit ? n(t.total) : -n(t.total);
+    }
+    for (const p of prevPayments) {
+      opening += p.transaction.type === "SALE" ? -n(p.amount) : n(p.amount);
+    }
+    for (const v of prevVouchers) {
+      opening += v.type === "RECEIVING" ? -n(v.amount) : n(v.amount);
+    }
+    opening += n(prevExpenses._sum.amount);
+  }
+
   const [transactions, payments, vouchers, expenses] = await Promise.all([
     prisma.transaction.findMany({
       where: { contactId, ...rangeWhere(r) },
@@ -862,7 +896,7 @@ export async function ledgerReport(contactId: string, r: Range) {
 
   entries.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  let balance = 0;
+  let balance = opening;
   const rows = entries.map((e) => {
     balance += e.debit - e.credit;
     return {
@@ -878,8 +912,9 @@ export async function ledgerReport(contactId: string, r: Range) {
 
   return {
     contact,
+    opening: round(opening),
     rows,
-    closing: rows.length > 0 ? rows[rows.length - 1].balance : 0,
+    closing: round(balance),
   };
 }
 

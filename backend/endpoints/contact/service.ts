@@ -102,7 +102,7 @@ export async function findDuplicates({
 
 export async function listContacts({ q, type }: { q?: string; type?: string }) {
   const where = {
-    ...(type ? { type: type as "WALK_IN" | "CUSTOMER" | "VENDOR" | "BOTH" } : {}),
+    ...(type ? { type: type as "WALK_IN" | "CUSTOMER" | "VENDOR" | "BOTH" | "USED_VENDOR" } : {}),
     ...(q
       ? {
           OR: [

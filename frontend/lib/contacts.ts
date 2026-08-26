@@ -10,8 +10,14 @@ export function contactInitials(name: string) {
     .toUpperCase();
 }
 
-export function creditUsed(contact: Pick<Contact, "receivable" | "payable">): number {
-  return (parseFloat(contact.receivable) || 0) + (parseFloat(contact.payable) || 0);
+export function creditUsed(
+  contact: Pick<Contact, "receivable" | "payable"> & { creditBalance?: string },
+): number {
+  return (
+    (parseFloat(contact.receivable) || 0) +
+    (parseFloat(contact.payable) || 0) +
+    Math.max(0, parseFloat(contact.creditBalance ?? "0") || 0)
+  );
 }
 
 export function creditRemaining(contact: Pick<Contact, "creditLimit" | "receivable" | "payable">): number {
