@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import type { Expense, ReservationDetail, TransactionDetail, Voucher } from "@/lib/api-types";
+import { brandOf, type Expense, type ReservationDetail, type TransactionDetail, type Voucher } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import { TRANSACTION_TYPE_LABELS, VOUCHER_TYPE_LABELS, VOUCHER_METHOD_LABELS, EXPENSE_CATEGORY_LABELS } from "@/lib/constants";
@@ -86,7 +86,7 @@ export function TransactionReceipt({
               {detail.items.map((item) => (
                 <tr key={item.id} className="border-t border-ink-100">
                   <td className="px-3 py-2 text-ink-900">
-                    {item.product.brand} {item.product.model} {item.product.storage ?? ""}
+                    {brandOf(item.product)} {item.product.model} {item.product.storage ?? ""}
                     {item.quantity > 1 ? ` × ${item.quantity}` : ""}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs text-ink-700">{item.unit?.imei ?? "—"}</td>

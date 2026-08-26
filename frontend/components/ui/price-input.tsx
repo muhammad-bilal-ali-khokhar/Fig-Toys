@@ -21,14 +21,14 @@ export function PriceInput({
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   useEffect(() => {
-    if (!focused) setText(value > 0 ? String(value) : "");
+    if (!focused) setText(Number.isFinite(value) ? String(value) : "");
   }, [value, focused]);
   function commit(raw: string) {
     let n = parseFloat(raw);
     if (!Number.isFinite(n) || n < 0) n = 0;
     if (max !== undefined && n > max) n = max;
     if (n !== value) onChange(n);
-    setText(n > 0 ? String(n) : "");
+    setText(Number.isFinite(n) ? String(n) : "");
   }
   return (
     <Input

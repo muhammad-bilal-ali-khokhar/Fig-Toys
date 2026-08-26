@@ -71,3 +71,9 @@ export const quickAddSchema = z.object({
 });
 
 export type QuickAddInput = z.infer<typeof quickAddSchema>;
+
+export const usedPricingSchema = z.object({
+  enabled: z.boolean(),
+});
+
+export type UsedPricingInput = z.infer<typeof usedPricingSchema>;

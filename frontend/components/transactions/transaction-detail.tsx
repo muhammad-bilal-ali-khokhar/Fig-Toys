@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
-import type { TransactionDetail } from "@/lib/api-types";
+import { brandOf, type TransactionDetail } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -129,7 +129,7 @@ export function TransactionDetailModal({
                     {detail.items.map((item) => (
                       <tr key={item.id} className="border-t border-ink-100">
                         <td className="px-3 py-2 text-ink-900">
-                          {item.product.brand} {item.product.model} {item.product.storage ?? ""}
+                          {brandOf(item.product)} {item.product.model} {item.product.storage ?? ""}
                           {item.quantity > 1 ? ` × ${item.quantity}` : ""}
                         </td>
                         <td className="px-3 py-2 font-mono text-xs text-ink-700">

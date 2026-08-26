@@ -461,7 +461,7 @@ export default function SaleReturnsPage() {
         productId: item.product.id,
         unitId: item.unit?.id,
         imei: item.unit?.imei,
-        productLabel: `${item.product.brand} ${item.product.model}`,
+        productLabel: `${brandOf(item.product)} ${item.product.model}`,
         saleId: "",
         saleNumber: "",
         refund: parseFloat(item.unitPrice),
@@ -656,7 +656,7 @@ export default function SaleReturnsPage() {
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
                   <SearchInput data-scanner-input="sale-return-search" value={q} onChange={setQ} onFocus={() => { setSearchFocused(true); if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q); }} onKeyDown={(e) => { const hasResults = flatUnits.length > 0; if (e.key === "ArrowDown") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i + 1) % flatUnits.length); } else if (e.key === "ArrowUp") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i <= 0 ? flatUnits.length - 1 : i - 1)); } else if (e.key === "Enter") { e.preventDefault(); if (hasResults && highlightedIndex >= 0 && highlightedIndex < flatUnits.length) { pickUnit(flatUnits[highlightedIndex].unit); } else { void handleEnterOrScan(q); } } else if (e.key === "Escape") { setSearchFocused(false); } }} placeholder="Scan IMEI / Barcode…" variant="white" className="bg-ink-100 h-10 text-sm rounded-[12px]" iconClassName="h-4 w-4" />
                   {panelPos && results.length === 0 && (<div style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"><p className="text-sm text-ink-400">{searching ? "Searching…" : q.trim().length >= 2 ? "No sold units for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}</p></div>)}
-                  {panelPos && results.length > 0 && (<div ref={listRef} style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5">{flatUnits.map((item, idx) => { const product = results[item.productIndex]; const isActive = idx === highlightedIndex; return (<button key={item.unit.id} data-flat={idx} type="button" onClick={() => pickUnit(item.unit)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{[brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ")} <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span></p><p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500"><Badge variant="neutral">{item.unit.condition}</Badge><Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge></p></div><span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span></button>); })}</div>)}
+                  {panelPos && results.length > 0 && (<div ref={listRef} style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5">{flatUnits.map((item, idx) => { const product = results[item.productIndex]; const isActive = idx === highlightedIndex; return (<button key={item.unit.id} data-flat={idx} type="button" onClick={() => pickUnit(item.unit)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-1.5 py-1 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{[brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ")} <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span></p><p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500"><Badge variant="neutral">{item.unit.condition}</Badge><Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge></p></div><span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span></button>); })}</div>)}
                 </div>
                 <div className="min-w-64 max-w-[320px] flex-1">
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
@@ -681,18 +681,18 @@ export default function SaleReturnsPage() {
               <table className="min-w-[480px] w-full table-fixed text-sm">
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
-                    <th className="px-4 py-3">Item</th>
-                    <th className="w-32 px-4 py-3">Sale #</th>
-                    <th className="w-28 px-4 py-3 text-right">Refund</th>
-                    <th className="w-12 px-4 py-3" />
+                    <th className="px-1.5 py-1.5">Item</th>
+                    <th className="w-32 px-1.5 py-1.5">Sale #</th>
+                    <th className="w-28 px-1.5 py-1.5 text-right">Refund</th>
+                    <th className="w-12 px-1.5 py-1.5" />
                   </tr>
                 </thead>
                 <tbody>
               {returnGroups.map((g) => (
                 <Fragment key={g.key}>
                   <tr className="bg-ink-50/80">
-                    <td className="px-4 py-2.5" colSpan={4}>
-                      <div className="flex items-center gap-2.5">
+                    <td className="px-1.5 py-1" colSpan={4}>
+                      <div className="flex items-center gap-1">
                         <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
                         <span className="truncate text-sm font-semibold text-ink-900">{g.label}</span>
                         {g.lines.length > 1 && (<span className="text-xs text-ink-500">{g.quantity} pcs</span>)}
@@ -701,10 +701,10 @@ export default function SaleReturnsPage() {
                   </tr>
                   {g.lines.map((line) => (
                     <tr key={line.id} className="border-b border-ink-50 bg-white transition hover:bg-ink-50/60">
-                      <td className="px-4 py-2.5 pl-9"><span className="text-[13px] font-medium text-ink-900">{line.imei ?? `${line.quantity} pcs`}</span></td>
-                      <td className="px-4 py-2.5 text-ink-700">{line.saleNumber || "—"}</td>
-                      <td className="px-4 py-2.5 text-right"><PriceInput value={line.refund} onChange={(n) => setCart((prev) => prev.map((l) => (l.id === line.id ? { ...l, refund: n } : l)))} className="h-8 w-28 text-right text-sm" /></td>
-                      <td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeLine(line.id)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td>
+                      <td className="px-1.5 py-1 pl-9"><span className="text-[13px] font-medium text-ink-900">{line.imei ?? `${line.quantity} pcs`}</span></td>
+                      <td className="px-1.5 py-1 text-ink-700">{line.saleNumber || "—"}</td>
+                      <td className="px-1.5 py-1 text-right"><PriceInput value={line.refund} onChange={(n) => setCart((prev) => prev.map((l) => (l.id === line.id ? { ...l, refund: n } : l)))} className="h-8 w-28 text-right text-sm" /></td>
+                      <td className="px-1.5 py-1 text-right"><button type="button" onClick={() => removeLine(line.id)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td>
                     </tr>
                   ))}
                 </Fragment>

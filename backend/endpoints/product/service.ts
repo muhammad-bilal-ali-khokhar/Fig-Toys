@@ -140,6 +140,9 @@ export async function getProduct(id: string) {
 }
 
 export async function createProduct(input: ProductInput, userId: string) {
+  const catForRetail = await prisma.category.findUnique({ where: { id: input.categoryId }, select: { name: true } });
+  const isUsedCat = !!catForRetail?.name.toLowerCase().includes("used");
+  if (isUsedCat) (input as any).retailPrice = undefined;
   const existing = await findDuplicate({
     brandId: input.brandId,
     model: input.model,
@@ -187,6 +190,9 @@ export async function createProduct(input: ProductInput, userId: string) {
 export async function updateProduct(id: string, input: ProductInput, userId: string) {
   const existing = await prisma.product.findUnique({ where: { id } });
   if (!existing) throw new ApiError(404, "product.not_found", "Product not found");
+  const catForRetail2 = await prisma.category.findUnique({ where: { id: input.categoryId }, select: { name: true } });
+  const isUsedCat2 = !!catForRetail2?.name.toLowerCase().includes("used");
+  if (isUsedCat2) (input as any).retailPrice = undefined;
 
   const dup = await findDuplicate(
     {
@@ -275,7 +281,7 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
       },
       units: {
         where: { status: { in: statuses as ("IN_STOCK" | "RESERVED")[] } },
-        select: { id: true, condition: true, imei: true, carrier: true, status: true, costPrice: true },
+        select: { id: true, condition: true, imei: true, carrier: true, status: true, costPrice: true, sellPrice: true },
       },
     },
   });

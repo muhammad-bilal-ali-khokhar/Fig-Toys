@@ -36,7 +36,7 @@ export function InventoryDocument({
   const totalCount = units.length + accessoryList.reduce((s, p) => s + p.qty, 0);
   const inStockCount = units.filter((u) => u.status === "IN_STOCK").length + accessoryList.reduce((s, p) => s + p.qty, 0);
   const costTotal = moneySum(units, (u) => u.costPrice) + accessoryList.reduce((s, p) => s + (parseFloat(p.costPrice ?? "") || 0) * p.qty, 0);
-  const sellTotal = moneySum(units, (u) => u.product.sellPrice) + accessoryList.reduce((s, p) => s + (parseFloat(p.sellPrice ?? "") || 0) * p.qty, 0);
+  const sellTotal = moneySum(units, (u) => (u as any).sellPrice ?? u.product.sellPrice) + accessoryList.reduce((s, p) => s + (parseFloat(p.sellPrice ?? "") || 0) * p.qty, 0);
   const pad = isA4 ? "px-10 py-8" : "";
   const base = isA4 ? "text-xs" : "font-mono font-bold";
   const densityClass = isA4 ? "" : config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
@@ -128,7 +128,7 @@ export function InventoryDocument({
                         </p>
                         <p className="whitespace-nowrap text-[12px] font-black text-black">
                           {options.sell && u0.product.sellPrice
-                            ? formatPKR(moneySum(p.units, (u) => u.product.sellPrice) + (p.accessory ? parseFloat(p.accessory.sellPrice ?? "0") * p.accessory.qty : 0))
+                            ? formatPKR(moneySum(p.units, (u) => (u as any).sellPrice ?? u.product.sellPrice) + (p.accessory ? parseFloat(p.accessory.sellPrice ?? "0") * p.accessory.qty : 0))
                             : ""}
                         </p>
                       </div>
@@ -285,12 +285,12 @@ function InventoryTable({
                   );
                 }
                 const totalQty = p.count;
-                const sellSum = moneySum(p.units, (u) => u.product.sellPrice) + (p.accessory ? parseFloat(p.accessory.sellPrice ?? "0") * p.accessory.qty : 0);
+                const sellSum = moneySum(p.units, (u) => (u as any).sellPrice ?? u.product.sellPrice) + (p.accessory ? parseFloat(p.accessory.sellPrice ?? "0") * p.accessory.qty : 0);
                 const retailSum = moneySum(p.units, (u) => u.product.retailPrice) + (p.accessory ? parseFloat(p.accessory.retailPrice ?? "0") * p.accessory.qty : 0);
                 const costSum = moneySum(p.units, (u) => u.costPrice) + (p.accessory ? parseFloat(p.accessory.costPrice ?? "0") * p.accessory.qty : 0);
                 const vendorText = p.units.length > 0 ? uniformText(p.units, (u) => u.purchase?.vendor) : p.accessory?.lastVendor ?? "—";
                 const purchasedText = p.units.length > 0 ? uniformText(p.units, (u) => (u.purchase ? new Date(u.purchase.date).toLocaleDateString() : null)) : p.accessory?.lastPurchasedAt ? new Date(p.accessory.lastPurchasedAt).toLocaleDateString() : "—";
-                const sellPriceSample = p.units[0]?.product.sellPrice ?? p.accessory?.sellPrice;
+                const sellPriceSample = (p.units[0] as any)?.sellPrice ?? p.units[0]?.product.sellPrice ?? p.accessory?.sellPrice;
                 const retailPriceSample = p.units[0]?.product.retailPrice ?? p.accessory?.retailPrice;
                 return (
                   <tr key={p.key} className="border-b border-ink-100 align-top">

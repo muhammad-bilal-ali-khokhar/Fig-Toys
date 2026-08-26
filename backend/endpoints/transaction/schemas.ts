@@ -32,6 +32,7 @@ export const purchaseItemSchema = z.object({
   imei: z.string().trim().optional(),
   barcode: z.string().trim().optional(),
   costPrice: z.coerce.number().min(0, "Cost must be 0 or more"),
+  sellPrice: z.coerce.number().min(0, "Sale price must be 0 or more").optional(),
   quantity: z.coerce.number().int().min(1).default(1),
   condition: z.enum(["NEW", "USED"]).default("NEW"),
   grade: z.string().trim().optional(),

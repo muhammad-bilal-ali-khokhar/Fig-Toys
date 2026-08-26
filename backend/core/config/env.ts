@@ -43,6 +43,10 @@ const envSchema = z.object({
   // exchanges a 10-digit code for a signed license token at activation.
   LICENSE_REDEEM_URL: z.string().optional(),
   LICENSE_REDEEM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+
+  // Developer portal (database editor). Available in every build, protected
+  // by its own independent password.
+  DEV_PORTAL_PASSWORD: z.string().min(4).default("fig-dev-2026"),
 }).refine((v) => v.NODE_ENV !== "production" || Boolean(v.CORS_ORIGIN), {
   message: "CORS_ORIGIN is required when NODE_ENV=production",
   path: ["CORS_ORIGIN"],

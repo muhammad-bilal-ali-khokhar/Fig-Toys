@@ -5,6 +5,7 @@ export * from "./brand";
 export * from "./charts";
 export * from "./currencies";
 export * from "./dashboard";
+export * from "./dev";
 export * from "./expense";
 export * from "./help";
 export * from "./license";

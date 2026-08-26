@@ -27,7 +27,7 @@ type PurchaseLineUnit = CreatePurchaseInput["items"][number];
 async function ensurePurchaseUnit(tx: Db, item: PurchaseLineUnit, reactivate: boolean) {
   const existing = await tx.unit.findUnique({ where: { imei: item.imei as string } });
   if (existing) {
-    const common = {
+    const common: any = {
       productId: item.productId,
       carrier: item.carrier ?? existing.carrier,
       batteryHealth: item.batteryHealth ?? existing.batteryHealth,
@@ -35,6 +35,7 @@ async function ensurePurchaseUnit(tx: Db, item: PurchaseLineUnit, reactivate: bo
       grade: item.grade ?? existing.grade,
       colorId: item.colorId ?? existing.colorId,
     };
+    if (item.sellPrice != null) common.sellPrice = item.sellPrice;
     const unit = reactivate
       ? await tx.unit.update({
           where: { id: existing.id },
@@ -58,6 +59,7 @@ async function ensurePurchaseUnit(tx: Db, item: PurchaseLineUnit, reactivate: bo
       carrier: item.carrier ?? "NON_PTA",
       batteryHealth: item.batteryHealth,
       costPrice: item.costPrice,
+      sellPrice: (item as any).sellPrice ?? null,
       grade: item.grade,
       colorId: item.colorId,
     },

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImagePicker } from "@/components/products/image-picker";
+import { useUsedPricing } from "@/lib/used-pricing";
 
 export type ProductFormValues = {
   brandId: string;
@@ -102,6 +103,8 @@ export function ProductForm({
     return base;
   });
   const dirty = useDirtyForm(initial);
+  const { enabled: usedPricingEnabled, setEnabled: setUsedPricingEnabled } = useUsedPricing();
+  const hideUsedPricing = type === "USED" && usedPricingEnabled;
 
   function update(next: Partial<ProductFormValues>) {
     const updated = { ...form, ...next };
@@ -236,39 +239,53 @@ export function ProductForm({
             <span className="text-xs text-ink-400">— if disabled, no barcode (barcode added at purchase)</span>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Sell price (PKR)</label>
-            <Input
-              value={form.sellPrice}
-              onChange={(e) => update({ sellPrice: e.target.value })}
-              placeholder="0"
-              inputMode="numeric"
+        {type === "USED" && (
+          <div className="rounded-lg bg-ink-50 px-2.5 py-1.5">
+            <Checkbox
+              checked={usedPricingEnabled}
+              onChange={(v) => setUsedPricingEnabled(v)}
+              label="Add sale and cost while purchasing"
+              description="When on, cost and sale are set per phone at purchase."
             />
           </div>
-          {viewCosts && (
+        )}
+        {!hideUsedPricing && (
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-semibold text-ink-500">Cost price (PKR)</label>
+              <label className="mb-1 block text-xs font-semibold text-ink-500">Sell price (PKR)</label>
               <Input
-                value={form.costPrice}
-                onChange={(e) => update({ costPrice: e.target.value })}
+                value={form.sellPrice}
+                onChange={(e) => update({ sellPrice: e.target.value })}
                 placeholder="0"
                 inputMode="numeric"
               />
             </div>
-          )}
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-ink-500">
-            Retail price (PKR) <span className="font-normal text-ink-400">(invoice / company MRP, optional)</span>
-          </label>
-          <Input
-            value={form.retailPrice}
-            onChange={(e) => update({ retailPrice: e.target.value })}
-            placeholder="0"
-            inputMode="numeric"
-          />
-        </div>
+            {viewCosts && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ink-500">Cost price (PKR)</label>
+                <Input
+                  value={form.costPrice}
+                  onChange={(e) => update({ costPrice: e.target.value })}
+                  placeholder="0"
+                  inputMode="numeric"
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {type !== "USED" && (
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">
+              Retail price (PKR) <span className="font-normal text-ink-400">(invoice / company MRP, optional)</span>
+            </label>
+            <Input
+              value={form.retailPrice}
+              onChange={(e) => update({ retailPrice: e.target.value })}
+              placeholder="0"
+              inputMode="numeric"
+            />
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-xs font-semibold text-ink-500">
             Image <span className="font-normal text-ink-400">(optional)</span>

@@ -16,6 +16,7 @@ const DASHBOARD_LAYOUT_KEY = "app.dashboardLayout";
 const AUTO_PRINT_KEY = "app.autoPrint";
 const PRINT_MODE_KEY = "app.printMode";
 const QUICK_ADD_KEY = "app.quickAdd";
+const USED_PRICING_KEY = "app.usedPricing";
 
 export async function getTheme(): Promise<string | null> {
   const row = await prisma.settings.findUnique({ where: { key: THEME_KEY } });
@@ -178,6 +179,21 @@ export async function updateQuickAdd(enabled: boolean) {
     where: { key: QUICK_ADD_KEY },
     update: { value: next },
     create: { key: QUICK_ADD_KEY, value: next },
+  });
+  return enabled;
+}
+
+export async function getUsedPricing(): Promise<boolean> {
+  const row = await prisma.settings.findUnique({ where: { key: USED_PRICING_KEY } });
+  return row?.value === "true";
+}
+
+export async function updateUsedPricing(enabled: boolean) {
+  const next = enabled ? "true" : "false";
+  await prisma.settings.upsert({
+    where: { key: USED_PRICING_KEY },
+    update: { value: next },
+    create: { key: USED_PRICING_KEY, value: next },
   });
   return enabled;
 }

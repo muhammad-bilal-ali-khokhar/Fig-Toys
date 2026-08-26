@@ -10,6 +10,7 @@ import { canViewCosts, hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
+import { getEffectiveUsedPricing } from "@/lib/used-pricing";
 import { parseCsvLine, downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -299,17 +300,19 @@ export default function ProductsPage() {
       toast("Pick a category", "error");
       return;
     }
-    const cat = categories?.find((c) => c.id === values.categoryId) ?? activeCategories.find((c) => c.id === values.categoryId);
+    const cat = categories?.find((c) => c.id === values.categoryId) ?? activeCategories.find((c) => c.id === values.categoryId) ?? findCategory(categories ?? [], values.categoryId);
     const isPhoneCat = cat?.type === "PHONE";
+    const isUsedCat = !!cat?.name.toLowerCase().includes("used");
     if (isPhoneCat && !values.carrier) {
-      const isUsedCat = cat.name.toLowerCase().includes("used");
       if (isUsedCat) { toast("Carrier is required for Used phones", "error"); return; }
     }
-    if ((parseFloat(values.sellPrice) || 0) <= 0) {
+    const usedPricingOn = getEffectiveUsedPricing(false);
+    const hideUsedPricing = isUsedCat && usedPricingOn;
+    if (!hideUsedPricing && (parseFloat(values.sellPrice) || 0) <= 0) {
       toast("Sell price must be greater than 0", "error");
       return;
     }
-    if (viewCosts && (parseFloat(values.costPrice) || 0) <= 0) {
+    if (!hideUsedPricing && viewCosts && (parseFloat(values.costPrice) || 0) <= 0) {
       toast("Cost price must be greater than 0", "error");
       return;
     }
@@ -324,9 +327,9 @@ export default function ProductsPage() {
         colorId: values.colorId || undefined,
         categoryId: values.categoryId,
         carrier: isPhoneCat ? (values.carrier || "PTA") : undefined,
-        sellPrice: parseFloat(values.sellPrice) || 0,
-        costPrice: parseFloat(values.costPrice) || 0,
-        retailPrice: values.retailPrice ? parseFloat(values.retailPrice) : undefined,
+        sellPrice: hideUsedPricing ? 0 : parseFloat(values.sellPrice) || 0,
+        costPrice: hideUsedPricing ? 0 : parseFloat(values.costPrice) || 0,
+        retailPrice: isUsedCat ? undefined : values.retailPrice ? parseFloat(values.retailPrice) : undefined,
         image: values.image || undefined,
       };
       if (editingId) {

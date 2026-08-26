@@ -16,6 +16,7 @@ import { PIN_LENGTH } from "@/lib/constants/users";
 import { setSoundPrefs } from "@/lib/sound";
 import { setUnsaved } from "@/lib/unsaved-guard";
 import { useQuickAdd } from "@/lib/quick-add";
+import { useUsedPricing } from "@/lib/used-pricing";
 import type { Bank, BankAccount, CompanyProfile } from "@/lib/api-types";
 import {
   CheckIcon,
@@ -295,6 +296,7 @@ export default function SettingsPage() {
   }
 
   const { enabled: quickAddEnabled, setEnabled: setQuickAddEnabled } = useQuickAdd();
+  const { enabled: usedPricingEnabled, setEnabled: setUsedPricingEnabled } = useUsedPricing();
   const canEdit = hasPermission(user, PERMISSIONS.settingsWrite);
 
   function validateProfile(): boolean {
@@ -613,6 +615,19 @@ export default function SettingsPage() {
                   disabled={!canEdit}
                   label="Select item from dropdown instantly"
                   description="When on, picking a product from the dropdown adds it immediately with quantity 1 at catalog price. Price, quantity and Add button are hidden. Disable to edit price and quantity before adding. Default off. Applies to Sale, Sale Return, Purchase Return and Purchase Orders — purchases page stays manual."
+                />
+              </div>
+            </Group>
+
+            <SectionTitle>Purchases — used phones</SectionTitle>
+            <Group>
+              <div className="px-4 py-3">
+                <Checkbox
+                  checked={usedPricingEnabled}
+                  onChange={(v) => setUsedPricingEnabled(v)}
+                  disabled={!canEdit}
+                  label="Add sale and cost while purchasing"
+                  description="When on, buying a Used phone asks for both cost price and sale price per IMEI. Each phone keeps its own sale and cost so profit and POS use that exact phone's prices. When off, sale price comes from the catalog."
                 />
               </div>
             </Group>

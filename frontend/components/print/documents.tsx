@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import JsBarcode from "jsbarcode";
-import type { CompanyProfile, Expense, ReservationDetail, TransactionDetail, Voucher } from "@/lib/api-types";
+import { brandOf, type CompanyProfile, type Expense, type ReservationDetail, type TransactionDetail, type Voucher } from "@/lib/api-types";
 import { amountInWords, formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import {
@@ -262,7 +262,7 @@ function ThermalItems({ detail, options }: { detail: TransactionDetail; options:
           <div key={g.key} className="border-b border-dashed border-black py-2">
             <div className="flex items-baseline justify-between gap-3">
               <p className="text-[13px] font-black leading-tight text-black">
-                {g.product.brand} {g.product.model}
+                {brandOf(g.product)} {g.product.model}
                 {g.quantity > 1 && <span className="font-bold"> ×{g.quantity}</span>}
               </p>
               <p className="whitespace-nowrap text-right text-[13px] font-black text-black">
@@ -444,7 +444,7 @@ export function ReceiptDocument({
         <td className="py-2.5 pl-3 pr-2 align-top text-ink-800">{i + 1}</td>
         <td className="py-2.5 pr-2 align-top">
           <span className="font-semibold text-ink-900">
-            {g.product.brand} {g.product.model} {g.product.storage ?? ""}
+            {brandOf(g.product)} {g.product.model} {g.product.storage ?? ""}
             {g.product.ram ? ` · ${g.product.ram}` : ""}
           </span>
           {g.quantity > 1 && (

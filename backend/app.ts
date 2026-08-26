@@ -36,6 +36,7 @@ import feedbackRouter from "./endpoints/feedback/routes";
 import licenseRouter from "./endpoints/license/routes";
 import searchRouter from "./endpoints/search/routes";
 import eventsRouter from "./endpoints/events/routes";
+import devDbRouter from "./endpoints/dev-db/routes";
 import { requireLicense } from "./core/middleware/license";
 
 export function createApp() {
@@ -63,6 +64,9 @@ export function createApp() {
   app.use("/api/events", eventsRouter);
 
   app.use("/api/license", licenseRouter);
+
+  // Developer portal: own password auth, independent of app login and license.
+  app.use("/api/dev-db", devDbRouter);
 
   // Everything else requires an active license, except auth and setup which
   // must be reachable before activation and during onboarding.

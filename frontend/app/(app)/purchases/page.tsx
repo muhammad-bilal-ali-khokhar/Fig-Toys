@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Color, Contact, ProductSummary, PurchaseOrder, Transaction, TransactionDetail, BankAccount } from "@/lib/api-types";
+import { brandOf, type Color, type Contact, type ProductSummary, type PurchaseOrder, type Transaction, type TransactionDetail, type BankAccount } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { PERMISSIONS } from "@/lib/constants/permissions";
@@ -21,6 +21,7 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useToast } from "@/components/ui/toast";
 import { triggerAutoPrint, useAutoPrint } from "@/lib/use-auto-print";
+import { useUsedPricing } from "@/lib/used-pricing";
 import { BankPaymentRow } from "@/components/payment-bottom";
 import { DiscountFields } from "@/components/discount-fields";
 import { TypePill } from "@/components/ui/type-pill";
@@ -28,6 +29,7 @@ import { BankDepositSheet } from "@/components/bank-deposit-sheet";
 import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
+import { Dialog } from "@/components/ui/dialog";
 import { playPop, playSuccess } from "@/lib/sound";
 import { ScannerButton } from "@/components/scanner/scanner-button";
 import { useScannerScan } from "@/components/scanner/global-scanner";
@@ -40,6 +42,7 @@ type PendingUnit = {
   imei: string;
   barcode: string;
   costPrice: string;
+  salePrice?: string;
   quantity: number;
   colorId: string | null;
   colorLabel: string | null;
@@ -71,6 +74,7 @@ type PopupInfo = {
   productLabel: string;
   qty: number;
   price: string;
+  salePrice?: string;
   colorId: string | null;
   colorLabel: string | null;
   carrier: "NON_PTA" | "PTA" | "SIM_LOCKED";
@@ -106,10 +110,13 @@ export default function PurchasesPage() {
 
   const [selProductId, setSelProductId] = useState<string | null>(null);
   const [price, setPrice] = useState("");
+  const [salePrice, setSalePrice] = useState("");
   const [qty, setQty] = useState("1");
   const [colorId, setColorId] = useState<string | null>(null);
   const [batteryHealth, setBatteryHealth] = useState("");
   const [grade, setGrade] = useState("A");
+  const { enabled: usedPricingEnabled } = useUsedPricing();
+  const [lowPriceDialog, setLowPriceDialog] = useState<{ label: string; proceed: () => void } | null>(null);
 
   const [popup, setPopup] = useState<PopupInfo | null>(null);
   const [popupImeis, setPopupImeis] = useState<string[]>([]);
@@ -256,6 +263,8 @@ export default function PurchasesPage() {
     .filter((c) => c.active)
     .map((c) => ({ value: c.id, label: c.name }));
 
+  const EMPTY_SALE = "";
+
   const subtotal = useMemo(
     () => roundMoney(rows.reduce((sum, r) => sum + ((parseFloat(r.costPrice) || 0) - rowDiscount(r)) * r.quantity, 0)),
     [rows],
@@ -282,6 +291,7 @@ export default function PurchasesPage() {
     setSelProductId(value);
     const p = (products ?? []).find((x) => x.id === value);
     if (p?.costPrice) setPrice(String(p.costPrice));
+    if (p?.sellPrice) setSalePrice(String(p.sellPrice));
   }
 
   function openImeiPopup() {
@@ -300,8 +310,22 @@ export default function PurchasesPage() {
       return;
     }
     if ((parseFloat(price) || 0) <= 0) {
-      toast("Cost price must be greater than 0", "error");
+      toast("Cost price cannot be negative", "error");
       return;
+    }
+    if (usedPricingEnabled && flow === "USED") {
+      if (!salePrice.trim() || isNaN(parseFloat(salePrice)) || (parseFloat(salePrice) || 0) <= 0) {
+        toast("Enter a sale price", "error");
+        return;
+      }
+    }
+    if (usedPricingEnabled && flow === "USED") {
+      const cost = parseFloat(price) || 0;
+      const sale = parseFloat(salePrice) || 0;
+      if (sale < cost) {
+        toast("Sale price cannot be less than cost price", "error");
+        return;
+      }
     }
     const color = colorOptions.find((c) => c.value === colorId);
     const carrierFromProduct = ((p as any).carrier as "PTA" | "NON_PTA" | "SIM_LOCKED" | null) ?? "PTA";
@@ -311,6 +335,7 @@ export default function PurchasesPage() {
       productLabel: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""}`.trim(),
       qty: count,
       price: String(parseFloat(price)),
+      salePrice: usedPricingEnabled && flow === "USED" ? String(parseFloat(salePrice)) : "",
       colorId: colorId,
       colorLabel: color?.label ?? null,
       carrier: carrierFromProduct,
@@ -374,7 +399,7 @@ export default function PurchasesPage() {
     commitGuardRef.current = true;
     setTimeout(() => { commitGuardRef.current = false; }, 500);
     if ((parseFloat(cur.price) || 0) <= 0) {
-      toast("Cost price must be greater than 0", "error");
+      toast("Cost price cannot be negative", "error");
       return;
     }
     const seen = new Set<string>();
@@ -392,6 +417,7 @@ export default function PurchasesPage() {
       imei,
       barcode: "",
       costPrice: cur.price,
+      salePrice: (cur as any).salePrice ?? "",
       quantity: 1,
       colorId: cur.colorId,
       colorLabel: cur.colorLabel,
@@ -407,6 +433,7 @@ export default function PurchasesPage() {
     setQty("1");
     setSelProductId(null);
     setPrice("");
+    setSalePrice("");
     playSuccess();
     toast(`${imeis.length} unit(s) added`, "success");
   }
@@ -427,6 +454,10 @@ export default function PurchasesPage() {
   }
 
   function updateRowPrice(key: string, n: number) {
+    if (n <= 0) { toast("Cost price must be greater than 0", "error"); return; }
+    const row = rows.find((r) => r.key === key);
+    const sale = row?.salePrice ? parseFloat(row.salePrice) || 0 : 0;
+    if (sale > 0 && sale < n) { toast("Sale price cannot be less than cost price", "error"); return; }
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, costPrice: String(n) } : r)));
   }
 
@@ -435,7 +466,25 @@ export default function PurchasesPage() {
   }
 
   function updateGroupPrice(productId: string, n: number) {
+    if (n <= 0) { toast("Cost price must be greater than 0", "error"); return; }
+    const sample = rows.find((r) => r.productId === productId);
+    const sale = sample?.salePrice ? parseFloat(sample.salePrice) || 0 : 0;
+    if (sale > 0 && sale < n) { toast("Sale price cannot be less than cost price", "error"); return; }
     setRows((prev) => prev.map((r) => (r.productId === productId ? { ...r, costPrice: String(n) } : r)));
+  }
+  function updateRowSalePrice(key: string, n: number) {
+    if (n <= 0) { toast("Sale price must be greater than 0", "error"); return; }
+    const row = rows.find((r) => r.key === key);
+    const cost = row ? parseFloat(row.costPrice) || 0 : 0;
+    if (cost > 0 && n < cost) { toast("Sale price cannot be less than cost price", "error"); return; }
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, salePrice: String(n) } : r)));
+  }
+  function updateGroupSalePrice(productId: string, n: number) {
+    if (n <= 0) { toast("Sale price must be greater than 0", "error"); return; }
+    const sample = rows.find((r) => r.productId === productId);
+    const cost = sample ? parseFloat(sample.costPrice) || 0 : 0;
+    if (cost > 0 && n < cost) { toast("Sale price cannot be less than cost price", "error"); return; }
+    setRows((prev) => prev.map((r) => (r.productId === productId ? { ...r, salePrice: String(n) } : r)));
   }
 
   function updateGroupDiscount(productId: string, patch: { pct: number; flat: number }) {
@@ -458,7 +507,7 @@ export default function PurchasesPage() {
       return;
     }
     if ((parseFloat(price) || 0) <= 0) {
-      toast("Cost price must be greater than 0", "error");
+      toast("Cost price cannot be negative", "error");
       return;
     }
     const label = `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""}`.trim();
@@ -516,7 +565,7 @@ export default function PurchasesPage() {
   function commitBarcodes(values?: string[]) {
     if (!barcodePopup) return;
     if ((parseFloat(barcodePopup.price) || 0) <= 0) {
-      toast("Cost price must be greater than 0", "error");
+      toast("Cost price cannot be negative", "error");
       return;
     }
     if (sameBarcode) {
@@ -622,6 +671,7 @@ export default function PurchasesPage() {
     setContactId(null);
     setSelProductId(null);
     setPrice("");
+    setSalePrice("");
     setQty("1");
     setColorId(null);
     setBatteryHealth("");
@@ -685,7 +735,7 @@ export default function PurchasesPage() {
       txn.items.map((item) => ({
         key: item.unit?.id ?? `row-${item.id}`,
         productId: item.product.id,
-        productLabel: `${item.product.brand} ${item.product.model} ${item.product.storage ?? ""}`.trim(),
+        productLabel: `${brandOf(item.product)} ${item.product.model} ${item.product.storage ?? ""}`.trim(),
         imei: item.unit?.imei ?? "",
         barcode: "",
         costPrice: String(parseFloat(item.unitPrice)),
@@ -748,6 +798,7 @@ export default function PurchasesPage() {
             productId: r.productId,
             imei: r.imei.trim(),
             costPrice: netCost,
+            sellPrice: usedPricingEnabled && tab === "USED" && r.salePrice ? parseFloat(r.salePrice) : undefined,
             condition: tab,
             grade: tab === "USED" ? r.grade : undefined,
             carrier: r.carrier,
@@ -941,8 +992,8 @@ export default function PurchasesPage() {
                 <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Discount</p><div className="flex items-center gap-2"><PriceInput value={discountPct} max={100} onChange={setDiscountPct} className="flex-1 min-w-0 bg-white" suffix="%" /><PriceInput value={parseFloat(discount) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => setDiscount(n > 0 ? String(n) : "")} className="flex-1 min-w-0 bg-white" suffix="Rs" /></div></div>
               </div>
             </div>
-            <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); if (flow === "ACCESSORY") openBarcodePopup(); else openImeiPopup(); }}><div className="flex flex-col gap-3"><div className="flex flex-wrap items-end gap-3"><div className="min-w-[200px] flex-[2]"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div>{flow !== "ACCESSORY" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p><Dropdown value={colorId} options={colorOptions} onChange={setColorId} triggerClassName="bg-white" searchable placeholder="Select…" /></div>)}<Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div>{flow === "USED" && (<div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p><Input value={batteryHealth} onChange={(e) => setBatteryHealth(e.target.value)} inputMode="numeric" placeholder="Optional" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p><Dropdown triggerClassName="bg-white" value={grade} options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))} onChange={setGrade} /></div></div>)}</div></form></section>
-            <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white"><table className="min-w-[480px] w-full table-fixed text-sm"><thead className="sticky top-0 bg-white"><tr className="text-left text-xs uppercase tracking-wide text-ink-500"><th className="w-[180px] px-4 py-3 text-center">Item</th><th className="w-14 px-4 py-3 text-center">Qty</th><th className="w-20 px-4 py-3 text-center">Cost</th><th className="w-32 px-4 py-3 text-center">Disc</th><th className="w-24 px-4 py-3 text-center">Amount</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => {
+            <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); if (flow === "ACCESSORY") openBarcodePopup(); else openImeiPopup(); }}><div className="flex flex-col gap-3"><div className="flex flex-wrap items-end gap-3"><div className="min-w-[200px] flex-[2]"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div>{usedPricingEnabled && flow === "USED" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Sale price</p><Input value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="Sale" inputMode="decimal" className="bg-white" /></div>)}<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div>{flow !== "ACCESSORY" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p><Dropdown value={colorId} options={colorOptions} onChange={setColorId} triggerClassName="bg-white" searchable placeholder="Select…" /></div>)}<Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div>{flow === "USED" && (<div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p><Input value={batteryHealth} onChange={(e) => setBatteryHealth(e.target.value)} inputMode="numeric" placeholder="Optional" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p><Dropdown triggerClassName="bg-white" value={grade} options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))} onChange={setGrade} /></div></div>)}</div></form></section>
+            <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white"><table className={`w-full table-fixed text-sm ${usedPricingEnabled && flow === "USED" ? "min-w-[640px]" : "min-w-[480px]"}`}><thead className="sticky top-0 bg-white"><tr className="text-left text-xs uppercase tracking-wide text-ink-500"><th className="w-[180px] px-1.5 py-1.5 text-center">Item</th><th className="w-14 px-1.5 py-1.5 text-center">Qty</th>{flow === "USED" && <th className="w-16 px-1.5 py-1.5 text-center">Grade</th>}<th className="w-24 px-1.5 py-1.5 text-center">Cost</th>{usedPricingEnabled && flow === "USED" && <th className="w-24 px-1.5 py-1.5 text-center">Sale</th>}<th className="w-[148px] px-1.5 py-1.5 text-center">Disc</th><th className="w-24 px-1.5 py-1.5 text-center">Amount</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => {
               const groups = new Map<string, PendingUnit[]>();
               const plain: PendingUnit[] = [];
               for (const r of rows) {
@@ -958,14 +1009,16 @@ export default function PurchasesPage() {
                 {groupEntries.map(([productId, groupRows]) => {
                   const totalQty = groupRows.reduce((s, l) => s + l.quantity, 0);
                   const groupPrice = parseFloat(groupRows[0].costPrice) || 0;
+                  const groupSale = parseFloat(groupRows[0].salePrice ?? "0") || 0;
                   const groupAmount = roundMoney(groupRows.reduce((s, l) => s + ((parseFloat(l.costPrice) || 0) - rowDiscount(l)) * l.quantity, 0));
-                  return (<Fragment key={productId}><tr className="bg-ink-50/80 transition-colors duration-150"><td className="px-4 py-2.5"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span></div></td>{groupRows.length > 1 ? (<><td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-900">{totalQty}</td><td className="px-4 py-2.5 text-right"><div className="w-28"><PriceInput value={groupPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupPrice(productId, n)} className="bg-ink-100 px-2 text-right" /></div></td><td className="px-4 py-2.5 text-right"><DiscountFields pct={groupRows[0].discountPct} flat={groupRows[0].discountFlat} maxFlat={groupPrice} onChange={({ pct, flat }) => updateGroupDiscount(productId, { pct, flat })} /></td><td className="px-4 py-2.5 text-right text-sm font-semibold text-ink-900">{formatPKR(groupAmount)}</td></>) : (<><td /><td /><td /><td /></>)}<td className="px-4 py-2.5" /></tr>{groupRows.map((row) => (<tr key={row.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-4 py-2.5 pl-9"><div className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-medium text-ink-900">{row.imei}</span>{row.colorLabel && <Badge variant="neutral">{row.colorLabel}</Badge>}{flow === "USED" && row.carrier && <Badge variant="neutral">{CARRIER_LABELS[row.carrier]}</Badge>}{flow === "USED" && row.grade && <TypePill tone="grey">{row.grade}</TypePill>}{flow === "USED" && row.batteryHealth && <Badge variant="neutral">{row.batteryHealth}%</Badge>}</div></td><td className="px-4 py-2.5 text-center text-ink-700">{row.quantity}</td><td className="px-4 py-2.5 text-right"><div className="w-28"><PriceInput value={parseFloat(row.costPrice) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowPrice(row.key, n)} className="px-2 text-right" /></div></td><td className="px-4 py-2.5"><DiscountFields pct={row.discountPct} flat={row.discountFlat} maxFlat={parseFloat(row.costPrice) || 0} onChange={({ pct, flat }) => updateRowDiscount(row.key, { pct, flat })} /></td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(roundMoney(((parseFloat(row.costPrice) || 0) - rowDiscount(row)) * row.quantity))}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>);
+                  const showSale = usedPricingEnabled && flow === "USED";
+                  return (<Fragment key={productId}><tr className="bg-ink-50/80 transition-colors duration-150"><td className="px-2 py-1.5"><div className="flex items-center gap-1.5"><div className="h-5 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span></div></td>{groupRows.length > 1 ? (<><td className="px-1.5 py-1 text-center text-sm font-semibold text-ink-900">{totalQty}</td>{flow === "USED" && <td className="px-1.5 py-1 text-center text-xs font-medium text-ink-700">{groupRows[0].grade || "-"}</td>}<td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={groupPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupPrice(productId, n)} className="h-7 w-16 bg-ink-100 px-1 text-right text-xs" /></div></td>{showSale && <td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={groupSale} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupSalePrice(productId, n)} className="h-7 w-16 bg-ink-100 px-1 text-right text-xs" /></div></td>}<td className="px-1.5 py-1 text-right"><DiscountFields pct={groupRows[0].discountPct} flat={groupRows[0].discountFlat} maxFlat={groupPrice} onChange={({ pct, flat }) => updateGroupDiscount(productId, { pct, flat })} /></td><td className="px-1.5 py-1 text-right text-sm font-semibold text-ink-900">{formatPKR(groupAmount)}</td></>) : (<><td />{flow === "USED" && <td /> }<td />{showSale && <td /> }<td /><td /></>)}<td className="px-4 py-2.5" /></tr>{groupRows.map((row) => (<tr key={row.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-1.5 py-1 pl-4"><div className="flex flex-wrap items-center gap-1"><span className="text-xs font-medium text-ink-900">{row.imei}</span>{row.colorLabel && <Badge variant="neutral">{row.colorLabel}</Badge>}{flow === "USED" && row.carrier && <Badge variant="neutral">{CARRIER_LABELS[row.carrier]}</Badge>}{flow === "USED" && row.batteryHealth && <Badge variant="neutral">{row.batteryHealth}%</Badge>}</div></td><td className="px-1.5 py-1 text-center text-ink-700">{row.quantity}</td>{flow === "USED" && <td className="px-1.5 py-1 text-center"><span className="inline-flex rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-medium text-ink-700">{row.grade || "-"}</span></td>}<td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={parseFloat(row.costPrice) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowPrice(row.key, n)} className="h-7 w-16 px-1 text-right text-xs" /></div></td>{showSale && <td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={parseFloat(row.salePrice ?? "0") || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowSalePrice(row.key, n)} className="h-7 w-16 px-1 text-right text-xs" /></div></td>}<td className="px-4 py-2.5"><DiscountFields pct={row.discountPct} flat={row.discountFlat} maxFlat={parseFloat(row.costPrice) || 0} onChange={({ pct, flat }) => updateRowDiscount(row.key, { pct, flat })} /></td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(roundMoney(((parseFloat(row.costPrice) || 0) - rowDiscount(row)) * row.quantity))}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>);
                 })}
                 {plain.map((row) => {
                   const amount = roundMoney(((parseFloat(row.costPrice) || 0) - rowDiscount(row)) * row.quantity);
-                  return (<tr key={row.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-ink-300" /><div className="min-w-0"><p className="truncate font-medium text-ink-900">{row.productLabel}{row.barcode && <span className="text-ink-500"> · {row.barcode}</span>}</p><p className="text-[11px] text-ink-400">{`${row.quantity} × ${formatPKR(parseFloat(row.costPrice) || 0)}`}</p></div></div></td><td className="px-4 py-3 text-center text-ink-700">{row.quantity}</td><td className="px-4 py-3 text-right"><div className="w-28"><PriceInput value={parseFloat(row.costPrice) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowPrice(row.key, n)} className="px-2 text-right" /></div></td><td className="px-4 py-3"><DiscountFields pct={row.discountPct} flat={row.discountFlat} maxFlat={parseFloat(row.costPrice) || 0} onChange={({ pct, flat }) => updateRowDiscount(row.key, { pct, flat })} /></td><td className="px-4 py-3 text-right font-semibold text-ink-900">{formatPKR(amount)}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>);
+                  return (<tr key={row.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="h-6 w-1 shrink-0 rounded-full bg-ink-300" /><div className="min-w-0"><p className="truncate font-medium text-ink-900">{row.productLabel}{row.barcode && <span className="text-ink-500"> · {row.barcode}</span>}</p><p className="text-[11px] text-ink-400">{`${row.quantity} × ${formatPKR(parseFloat(row.costPrice) || 0)}`}</p></div></div></td><td className="px-1.5 py-1 text-center text-ink-700">{row.quantity}</td>{flow === "USED" && <td className="px-1.5 py-1 text-center"><span className="inline-flex rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-medium text-ink-700">{row.grade || "-"}</span></td>}<td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={parseFloat(row.costPrice) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowPrice(row.key, n)} className="h-7 w-16 px-1 text-right text-xs" /></div></td><td className="px-4 py-3"><DiscountFields pct={row.discountPct} flat={row.discountFlat} maxFlat={parseFloat(row.costPrice) || 0} onChange={({ pct, flat }) => updateRowDiscount(row.key, { pct, flat })} /></td><td className="px-4 py-3 text-right font-semibold text-ink-900">{formatPKR(amount)}</td><td className="px-4 py-3 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>);
                 })}
-                {rows.length === 0 && (<tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-ink-400">No items added yet. Pick a product above and press Add.</td></tr>)}
+                {rows.length === 0 && (<tr><td colSpan={flow === "USED" ? (usedPricingEnabled ? 8 : 7) : 6} className="px-4 py-8 text-center text-sm text-ink-400">No items added yet. Pick a product above and press Add.</td></tr>)}
               </>);
             })()}</tbody></table></div>
           </div>
@@ -996,6 +1049,7 @@ export default function PurchasesPage() {
         <BankDepositSheet open={bankSheetOpen} onClose={() => setBankSheetOpen(false)} bankRows={bankRows} onBankRowsChange={setBankRows} bankAccounts={bankAccounts} />
          {popup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{popup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{[popup.colorLabel, popup.batteryHealth ? `Battery ${popup.batteryHealth}%` : null].filter(Boolean).join(" · ")}{" · "}{formatPKR(popup.price)} each</p><div className="my-4 flex items-center justify-center gap-1 text-4xl font-bold"><span className={validCount === popup.qty ? "text-brand-600" : "text-ink-900"}>{validCount}</span><span className="text-ink-400">/</span><span className="text-ink-400">{popup.qty}</span></div><div className="-mr-1 mt-4 h-72 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{popupImeis.map((val, i) => (<ImeiRow key={i} index={i} value={val} onChange={updatePopupImei} onEnter={handlePopupImeiEnter} onClear={clearPopupImei} inputRef={(el) => { imeiFieldRefs.current[i] = el; }} />))}</div><div className="mt-5 flex shrink-0 justify-end gap-2"><ScannerButton label="Scan" variant="grey" /><Button variant="grey" onClick={closePopup}>Cancel</Button><Button onClick={() => commit(popupImeis.filter((v) => v.length === 15))} disabled={validCount === 0} className="active:scale-[0.97] transition-transform duration-100">{`Add ${validCount} pcs`}</Button></div></div></div>)}
         {barcodePopup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{barcodePopup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{formatPKR(barcodePopup.price)} each</p><div className="my-4"><Checkbox checked={sameBarcode} onChange={setSameBarcode} label={`Same barcode for all ${barcodePopup.qty} pcs`} /></div>{sameBarcode ? (<div className="flex items-center gap-2"><Input value={singleBarcode} onChange={(e) => setSingleBarcode(e.target.value)} placeholder="Scan or type barcode" className="flex-1" /><Button variant="grey" onClick={() => setSingleBarcode("")}>Clear</Button></div>) : (<div className="-mr-1 h-64 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{barcodes.map((val, i) => (<div key={i} className="flex items-center gap-2"><span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span><Input ref={(el) => { barcodeFieldRefs.current[i] = el; }} value={val} onChange={(e) => updateBarcode(i, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleBarcodeEnter(i); } }} placeholder={`Barcode ${i + 1}`} className="min-w-0 flex-1" />{val.trim() ? (<CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />) : (<button type="button" onClick={() => clearBarcode(i)} className="shrink-0 text-ink-300 hover:text-error">✕</button>)}</div>))}</div>)}<div className="mt-5 flex shrink-0 justify-end gap-2"><Button variant="grey" onClick={closeBarcodePopup}>Cancel</Button><Button onClick={() => commitBarcodes()}>{sameBarcode ? `Add ${barcodePopup.qty} pcs` : `Add ${barcodes.filter((v) => v.trim()).length} pcs`}</Button></div></div></div>)}
+        <Dialog open={lowPriceDialog !== null} title="Sale price below cost?" message={<p className="text-sm text-ink-600">{lowPriceDialog?.label} sale price is at or below its cost. You can still purchase it, but this phone will show a loss.</p>} confirmLabel="Add anyway" destructive onCancel={() => setLowPriceDialog(null)} onConfirm={() => { lowPriceDialog?.proceed(); setLowPriceDialog(null); }} />
       </div>
     );
-}
+  }

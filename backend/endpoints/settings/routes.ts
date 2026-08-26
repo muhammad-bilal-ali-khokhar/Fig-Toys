@@ -18,8 +18,10 @@ import {
   soundPutHandler,
   themeGetHandler,
   themePutHandler,
+  usedPricingGetHandler,
+  usedPricingPutHandler,
 } from "./handlers";
-import { autoPrintSchema, companyProfileSchema, dashboardLayoutSchema, printModeSchema, quickAddSchema, soundPrefsSchema, themeSchema } from "./schemas";
+import { autoPrintSchema, companyProfileSchema, dashboardLayoutSchema, printModeSchema, quickAddSchema, soundPrefsSchema, themeSchema, usedPricingSchema } from "./schemas";
 
 const router = Router();
 
@@ -40,5 +42,7 @@ router.get("/print-mode", asyncHandler(printModeGetHandler));
 router.put("/print-mode", requirePermission(PERMISSIONS.settingsWrite), validate(printModeSchema), asyncHandler(printModePutHandler));
 router.get("/quick-add", asyncHandler(quickAddGetHandler));
 router.put("/quick-add", requirePermission(PERMISSIONS.settingsWrite), validate(quickAddSchema), asyncHandler(quickAddPutHandler));
+router.get("/used-pricing", asyncHandler(usedPricingGetHandler));
+router.put("/used-pricing", requirePermission(PERMISSIONS.settingsWrite), validate(usedPricingSchema), asyncHandler(usedPricingPutHandler));
 
 export default router;

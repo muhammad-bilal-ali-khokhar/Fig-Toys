@@ -19,17 +19,18 @@ export const Input = forwardRef<
     suffix?: string;
   }
 >(function Input({ variant = "filled", className = "", prefix, suffix, ...rest }, ref) {
+  const compact = className.includes("h-7") || className.includes("text-xs");
   return (
     <span
-      className={`flex h-9 items-center rounded-2xl transition focus-within:ring-2 focus-within:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
+      className={`flex ${compact ? "h-7 rounded-xl" : "h-9 rounded-2xl"} items-center transition focus-within:ring-2 focus-within:ring-brand-500/60 ${VARIANTS[variant]} ${className}`}
     >
-      {prefix && <span className="shrink-0 pl-3.5 text-sm text-ink-400">{prefix}</span>}
+      {prefix && <span className={`shrink-0 ${compact ? "pl-1.5 text-xs" : "pl-3.5 text-sm"} text-ink-400`}>{prefix}</span>}
       <input
         ref={ref}
-        className={`h-full min-w-0 flex-1 bg-transparent px-3.5 text-sm text-ink-900 outline-none placeholder:text-ink-400`}
+        className={`h-full min-w-0 flex-1 bg-transparent ${compact ? "px-1.5 text-xs" : "px-3.5 text-sm"} text-ink-900 outline-none placeholder:text-ink-400`}
         {...rest}
       />
-      {suffix && <span className="shrink-0 pr-3.5 text-sm text-ink-400">{suffix}</span>}
+      {suffix && <span className={`shrink-0 ${compact ? "pr-1.5 text-xs" : "pr-3.5 text-sm"} text-ink-400`}>{suffix}</span>}
     </span>
   );
 });

@@ -7,6 +7,7 @@ import {
   getQuickAdd,
   getSoundPrefs,
   getTheme,
+  getUsedPricing,
   updateAutoPrint,
   updateCompanyProfile,
   updateDashboardLayout,
@@ -14,8 +15,9 @@ import {
   updateQuickAdd,
   updateSoundPrefs,
   updateTheme,
+  updateUsedPricing,
 } from "./service";
-import type { AutoPrintInput, CompanyProfileInput, DashboardLayoutInput, PrintModeInput, QuickAddInput, SoundPrefsInput, ThemeInput } from "./schemas";
+import type { AutoPrintInput, CompanyProfileInput, DashboardLayoutInput, PrintModeInput, QuickAddInput, SoundPrefsInput, ThemeInput, UsedPricingInput } from "./schemas";
 
 export async function companyGetHandler(req: Request, res: Response) {
   res.json({ data: await getCompanyProfile() });
@@ -71,4 +73,12 @@ export async function quickAddGetHandler(req: Request, res: Response) {
 
 export async function quickAddPutHandler(req: Request, res: Response) {
   res.json({ data: await updateQuickAdd((req.body as QuickAddInput).enabled) });
+}
+
+export async function usedPricingGetHandler(req: Request, res: Response) {
+  res.json({ data: await getUsedPricing() });
+}
+
+export async function usedPricingPutHandler(req: Request, res: Response) {
+  res.json({ data: await updateUsedPricing((req.body as UsedPricingInput).enabled) });
 }

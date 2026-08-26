@@ -101,7 +101,7 @@ export default function InventoryListReportPage() {
           carrierKey: p.units.length > 0 ? p.units[0].carrier : "",
           vendor: p.units.length > 0 ? p.units[0].purchase?.vendor ?? "" : acc?.lastVendor ?? "",
           sell:
-            moneySum(p.units, (u) => u.product.sellPrice) +
+            moneySum(p.units, (u) => (u as any).sellPrice ?? u.product.sellPrice) +
             (acc ? (parseFloat(acc.sellPrice ?? "") || 0) * acc.qty : 0),
           cost:
             moneySum(p.units, (u) => u.costPrice) +
