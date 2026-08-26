@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.25
+
 - **Add items back to back without the cleanup.** After you tap Add on POS, Sale Returns, Purchases, Purchase Returns and Purchase Orders, the quantity, price and product pickers reset themselves so you are instantly ready for the next item. Faster counters, fewer mistakes.
 
 ## v0.2.24
