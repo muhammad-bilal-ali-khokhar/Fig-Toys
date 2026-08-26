@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.29
+## v0.2.30
+
+- Released on: 2026-08-26
+
+- fix: inventory shows per-unit sale price for used phones, each piece keeps its own price
+- feat: per-unit used pricing with sale/cost, compact tables, grade column, hard block
 
 - Released on: 2026-08-26
 

@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.30
+
 - **Your used phones now have their own price.** Turn on Add sale and cost while purchasing in Settings or right when you create a Used phone. When you buy Used stock you now enter cost and sale per IMEI, each phone remembers its own prices, and POS always sells that exact phone at its own sale price so profit is always correct. Equal price is allowed, less than cost is blocked before the IMEI window opens.
 - **Used phones are simpler to create.** Retail price is gone for Used phones and when per phone pricing is on, catalog cost and sale disappear too. Prices are set per phone at purchase, exactly how your shop works.
 - **Tables that finally breathe.** Cost and Sale are now separate columns, Grade has its own column, and every table across POS, Purchases, Sale Returns, Purchase Returns and Purchase Orders is tighter with compact inputs. Discount shows % and Rs in neat fixed boxes with less padding so you see the numbers at a glance.
