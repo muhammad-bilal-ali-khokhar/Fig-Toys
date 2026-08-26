@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.2.29
+
+
+
 ## v0.2.28
 
 - **Your whole inventory, one beautiful report.** A brand new Inventory List report shows every phone and accessory you stock with IMEIs, categories, quantities, colors, status and values. Search instantly by product or IMEI, filter like a pro and see total quantity and amount at the bottom of the table. Print a clean A4 copy in one tap. Find it in Reports, Inventory list.
