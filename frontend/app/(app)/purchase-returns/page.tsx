@@ -452,6 +452,7 @@ export default function PurchaseReturnsPage() {
     });
     setReturnPrice("");
     setReturnQty("1");
+    setSelProductId(null);
     setResults([]);
     setHighlightedIndex(-1);
     toast(`${label} ×${qty} added`, "success");

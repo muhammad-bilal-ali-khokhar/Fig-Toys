@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **Add items back to back without the cleanup.** After you tap Add on POS, Sale Returns, Purchases, Purchase Returns and Purchase Orders, the quantity, price and product pickers reset themselves so you are instantly ready for the next item. Faster counters, fewer mistakes.
+
 ## v0.2.24
 
 - **Meet the Used Phone Vendor contact type.** Now you can keep your used phone suppliers and walk in sellers separate from regular vendors. Pick Used phone vendor when adding a contact and they appear everywhere you buy used stock, with their own clear label on every list so your contacts stay organized at a glance.

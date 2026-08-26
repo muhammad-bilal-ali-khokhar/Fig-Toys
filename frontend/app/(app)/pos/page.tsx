@@ -528,6 +528,9 @@ const [invoiceDiscountPct, setInvoiceDiscountPct] = useState(0);
       };
       const ok = addLine(fakeResult, undefined, hasPrice ? priceOverride : undefined, qty);
       if (!ok) return;
+      setAddQty("1");
+      setAddPrice("");
+      setSelProductId(null);
       toast(`${prod.brand} ${prod.model} added`, "success");
       return;
     }

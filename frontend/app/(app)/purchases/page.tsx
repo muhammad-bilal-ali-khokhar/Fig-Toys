@@ -397,6 +397,8 @@ export default function PurchasesPage() {
     setPopup(null);
     setPopupImeis([]);
     setQty("1");
+    setSelProductId(null);
+    setPrice("");
     playSuccess();
     toast(`${imeis.length} unit(s) added`, "success");
   }
@@ -587,6 +589,8 @@ export default function PurchasesPage() {
     setSingleBarcode("");
     setSameBarcode(false);
     setQty("1");
+    setSelProductId(null);
+    setPrice("");
     playSuccess();
   }
 
