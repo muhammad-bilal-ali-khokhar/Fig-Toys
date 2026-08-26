@@ -308,12 +308,12 @@ model Unit {
   carrier    CarrierType   @default(NON_PTA)
   batteryHealth Int?
   costPrice  Decimal
-  sellPrice  Decimal?
   acquiredAt DateTime      @default(now())
   grade      String?
   colorId    String?
   color      Color?        @relation(fields: [colorId], references: [id])
   returnedFromSource UnitSource?
+  sellPrice  Decimal?
 
   items      TransactionItem[]
   movements  StockMovement[]
