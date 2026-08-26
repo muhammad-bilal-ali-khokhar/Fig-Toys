@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.27
+
 - **A cleaner cart for single phones.** When you add just one phone on POS, Purchases, Sale Returns, Purchase Returns, Purchase Orders or Reservations, the group row now stays simple with only the product name. Add a second unit of the same model and quantity, price and total appear instantly. Less clutter at the counter and the numbers you need exactly when you need them.
 
 ## v0.2.26

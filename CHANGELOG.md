@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.26
+## v0.2.27
+
+- Released on: 2026-08-26
+
+- feat: hide group row quantity, price and total for single unit items across POS, purchases, returns, purchase orders and reservations
 
 - Released on: 2026-08-26
 
