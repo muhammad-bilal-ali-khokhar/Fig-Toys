@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.28
+
 - **Your whole inventory, one beautiful report.** A brand new Inventory List report shows every phone and accessory you stock with IMEIs, categories, quantities, colors, status and values. Search instantly by product or IMEI, filter like a pro and see total quantity and amount at the bottom of the table. Print a clean A4 copy in one tap. Find it in Reports, Inventory list.
 - **Beautiful report charts are here.** Sales, Purchases, Profit and Expenses reports now show a smooth, modern trend graph instead of plain bars. Hover any day to see the exact amount, and read your business at a glance. Open Reports to see the difference.
 - **No more zero cost surprises.** Purchases and Purchase Orders now ask for a real cost price before an item can be added, and new products need a proper sell price and cost price. Your books stay accurate from the very first rupee.
