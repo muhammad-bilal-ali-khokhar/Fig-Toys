@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **A cleaner cart for single phones.** When you add just one phone on POS, Purchases, Sale Returns, Purchase Returns, Purchase Orders or Reservations, the group row now stays simple with only the product name. Add a second unit of the same model and quantity, price and total appear instantly. Less clutter at the counter and the numbers you need exactly when you need them.
+
 ## v0.2.26
 
 - **Receipts that show the deal.** Discounts now print right on your receipts and invoices, with the original price struck through, the discount amount and the percentage for both single items and the whole bill. No discount means no clutter, exactly as before.

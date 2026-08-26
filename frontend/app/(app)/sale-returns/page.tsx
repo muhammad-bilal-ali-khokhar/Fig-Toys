@@ -695,7 +695,7 @@ export default function SaleReturnsPage() {
                       <div className="flex items-center gap-2.5">
                         <div className="h-6 w-1 shrink-0 rounded-full bg-brand-500" />
                         <span className="truncate text-sm font-semibold text-ink-900">{g.label}</span>
-                        <span className="text-xs text-ink-500">{g.quantity} pcs</span>
+                        {g.lines.length > 1 && (<span className="text-xs text-ink-500">{g.quantity} pcs</span>)}
                       </div>
                     </td>
                   </tr>
