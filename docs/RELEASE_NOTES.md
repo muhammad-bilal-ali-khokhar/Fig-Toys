@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.2.31
+
+
+
 ## v0.2.30
 
 - **Your used phones now have their own price.** Turn on Add sale and cost while purchasing in Settings or right when you create a Used phone. When you buy Used stock you now enter cost and sale per IMEI, each phone remembers its own prices, and POS always sells that exact phone at its own sale price so profit is always correct. Equal price is allowed, less than cost is blocked before the IMEI window opens.
