@@ -263,8 +263,8 @@ export default function InventoryPage() {
           vb = b.purchase ? new Date(b.purchase.date).getTime() : -1;
           break;
         case "sellPrice":
-          va = a.product.sellPrice ? parseFloat(a.product.sellPrice) : -1;
-          vb = b.product.sellPrice ? parseFloat(b.product.sellPrice) : -1;
+          va = (a.sellPrice ?? a.product.sellPrice) ? parseFloat((a.sellPrice ?? a.product.sellPrice) as string) : -1;
+          vb = (b.sellPrice ?? b.product.sellPrice) ? parseFloat((b.sellPrice ?? b.product.sellPrice) as string) : -1;
           break;
         case "retailPrice":
           va = a.product.retailPrice ? parseFloat(a.product.retailPrice) : -1;
@@ -423,7 +423,7 @@ export default function InventoryPage() {
         u.batteryHealth != null ? String(u.batteryHealth) : "",
         u.purchase?.vendor ?? "",
         u.purchase ? u.purchase.date.slice(0, 16).replace("T", " ") : "",
-        u.product.sellPrice ?? "",
+        (u.sellPrice ?? u.product.sellPrice) ?? "",
         u.product.retailPrice ?? "",
         ...(viewCosts ? [u.costPrice ?? ""] : []),
         u.acquiredAt.slice(0, 10),
@@ -686,7 +686,16 @@ export default function InventoryPage() {
                       <td className="px-5 py-3 text-right font-semibold text-ink-900">{g.count}</td>
                       <td className="px-5 py-3 text-right text-ink-700">{inStock}</td>
                       <td className="px-5 py-3 text-right font-medium text-ink-900">
-                        {g.product.sellPrice ? formatPKR(g.product.sellPrice) : "—"}
+                        {(() => {
+                          if (g.units.length > 0) {
+                            const prices = g.units.map((u) => (u.sellPrice ?? u.product.sellPrice) ? parseFloat((u.sellPrice ?? u.product.sellPrice) as string) : null).filter((v): v is number => v !== null && v > 0);
+                            if (prices.length === 0) return "—";
+                            const min = Math.min(...prices);
+                            const max = Math.max(...prices);
+                            return min === max ? formatPKR(min) : `${formatPKR(min)} - ${formatPKR(max)}`;
+                          }
+                          return g.product.sellPrice ? formatPKR(g.product.sellPrice) : "—";
+                        })()}
                       </td>
                       <td className="px-5 py-3 text-right text-ink-700">
                         {g.product.retailPrice ? formatPKR(g.product.retailPrice) : "—"}
@@ -829,7 +838,7 @@ export default function InventoryPage() {
                           )}
                           {visibleColumns.includes("sell") && (
                             <td className="px-5 py-3 text-right font-semibold text-ink-900">
-                              {u.product.sellPrice ? formatPKR(u.product.sellPrice) : "—"}
+                              {(u.sellPrice ?? u.product.sellPrice) ? formatPKR((u.sellPrice ?? u.product.sellPrice) as string) : "—"}
                             </td>
                           )}
                           {visibleColumns.includes("retail") && (

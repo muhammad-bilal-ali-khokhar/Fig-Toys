@@ -145,7 +145,7 @@ export async function listInventory(canViewCosts = false) {
   for (const u of units) {
     if (u.status !== "IN_STOCK") continue;
     const cost = n(u.costPrice);
-    const retail = n(u.product.sellPrice);
+    const retail = n((u as any).sellPrice ?? u.product.sellPrice);
     costValue += cost;
     retailValue += retail;
     const cur = condMap.get(u.condition) ?? { condition: u.condition, units: 0, costValue: 0, retailValue: 0 };

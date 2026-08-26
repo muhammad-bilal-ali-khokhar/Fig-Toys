@@ -85,6 +85,7 @@ export async function listUnits({
       batteryHealth: u.batteryHealth,
       grade: u.grade,
       costPrice: u.costPrice,
+      sellPrice: (u as any).sellPrice ?? null,
       acquiredAt: u.acquiredAt,
       product: {
         id: u.product.id,

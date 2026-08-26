@@ -208,6 +208,7 @@ export type Unit = {
   batteryHealth: number | null;
   grade: string | null;
   costPrice?: string;
+  sellPrice?: string | null;
   acquiredAt: string;
   product: {
     id: string;
