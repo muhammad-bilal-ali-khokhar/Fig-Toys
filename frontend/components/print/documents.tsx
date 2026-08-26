@@ -160,12 +160,20 @@ function ThermalMeta({ detail, options }: { detail: TransactionDetail; options: 
   );
 }
 
+function invoiceDiscountPctLabel(detail: TransactionDetail): string {
+  const discount = Number(detail.discount);
+  const subtotal = Number(detail.subtotal);
+  if (discount <= 0 || subtotal <= 0) return "";
+  const pct = Math.round((discount / subtotal) * 1000) / 10;
+  return Number.isInteger(pct) ? ` (${pct}%)` : "";
+}
+
 function ThermalTotals({ detail }: { detail: TransactionDetail }) {
   return (
     <div className="space-y-1.5 text-[13px]">
       <PrintRow label={RECEIPT_TEXT.subtotal} value={formatPKR(detail.subtotal)} />
       {Number(detail.discount) > 0 && (
-        <PrintRow label={RECEIPT_TEXT.discount} value={`-${formatPKR(detail.discount)}`} />
+        <PrintRow label={`${RECEIPT_TEXT.discount}${invoiceDiscountPctLabel(detail)}`} value={`-${formatPKR(detail.discount)}`} />
       )}
       {Number(detail.tax) > 0 && <PrintRow label={RECEIPT_TEXT.tax} value={formatPKR(detail.tax)} />}
       {Number(detail.cardFee) > 0 && <PrintRow label={RECEIPT_TEXT.cardFee} value={formatPKR(detail.cardFee)} />}
@@ -235,6 +243,12 @@ function A4MetaRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function discountPctLabel(g: Pick<ItemGroup, "unitPrice" | "discount">): string {
+  if (g.discount <= 0 || g.unitPrice <= 0) return "";
+  const pct = Math.round((g.discount / g.unitPrice) * 1000) / 10;
+  return Number.isInteger(pct) ? ` (${pct}%)` : "";
+}
+
 function ThermalItems({ detail, options }: { detail: TransactionDetail; options: PrintBooleanOptions }) {
   const groups = useMemo(() => groupItems(detail.items), [detail.items]);
   return (
@@ -261,9 +275,21 @@ function ThermalItems({ detail, options }: { detail: TransactionDetail; options:
                 <span className="font-black">
                   {g.quantity} {RECEIPT_TEXT.quantityUnits}
                 </span>{" "}
-                × {formatPKR(effectivePrice)}
+                ×{" "}
+                {g.discount > 0 ? (
+                  <>
+                    <s>{formatPKR(g.unitPrice)}</s> {formatPKR(effectivePrice)}
+                  </>
+                ) : (
+                  formatPKR(effectivePrice)
+                )}
               </span>
             </p>
+            {g.discount > 0 && (
+              <p className="text-[12px] font-bold leading-tight text-black">
+                {RECEIPT_TEXT.discount}{discountPctLabel(g)}: -{formatPKR(g.discount * g.quantity)}
+              </p>
+            )}
             {options.imeis &&
               g.imeis.map((imei) => (
                 <p key={imei} className="font-mono text-[11px] font-bold leading-tight text-black">
@@ -283,7 +309,7 @@ function A4Totals({ detail }: { detail: TransactionDetail }) {
       <div className="space-y-1">
         <PrintRow label={RECEIPT_TEXT.subtotal} value={formatPKR(detail.subtotal)} />
         {Number(detail.discount) > 0 && (
-          <PrintRow label={RECEIPT_TEXT.discount} value={`-${formatPKR(detail.discount)}`} />
+          <PrintRow label={`${RECEIPT_TEXT.discount}${invoiceDiscountPctLabel(detail)}`} value={`-${formatPKR(detail.discount)}`} />
         )}
         {Number(detail.tax) > 0 && <PrintRow label={RECEIPT_TEXT.tax} value={formatPKR(detail.tax)} />}
         {Number(detail.cardFee) > 0 && <PrintRow label={RECEIPT_TEXT.cardFee} value={formatPKR(detail.cardFee)} />}
@@ -439,6 +465,9 @@ export function ReceiptDocument({
             <>
               <s className="text-ink-700">{formatPKR(g.unitPrice)}</s>{" "}
               <span className="font-semibold text-ink-900">{formatPKR(effectivePrice)}</span>
+              <span className="block text-[10px] text-ink-800">
+                {RECEIPT_TEXT.discount}{discountPctLabel(g)}: -{formatPKR(g.discount * g.quantity)}
+              </span>
             </>
           ) : (
             formatPKR(g.unitPrice)
