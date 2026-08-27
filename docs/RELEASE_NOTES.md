@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.2.33
+
+
+
 ## v0.2.32
 
 - **Profit by subcategory is here.** Your profit report now has a dedicated By subcategory view alongside By category, By brand and By model. Category shows the parent totals while Subcategory shows each child with its parent name, revenue, cost, profit and margin so you can see exactly which subcategory drives your profit.

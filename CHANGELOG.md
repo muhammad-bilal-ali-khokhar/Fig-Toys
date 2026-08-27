@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.32
+## v0.2.33
+
+- Released on: 2026-08-27
+
+- feat: desktop auto-checks for updates and shows in-app banner
 
 - Released on: 2026-08-27
 
