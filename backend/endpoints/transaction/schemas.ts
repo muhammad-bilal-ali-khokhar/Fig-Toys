@@ -6,6 +6,7 @@ const paymentSchema = z.object({
   tendered: z.coerce.number().min(0).optional(),
   reference: z.string().trim().optional(),
   bankAccountId: z.string().optional(),
+  cashDrawerId: z.string().optional(),
 });
 
 export const saleItemSchema = z.object({

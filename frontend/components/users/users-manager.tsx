@@ -235,7 +235,7 @@ function UserForm({
                   {ROLE_META[role].label}
                 </div>
               ) : (
-                <Dropdown value={role} options={ROLE_OPTIONS} onChange={(value) => { setRole(value); markChanged({ role: value }); }} />
+                <Dropdown value={role} options={ROLE_OPTIONS} onChange={(value) => { setRole(value); markChanged({ role: value }); }} searchable />
               )}
             </FormField>
             <FormField label={USER_TEXT.permissions}>

@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
-import type { BankAccount, Contact, ProductSummary, TransactionDetail, Unit } from "@/lib/api-types";
+import type { BankAccount, CashDrawer, Contact, ProductSummary, TransactionDetail, Unit } from "@/lib/api-types";
 import { brandOf } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS } from "@/lib/constants";
@@ -87,6 +87,8 @@ export default function PurchaseReturnsPage() {
   const [bankRows, setBankRows] = useState<{ id: string; amount: string; bankId: string }[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
+  const { data: cashDrawers } = useApi<CashDrawer[]>("/cash-drawer");
+  const [cashDrawerId, setCashDrawerId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [returnNo, setReturnNo] = useState("PCR-0001");
   const [returnDate, setReturnDate] = useState(() => toISODate(new Date()));
@@ -120,6 +122,12 @@ export default function PurchaseReturnsPage() {
   useEffect(() => {
     if (bankData) setBankAccounts(bankData);
   }, [bankData]);
+
+  useEffect(() => {
+    if (cashDrawers && cashDrawers.length > 0 && !cashDrawerId) {
+      setCashDrawerId(cashDrawers.find((d) => d.isDefault)?.id ?? cashDrawers[0].id);
+    }
+  }, [cashDrawers, cashDrawerId]);
 
   useEffect(() => {
     const modifyParam = searchParams.get("modify");
@@ -213,6 +221,7 @@ export default function PurchaseReturnsPage() {
     .map((p) => ({
       value: p.id,
       label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
+      searchKeywords: p.barcode ?? undefined,
       trailing: <span className="text-xs text-ink-400">{formatPKR(p.sellPrice)}</span>,
     }));
 
@@ -579,8 +588,8 @@ export default function PurchaseReturnsPage() {
     }
     setSubmitting(true);
     try {
-      const payments: { method: "CASH" | "CREDIT" | "BANK_TRANSFER"; amount: number; bankAccountId?: string }[] = [];
-      if (cashAmt > 0) payments.push({ method: "CASH", amount: cashAmt });
+      const payments: { method: "CASH" | "CREDIT" | "BANK_TRANSFER"; amount: number; bankAccountId?: string; cashDrawerId?: string }[] = [];
+      if (cashAmt > 0) payments.push({ method: "CASH", amount: cashAmt, cashDrawerId: cashDrawerId || undefined });
       if (creditAmt > 0) payments.push({ method: "CREDIT", amount: creditAmt });
       for (const row of bankRows) {
         const amt = parseFloat(row.amount) || 0;
@@ -765,6 +774,12 @@ export default function PurchaseReturnsPage() {
                   <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotalForNew - (parseFloat(creditAmount) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-8 shrink-0 whitespace-nowrap px-2.5 text-[11px] active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(refundTotalForNew - (parseFloat(creditAmount) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill cash</Button></div>
                   <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={creditAmount} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotalForNew - (parseFloat(cash) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCreditAmount(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-8 shrink-0 whitespace-nowrap px-2.5 text-[11px] active:scale-[0.97] transition-transform duration-100" onClick={() => setCreditAmount(clampMoneyInput(String(refundTotalForNew - (parseFloat(cash) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill credit</Button></div>
                 </div>
+                {parseFloat(cash) > 0 && (cashDrawers?.length ?? 0) > 1 && (
+                  <div className="mt-2">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-500">Cash drawer</p>
+                    <Dropdown value={cashDrawerId} options={cashDrawers!.map((d) => ({ value: d.id, label: d.name }))} onChange={setCashDrawerId} placeholder="Select drawer" />
+                  </div>
+                )}
                 <div className="mt-3"><BankPaymentRow bankRows={bankRows} bankAccounts={bankAccounts} onBankSheetOpen={() => setBankSheetOpen(true)} onAddBank={() => { if (bankRows.length === 0) { const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0]; setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]); } setBankSheetOpen(true); }} /></div>
               </div>
               <div className="sticky bottom-0 rounded-2xl bg-white p-4">
@@ -1131,6 +1146,13 @@ export default function PurchaseReturnsPage() {
                   </Button>
                 </div>
               </div>
+
+              {(cashDrawers?.length ?? 0) > 1 && parseFloat(cash) > 0 && (
+                <div>
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-500">Cash drawer</p>
+                  <Dropdown value={cashDrawerId} options={cashDrawers!.map((d) => ({ value: d.id, label: d.name }))} onChange={setCashDrawerId} placeholder="Select drawer" />
+                </div>
+              )}
 
               <BankPaymentRow
                 bankRows={bankRows}

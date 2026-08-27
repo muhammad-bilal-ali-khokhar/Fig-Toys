@@ -143,7 +143,7 @@ export function ProductForm({
               options={brands.map((b) => ({ value: b.id, label: b.name }))}
               onChange={(value) => update({ brandId: value })}
               placeholder="Select…"
-
+              searchable
             />
           </div>
           <Input
@@ -227,6 +227,7 @@ export function ProductForm({
                 options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))}
                 onChange={(value) => update({ carrier: value })}
                 placeholder={type === "USED" ? "Select carrier…" : "PTA"}
+                searchable
               />
               {type === "USED" && !form.carrier && <p className="mt-1 text-xs text-error">Carrier is required for Used phones</p>}
             </div>

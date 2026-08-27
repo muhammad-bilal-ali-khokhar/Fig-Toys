@@ -9,6 +9,7 @@ import { ChevronDownIcon } from "@/components/icons";
 export type DropdownOption<T extends string = string> = {
   value: T;
   label: string;
+  searchKeywords?: string;
   leading?: ReactNode;
   trailing?: ReactNode;
   disabled?: boolean;
@@ -18,8 +19,10 @@ function matchOptions<T extends string>(options: DropdownOption<T>[], query: str
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return options;
   return options.filter((o) => {
-    const label = o.label.toLowerCase();
-    return tokens.every((t) => label.includes(t));
+    const haystack = o.searchKeywords
+      ? `${o.label} ${o.searchKeywords}`.toLowerCase()
+      : o.label.toLowerCase();
+    return tokens.every((t) => haystack.includes(t));
   });
 }
 
@@ -109,6 +112,10 @@ export function Dropdown<T extends string>({
       input?.focus();
     }
   }, [open, searchable]);
+
+  useEffect(() => {
+    if (searchable) setActiveIndex(-1);
+  }, [filter, searchable]);
 
   useEffect(() => {
     if (!open) return;
@@ -215,17 +222,7 @@ export function Dropdown<T extends string>({
       aria-label="Options"
       aria-activedescendant={activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined}
       onKeyDown={(e) => {
-        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-          e.preventDefault();
-          const step = e.key === "ArrowDown" ? 1 : -1;
-          setActiveIndex((i) => Math.min(Math.max(i + step, 0), visible.length - 1));
-        } else if (e.key === "Home") {
-          e.preventDefault();
-          setActiveIndex(0);
-        } else if (e.key === "End") {
-          e.preventDefault();
-          setActiveIndex(visible.length - 1);
-        } else if (e.key === "Enter") {
+        if (e.key === "Enter") {
           const target = activeIndex >= 0 ? visible[activeIndex] : visible[0];
           if (target && !target.disabled) {
             e.preventDefault();

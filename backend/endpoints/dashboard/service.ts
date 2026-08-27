@@ -75,6 +75,7 @@ export async function overview(
     rangePurchases,
     rangeCashGroups,
     cashAccount,
+    cashDrawers,
     bankAccounts,
     cardReceivedAgg,
     cardReturnedAgg,
@@ -187,6 +188,7 @@ export async function overview(
       _sum: { amount: true },
     }),
     prisma.cashAccount.findUnique({ where: { id: "main" } }),
+    prisma.cashDrawer.findMany({ select: { id: true, name: true, balance: true, isDefault: true } }),
     prisma.bankAccount.findMany({
       where: { active: true },
       select: { id: true, name: true, bankName: true, accountNo: true, balance: true },
@@ -232,7 +234,7 @@ export async function overview(
     else if (g.kind === "OUT") rangeCashOut += Number(g._sum.amount ?? 0);
   }
 
-  const cashOnHand = Number(cashAccount?.balance ?? 0);
+  const cashOnHand = cashDrawers.length > 0 ? cashDrawers.reduce((s: number, d: { balance: unknown }) => s + Number(d.balance), 0) : Number(cashAccount?.balance ?? 0);
   const totalBankBalance = bankAccounts.reduce((s, b) => s + Number(b.balance), 0);
   const bankBalances = bankAccounts.map((b) => ({ ...b, balance: Number(b.balance) }));
   const pendingCard = Math.max(
@@ -488,6 +490,7 @@ export async function overview(
       totalBankBalance,
       pendingCard,
       banks: bankBalances,
+      drawers: cashDrawers.map((d: { id: string; name: string; balance: unknown; isDefault: boolean }) => ({ id: d.id, name: d.name, balance: Number(d.balance), isDefault: d.isDefault })),
     },
     stock: (() => {
       const phones = stockByCondition.NEW + stockByCondition.USED;

@@ -37,6 +37,7 @@ export function SettingsStep({ company, onPatch, onBack, onNext }: Props) {
             }))}
             onChange={(v) => onPatch({ currency: v })}
             placeholder="Select currency…"
+            searchable
           />
           <p className="mt-1 text-xs text-ink-400">
             Symbol used on receipts and the dashboard:{" "}
@@ -51,6 +52,7 @@ export function SettingsStep({ company, onPatch, onBack, onNext }: Props) {
             options={TIMEZONES.map((tz) => ({ value: tz.value, label: tz.label }))}
             onChange={(v) => onPatch({ timezone: v })}
             placeholder="Select timezone…"
+            searchable
           />
         </Field>
       </div>

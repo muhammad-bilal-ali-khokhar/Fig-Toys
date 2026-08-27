@@ -166,6 +166,7 @@ export function ContactForm({
             value={form.type}
             options={TYPE_OPTIONS}
             onChange={(value) => update({ type: value as ContactFormValues["type"] })}
+            searchable
           />
         </div>
         <div className="grid grid-cols-2 gap-3">

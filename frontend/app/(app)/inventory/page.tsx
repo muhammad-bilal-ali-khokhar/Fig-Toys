@@ -1044,6 +1044,7 @@ export default function InventoryPage() {
                   onChange={setStatus}
                   options={STATUS_FILTER_OPTIONS}
                   placeholder="All statuses"
+                  searchable
                 />
               </div>
               <div>
@@ -1053,6 +1054,7 @@ export default function InventoryPage() {
                   onChange={setCarrier}
                   options={CARRIER_FILTER_OPTIONS}
                   placeholder="All carriers"
+                  searchable
                 />
               </div>
               <div>
@@ -1062,6 +1064,7 @@ export default function InventoryPage() {
                   onChange={setCondition}
                   options={CONDITION_FILTER_OPTIONS}
                   placeholder="All conditions"
+                  searchable
                 />
               </div>
               <div>

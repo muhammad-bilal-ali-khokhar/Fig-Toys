@@ -76,6 +76,7 @@ export function PaginationBar({
           label={pageSize === PAGE_SIZE_ALL ? "All" : `${pageSize} / pg`}
           triggerClassName="bg-white"
           options={PAGE_SIZE_DROPDOWN_OPTIONS}
+          searchable
         />
         <Button variant="grey" disabled={page <= 1} onClick={onPrev}>
           <ChevronLeftIcon className="h-4 w-4" />

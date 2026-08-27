@@ -7,10 +7,11 @@ export async function overviewHandler(_req: Request, res: Response) {
 }
 
 export async function movementsHandler(req: Request, res: Response) {
-  const { account, from, to, tz } = req.query;
+  const { account, drawerId, from, to, tz } = req.query;
   res.json({
     data: await movements({
       account: typeof account === "string" ? account : undefined,
+      drawerId: typeof drawerId === "string" ? drawerId : undefined,
       from: typeof from === "string" ? from : undefined,
       to: typeof to === "string" ? to : undefined,
       tz: typeof tz === "string" ? tz : undefined,

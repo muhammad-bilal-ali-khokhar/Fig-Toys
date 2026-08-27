@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Brand, Category, Color, ProductDetail, ProductSummary, ScreenSize } from "@/lib/api-types";
+import type { Brand, CashDrawer, Category, Color, ProductDetail, ProductSummary, ScreenSize } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { canViewCosts, hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
@@ -75,6 +75,7 @@ export default function ProductsPage() {
   const { data: brands, refetch: refetchBrands } = useApi<Brand[]>("/brand");
   const { data: colors, refetch: refetchColors } = useApi<Color[]>("/color");
   const { data: screenSizes, refetch: refetchScreenSizes } = useApi<ScreenSize[]>("/screen-size");
+  const { data: cashDrawers } = useApi<CashDrawer[]>("/cash-drawer");
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const [q, setQ] = useState(() => searchParams.get("search") ?? searchParams.get("q") ?? "");
@@ -531,6 +532,7 @@ export default function ProductsPage() {
               setSort({ key, dir });
             }}
             placeholder="Sort"
+            searchable
           />
         </div>
       </div>
@@ -859,6 +861,7 @@ export default function ProductsPage() {
           brands={brands ?? []}
           colors={colors ?? []}
           screenSizes={screenSizes ?? []}
+          cashDrawers={cashDrawers ?? []}
           initialTab={manageTab}
           onClose={() => setManageOpen(false)}
           onChanged={() => {

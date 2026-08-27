@@ -4,7 +4,7 @@ import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
 import { dateAtZone, DEFAULT_TIMEZONE } from "../../core/lib/time";
 import { getCompanyFinancials } from "../../core/lib/company";
-import { applyPayments, reverseMoney } from "../../core/lib/ledger";
+import { applyPayments, reverseMoney, splitCashByDrawer } from "../../core/lib/ledger";
 import { availableQuantity, removeMovements, setUnitStatus } from "../../core/lib/stock";
 import type { TransactionType, UnitSource } from "../../generated/prisma/enums";
 import type { Prisma } from "../../generated/prisma/client";
@@ -174,6 +174,8 @@ export async function createSale(input: CreateSaleInput, userId: string) {
   if (input.date) {
     createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
   }
+
+  await splitCashByDrawer(prisma, input.payments, items.map((i) => ({ productId: i.productId, total: i.total })));
 
   let transaction;
   for (let attempt = 0; ; attempt++) {
@@ -421,6 +423,9 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
   if (input.date) {
     createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
   }
+
+  await splitCashByDrawer(prisma, input.payments, input.items.map((i) => ({ productId: i.productId, total: i.costPrice * (i.quantity ?? 1) })));
+
   const transaction = await prisma.$transaction(async (tx) => {
     const created = await tx.transaction.create({
       data: {
@@ -575,6 +580,18 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
   });
   const saleItemByUnit = new Map(saleItems.filter((i) => i.unitId).map((i) => [i.unitId as string, i]));
   const saleItemByProduct = new Map(saleItems.filter((i) => !i.unitId).map((i) => [i.productId, i]));
+
+  const returnLineItems = input.items.map((i) => {
+    if (i.unitId) {
+      const si = saleItemByUnit.get(i.unitId);
+      return { productId: i.productId, total: si ? Number(si.unitPrice) - Number(si.discount) : 0 };
+    }
+    const si = saleItemByProduct.get(i.productId);
+    const unitPrice = si ? Number(si.unitPrice) : 0;
+    return { productId: i.productId, total: unitPrice * i.quantity };
+  });
+  await splitCashByDrawer(prisma, input.payments, returnLineItems);
+
   const transaction = await prisma.$transaction(async (tx) => {
     const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
     let total = 0;
@@ -708,6 +725,18 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
   if (input.date) {
     createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
   }
+
+  const returnUnits = input.unitIds.length > 0
+    ? await prisma.unit.findMany({ where: { id: { in: input.unitIds } }, select: { productId: true, costPrice: true } })
+    : [];
+  const purchaseReturnLineItems = [
+    ...returnUnits.map((u) => ({ productId: u.productId, total: Number(u.costPrice) })),
+    ...input.items.map((i) => ({ productId: i.productId, total: (i.refund ?? 0) * i.quantity })),
+  ];
+  if (purchaseReturnLineItems.length > 0) {
+    await splitCashByDrawer(prisma, input.payments, purchaseReturnLineItems);
+  }
+
   const transaction = await prisma.$transaction(async (tx) => {
     const units = await tx.unit.findMany({ where: { id: { in: input.unitIds } } });
     if (units.length !== input.unitIds.length) {
@@ -1030,6 +1059,8 @@ export async function modifySale(id: string, input: CreateSaleInput, userId: str
 
     await tx.payment.deleteMany({ where: { transactionId: id } });
 
+    await splitCashByDrawer(tx, input.payments, items.map((i) => ({ productId: i.productId, total: i.total })));
+
     for (const item of items) {
       if (item.unitId) {
         const updated = await tx.unit.updateMany({
@@ -1194,6 +1225,8 @@ export async function modifyPurchase(id: string, input: CreatePurchaseInput, use
     await reverseMoney(tx, "PURCHASE", id);
     await tx.payment.deleteMany({ where: { transactionId: id } });
 
+    await splitCashByDrawer(tx, input.payments, input.items.map((i) => ({ productId: i.productId, total: i.costPrice * (i.quantity ?? 1) })));
+
     for (const item of input.items) {
       if (item.imei) {
         await ensurePurchaseUnit(tx, item, false);
@@ -1297,6 +1330,16 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
   const saleItemByUnit = new Map(saleItems.filter((i) => i.unitId).map((i) => [i.unitId as string, i]));
   const saleItemByProduct = new Map(saleItems.filter((i) => !i.unitId).map((i) => [i.productId, i]));
 
+  const returnLineItems = input.items.map((i) => {
+    if (i.unitId) {
+      const si = saleItemByUnit.get(i.unitId);
+      return { productId: i.productId, total: si ? Number(si.unitPrice) - Number(si.discount) : 0 };
+    }
+    const si = saleItemByProduct.get(i.productId);
+    const unitPrice = si ? Number(si.unitPrice) : 0;
+    return { productId: i.productId, total: unitPrice * i.quantity };
+  });
+
   const transaction = await prisma.$transaction(async (tx) => {
     for (const item of existing.items) {
       if (item.unitId) {
@@ -1324,6 +1367,8 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
 
     await reverseMoney(tx, "SALE_RETURN", id);
     await tx.payment.deleteMany({ where: { transactionId: id } });
+
+    await splitCashByDrawer(tx, input.payments, returnLineItems);
 
     const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
     let total = 0;
@@ -1455,6 +1500,14 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
     createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
   }
 
+  const returnUnits = input.unitIds.length > 0
+    ? await prisma.unit.findMany({ where: { id: { in: input.unitIds } }, select: { productId: true, costPrice: true } })
+    : [];
+  const purchaseReturnLineItems = [
+    ...returnUnits.map((u) => ({ productId: u.productId, total: Number(u.costPrice) })),
+    ...input.items.map((i) => ({ productId: i.productId, total: (i.refund ?? 0) * i.quantity })),
+  ];
+
   const transaction = await prisma.$transaction(async (tx) => {
     for (const item of existing.items) {
       if (item.unitId) {
@@ -1483,6 +1536,8 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
 
     await reverseMoney(tx, "PURCHASE_RETURN", id);
     await tx.payment.deleteMany({ where: { transactionId: id } });
+
+    await splitCashByDrawer(tx, input.payments, purchaseReturnLineItems);
 
     const units = await tx.unit.findMany({ where: { id: { in: input.unitIds } } });
     if (units.length !== input.unitIds.length) {

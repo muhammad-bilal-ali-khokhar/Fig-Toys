@@ -5,6 +5,7 @@ export const voucherSchema = z.object({
   amount: z.coerce.number().positive("Amount must be more than 0"),
   method: z.enum(["CASH", "BANK_TRANSFER", "CARD"]).default("CASH"),
   bankAccountId: z.string().trim().optional().nullable().or(z.literal("")),
+  cashDrawerId: z.string().trim().optional().nullable().or(z.literal("")),
   contactId: z.string().trim().min(1, "Pick a contact"),
   narration: z.string().trim().optional().nullable().or(z.literal("")),
   date: z.string().trim().optional().nullable().or(z.literal("")),

@@ -86,6 +86,7 @@ export default function PurchaseOrdersPage() {
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busy, setBusy] = useState(false);
+  // cashDrawerId intentionally not sent — backend splits cash by category drawer (New→Main, Used→Used Drawer, Accessories→Main) via splitCashByDrawer
 
   useEffect(() => {
     if (bankData) setBankAccounts(bankData);
@@ -141,6 +142,7 @@ export default function PurchaseOrdersPage() {
     .map((p) => ({
       value: p.id,
       label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""}`.trim(),
+      searchKeywords: p.barcode ?? undefined,
       trailing: <span className="text-xs text-ink-400">{formatPKR(p.costPrice ?? 0)}</span>,
     }));
 
@@ -312,6 +314,7 @@ export default function PurchaseOrdersPage() {
             costPrice: parseFloat(r.costPrice) || 0,
           })),
           note: note.trim() || undefined,
+          payments,
           advance,
           advanceMethod: advance > 0 ? advanceMethod : undefined,
           advanceBankAccountId: advance > 0 && advanceMethod === "BANK_TRANSFER" ? advanceBankAccountId : undefined,

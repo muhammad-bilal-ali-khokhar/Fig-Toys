@@ -6,6 +6,13 @@ export const purchaseOrderItemSchema = z.object({
   costPrice: z.coerce.number().min(0, "Cost must be 0 or more"),
 });
 
+export const paymentSchema = z.object({
+  method: z.enum(["CASH", "CREDIT", "BANK_TRANSFER"]),
+  amount: z.coerce.number().min(0.01),
+  bankAccountId: z.string().optional().nullable(),
+  cashDrawerId: z.string().optional().nullable(),
+});
+
 export const createPurchaseOrderSchema = z.object({
   contactId: z.string().min(1, "contactId is required"),
   items: z.array(purchaseOrderItemSchema).min(1, "Add at least one item"),
@@ -13,6 +20,8 @@ export const createPurchaseOrderSchema = z.object({
   advance: z.coerce.number().min(0).optional().default(0),
   advanceMethod: z.enum(["CASH", "CREDIT", "BANK_TRANSFER"]).optional().nullable(),
   advanceBankAccountId: z.string().optional().nullable(),
+  payments: z.array(paymentSchema).optional().default([]),
+  cashDrawerId: z.string().optional().nullable(),
 });
 
 export const receivePurchaseOrderSchema = z.object({

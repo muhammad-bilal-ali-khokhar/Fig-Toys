@@ -3,6 +3,7 @@ import { ApiError } from "../../core/middleware/error";
 import { writeAudit } from "../../core/lib/audit";
 import { nextNumber } from "../../core/lib/numbering";
 import { resolveNumber } from "../transaction/service";
+import { moneyOut, reverseMoney, splitCashByDrawer } from "../../core/lib/ledger";
 import type { CreatePurchaseOrderInput, ReceivePurchaseOrderInput } from "./schemas";
 
 const ORDER_PREFIX = "PO";
@@ -69,25 +70,49 @@ export async function createPurchaseOrder(input: CreatePurchaseOrderInput, userI
   }
 
   const total = input.items.reduce((s, i) => s + i.costPrice * i.quantity, 0);
-  const order = await prisma.purchaseOrder.create({
-    data: {
-      number: await nextOrderNumber(),
-      contactId: contact.id,
-      total,
-      advance: input.advance ?? 0,
-      advanceMethod: input.advanceMethod ?? null,
-      advanceBankAccountId: input.advanceBankAccountId ?? null,
-      note: input.note || null,
-      createdById: userId,
-      items: {
-        create: input.items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          costPrice: i.costPrice,
-        })),
+  let payments = input.payments ?? [];
+  if (payments.length === 0 && (input.advance ?? 0) > 0) {
+    const m = input.advanceMethod ?? "CASH";
+    payments = [{ method: m as any, amount: input.advance!, bankAccountId: input.advanceBankAccountId ?? undefined, cashDrawerId: (input as any).cashDrawerId ?? undefined }];
+  }
+  const advance = payments.reduce((s, p) => s + p.amount, 0);
+  const firstBank = payments.find((p) => p.method === "BANK_TRANSFER")?.bankAccountId ?? null;
+  const firstMethod = payments.length > 0 ? payments[0].method : null;
+
+  const order = await prisma.$transaction(async (tx) => {
+    if (payments.length > 0) {
+      await splitCashByDrawer(tx as any, payments as any, input.items.map((i) => ({ productId: i.productId, total: i.costPrice * i.quantity })));
+    }
+    const created = await tx.purchaseOrder.create({
+      data: {
+        number: await nextOrderNumber(),
+        contactId: contact.id,
+        total,
+        advance,
+        advanceMethod: firstMethod as any,
+        advanceBankAccountId: firstBank,
+        note: input.note || null,
+        createdById: userId,
+        items: {
+          create: input.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            costPrice: i.costPrice,
+          })),
+        },
       },
-    },
-    include,
+      include,
+    });
+    for (const p of payments) {
+      if (p.method === "CREDIT") {
+        await tx.creditAccount.upsert({ where: { contactId: contact.id }, create: { contactId: contact.id, limit: 0, balance: -p.amount }, update: { balance: { decrement: p.amount } } });
+      } else if (p.method === "CASH") {
+        await moneyOut(tx as any, { account: "cash", amount: p.amount, cashDrawerId: (p as any).cashDrawerId ?? null, sourceType: "PURCHASE_ORDER", sourceId: created.id, note: `PO ${created.number} advance (cash)`, userId });
+      } else if (p.method === "BANK_TRANSFER") {
+        await moneyOut(tx as any, { account: "bank", amount: p.amount, bankAccountId: p.bankAccountId!, sourceType: "PURCHASE_ORDER", sourceId: created.id, note: `PO ${created.number} advance (bank)`, userId });
+      }
+    }
+    return created;
   });
 
   await writeAudit({
@@ -229,7 +254,24 @@ export async function cancelPurchaseOrder(id: string, userId: string) {
     throw new ApiError(400, "purchase_order.not_cancellable", "This order can no longer be cancelled");
   }
 
-  await prisma.purchaseOrder.update({ where: { id }, data: { status: "CANCELLED" } });
+  await prisma.$transaction(async (tx) => {
+    await tx.purchaseOrder.update({ where: { id }, data: { status: "CANCELLED" } });
+    await reverseMoney(tx as any, "PURCHASE_ORDER", id);
+    const movements = await (tx as any).moneyMovement ? [] : [];
+    const creditMovements = await prisma.moneyMovement.findMany({ where: { sourceType: "PURCHASE_ORDER", sourceId: id } });
+    void movements; void creditMovements;
+    const advance = Number(order.advance ?? 0);
+    if (advance > 0) {
+      const hasMoney = await prisma.moneyMovement.findFirst({ where: { sourceType: "PURCHASE_ORDER", sourceId: id } });
+      if (!hasMoney) {
+      } else {
+      }
+    }
+    const creditAmount = advance > 0 && order.advanceMethod === "CREDIT" ? advance : 0;
+    if (creditAmount > 0) {
+      try { await tx.creditAccount.update({ where: { contactId: order.contactId }, data: { balance: { increment: creditAmount } } }); } catch {}
+    }
+  });
   await writeAudit({
     userId,
     action: "PURCHASE_ORDER.CANCEL",

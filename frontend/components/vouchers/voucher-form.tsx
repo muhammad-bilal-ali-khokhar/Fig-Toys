@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import type { BankAccount, Contact, Voucher } from "@/lib/api-types";
+import type { BankAccount, CashDrawer, Contact, Voucher } from "@/lib/api-types";
 import { VOUCHER_METHOD_LABELS, VOUCHER_TYPE_LABELS } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
@@ -117,6 +117,7 @@ function AmountField({ value, onChange }: { value: string; onChange: (value: str
 export function VoucherForm({
   contacts,
   banks,
+  cashDrawers,
   editing,
   onClose,
   onSaved,
@@ -124,6 +125,7 @@ export function VoucherForm({
 }: {
   contacts: Contact[] | null;
   banks: BankAccount[] | null;
+  cashDrawers: CashDrawer[] | null;
   editing: Voucher | null;
   onClose: () => void;
   onSaved: () => void;
@@ -134,6 +136,7 @@ export function VoucherForm({
   const [amount, setAmount] = useState(editing?.amount ?? "");
   const [method, setMethod] = useState<"CASH" | "BANK_TRANSFER" | "CARD">(editing?.method ?? "CASH");
   const [bankId, setBankId] = useState(editing?.bankAccount?.id ?? "");
+  const [cashDrawerId, setCashDrawerId] = useState(editing?.cashDrawerId ?? cashDrawers?.find((d) => d.isDefault)?.id ?? "");
   const [contactId, setContactId] = useState(editing?.contact?.id ?? contacts?.[0]?.id ?? "");
   const [narration, setNarration] = useState(editing?.narration ?? "");
   const [date, setDate] = useState(() => {
@@ -143,14 +146,15 @@ export function VoucherForm({
   const [submitting, setSubmitting] = useState(false);
   const voucherClientRef = useRef<string | null>(null);
 
-  const dirty = useDirtyForm({ vType, amount, method, bankId, contactId, narration, date });
+  const dirty = useDirtyForm({ vType, amount, method, bankId, cashDrawerId, contactId, narration, date });
 
-  function update(partial: Partial<{ vType: "RECEIVING" | "PAYMENT"; amount: string; method: "CASH" | "BANK_TRANSFER" | "CARD"; bankId: string; contactId: string; narration: string; date: string }>) {
-    const next = { vType, amount, method, bankId, contactId, narration, date, ...partial };
+  function update(partial: Partial<{ vType: "RECEIVING" | "PAYMENT"; amount: string; method: "CASH" | "BANK_TRANSFER" | "CARD"; bankId: string; cashDrawerId: string; contactId: string; narration: string; date: string }>) {
+    const next = { vType, amount, method, bankId, cashDrawerId, contactId, narration, date, ...partial };
     if (partial.vType !== undefined) setVType(partial.vType);
     if (partial.amount !== undefined) setAmount(partial.amount);
     if (partial.method !== undefined) setMethod(partial.method);
     if (partial.bankId !== undefined) setBankId(partial.bankId);
+    if (partial.cashDrawerId !== undefined) setCashDrawerId(partial.cashDrawerId);
     if (partial.contactId !== undefined) setContactId(partial.contactId);
     if (partial.narration !== undefined) setNarration(partial.narration);
     if (partial.date !== undefined) setDate(partial.date);
@@ -184,6 +188,7 @@ export function VoucherForm({
         amount: value,
         method,
         bankAccountId: method === "BANK_TRANSFER" || method === "CARD" ? (bankId || undefined) : undefined,
+        cashDrawerId: method === "CASH" ? (cashDrawerId || undefined) : undefined,
         contactId,
         narration: narration || undefined,
         date,
@@ -282,6 +287,7 @@ export function VoucherForm({
                   }))}
                   onChange={(value) => update({ bankId: value })}
                   placeholder={method === "CARD" ? "Select bank (optional)…" : "Select bank…"}
+                  searchable
                 />
               ) : (
                 <p className="rounded-2xl bg-ink-100 px-3.5 py-2 text-xs text-ink-500">
@@ -290,6 +296,17 @@ export function VoucherForm({
                     : "No registered bank accounts. Add them in Settings."}
                 </p>
               )}
+            </Field>
+          )}
+
+          {method === "CASH" && (cashDrawers?.length ?? 0) > 1 && (
+            <Field label="Cash drawer">
+              <Dropdown
+                value={cashDrawerId}
+                options={(cashDrawers ?? []).map((d) => ({ value: d.id, label: d.name }))}
+                onChange={(value) => update({ cashDrawerId: value })}
+                placeholder="Select drawer"
+              />
             </Field>
           )}
         </div>

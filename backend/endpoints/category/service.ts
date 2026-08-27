@@ -9,6 +9,7 @@ export async function listCategories() {
     include: {
       _count: { select: { products: true } },
       parent: { select: { id: true, name: true } },
+      defaultCashDrawer: { select: { id: true, name: true } },
     },
   });
   const byId = new Map<string, (typeof all)[number] & { children: typeof all }>();
@@ -39,6 +40,11 @@ export async function createCategory(input: CategoryInput, userId: string) {
     if (!parent) throw new ApiError(404, "category.parent_not_found", "Parent category not found");
   }
 
+  if (input.defaultCashDrawerId) {
+    const drawer = await (prisma as any).cashDrawer.findUnique({ where: { id: input.defaultCashDrawerId } });
+    if (!drawer) throw new ApiError(400, "category.drawer_invalid", "Unknown cash drawer");
+  }
+
   const category = await prisma.category.create({
     data: {
       name: input.name,
@@ -46,6 +52,7 @@ export async function createCategory(input: CategoryInput, userId: string) {
       sortOrder: input.sortOrder ?? 0,
       active: true,
       parentId: input.parentId ?? null,
+      defaultCashDrawerId: input.defaultCashDrawerId ?? null,
     },
   });
   await writeAudit({
@@ -88,6 +95,11 @@ export async function updateCategory(id: string, input: CategoryUpdateInput, use
     }
   }
 
+  if (input.defaultCashDrawerId !== undefined && input.defaultCashDrawerId !== null) {
+    const drawer = await (prisma as any).cashDrawer.findUnique({ where: { id: input.defaultCashDrawerId } });
+    if (!drawer) throw new ApiError(400, "category.drawer_invalid", "Unknown cash drawer");
+  }
+
   const category = await prisma.category.update({
     where: { id },
     data: {
@@ -96,6 +108,7 @@ export async function updateCategory(id: string, input: CategoryUpdateInput, use
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
       ...(input.active !== undefined ? { active: input.active } : {}),
       ...(input.parentId !== undefined ? { parentId: input.parentId } : {}),
+      ...(input.defaultCashDrawerId !== undefined ? { defaultCashDrawerId: input.defaultCashDrawerId } : {}),
     },
   });
   await writeAudit({

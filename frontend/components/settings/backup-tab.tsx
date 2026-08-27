@@ -211,6 +211,7 @@ export function BackupTab() {
                 onChange={(v) =>
                   setConfig((c) => (c ? { ...c, intervalHours: Number(v) } : c))
                 }
+                searchable
               />
             </FormField>
             <FormField label="Keep backups">
@@ -220,6 +221,7 @@ export function BackupTab() {
                 onChange={(v) =>
                   setConfig((c) => (c ? { ...c, retention: Number(v) } : c))
                 }
+                searchable
               />
             </FormField>
           </div>

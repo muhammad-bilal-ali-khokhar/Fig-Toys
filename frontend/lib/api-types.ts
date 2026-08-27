@@ -98,6 +98,7 @@ export type Category = {
   active: boolean;
   parentId: string | null;
   parent?: { id: string; name: string } | null;
+  defaultCashDrawer?: { id: string; name: string } | null;
   children?: Category[];
   createdAt: string;
   _count?: { products: number };
@@ -369,8 +370,21 @@ export type MoneyBankBalance = {
   balance: number;
 };
 
+export type CashDrawer = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  active: boolean;
+  balance: number;
+  sortOrder: number;
+};
+
 export type MoneyOverview = {
   cashBalance: number;
+  cashDrawers: CashDrawer[];
+  drawers: CashDrawer[];
+  totalCash: number;
+  totalDrawerBalance: number;
   banks: MoneyBankBalance[];
   totalBankBalance: number;
   pendingCard: number;
@@ -391,6 +405,7 @@ export type MoneyMovement = {
   amount: string;
   account: "cash" | "bank";
   bankAccount: { id: string; name: string; bankName: string } | null;
+  cashDrawer: { id: string; name: string } | null;
   sourceType: string;
   sourceId: string | null;
   note: string | null;
@@ -405,6 +420,7 @@ export type Voucher = {
   amount: string;
   method: "CASH" | "BANK_TRANSFER" | "CARD";
   bankAccount: { id: string; name: string; bankName: string; accountNo: string } | null;
+  cashDrawerId: string | null;
   contact: { id: string; name: string; phone: string | null } | null;
   narration: string | null;
   date: string;
@@ -424,6 +440,7 @@ export type Expense = {
   amount: string;
   note: string | null;
   contact: { id: string; name: string; phone: string | null } | null;
+  cashDrawerId: string | null;
   date: string;
 };
 
@@ -649,6 +666,7 @@ export type DashboardOverview = {
     totalBankBalance: number;
     pendingCard: number;
     banks: { id: string; name: string; bankName: string; accountNo: string; balance: number }[];
+    drawers?: { id: string; name: string; balance: number; isDefault: boolean }[];
   };
   stock: { NEW: number; USED: number; total: number; accessories: number; phones: number };
   stockValue: { cost: number | null; retail: number };
@@ -753,6 +771,8 @@ export type ProfitReport = {
   daily: { date: string; revenue: number; cost: number; expense: number; profit: number }[];
   byBrand: { name: string; revenue: number; cost: number; profit: number }[];
   byCondition: { condition: string; revenue: number; cost: number; profit: number }[];
+  byCategory: { name: string; revenue: number; cost: number; profit: number }[];
+  bySubCategory: { name: string; parentName: string; revenue: number; cost: number; profit: number }[];
   byModel: { name: string; revenue: number; cost: number; profit: number }[];
 };
 

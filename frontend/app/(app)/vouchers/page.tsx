@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import type { BankAccount, Contact, Voucher } from "@/lib/api-types";
+import type { BankAccount, CashDrawer, Contact, Voucher } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { VOUCHER_STATUS_FILTERS, VOUCHER_TYPE_FILTERS } from "@/lib/constants";
 import { PERMISSIONS } from "@/lib/constants/permissions";
@@ -46,6 +46,7 @@ export default function VouchersPage() {
   const { user } = useAuth();
   const { data: vouchers, loading, refetch } = useApi<Voucher[]>("/voucher");
   const { data: banks } = useApi<BankAccount[]>("/bank-account");
+  const { data: cashDrawers } = useApi<CashDrawer[]>("/cash-drawer");
   const { data: contacts } = useApi<Contact[]>("/contact");
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
@@ -155,6 +156,7 @@ export default function VouchersPage() {
           key={editing?.id ?? "new"}
           contacts={contacts}
           banks={banks}
+          cashDrawers={cashDrawers}
           editing={editing}
           onClose={() => {
             setPanelOpen(false);
@@ -214,6 +216,7 @@ export default function VouchersPage() {
                     setSort({ key, dir });
                   }}
                   placeholder="Sort"
+                  searchable
                 />
               </div>
             </div>
@@ -350,6 +353,7 @@ export default function VouchersPage() {
               onChange={(v) => setTypeFilter(v as typeof typeFilter)}
               options={VOUCHER_TYPE_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
               placeholder="All types"
+              searchable
             />
           </div>
           <div>
@@ -359,6 +363,7 @@ export default function VouchersPage() {
               onChange={(v) => setStatusFilter(v as typeof statusFilter)}
               options={VOUCHER_STATUS_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
               placeholder="All statuses"
+              searchable
             />
           </div>
           <div className="flex items-center justify-between pt-2">

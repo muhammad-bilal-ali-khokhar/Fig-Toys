@@ -1,7 +1,6 @@
 "use client";
 
 import type { CompanyProfile, ProfitReport, ReportRange } from "@/lib/api-types";
-import { REPORT_CONDITION_LABELS } from "@/lib/constants";
 import { formatPKR } from "@/lib/money";
 import {
   DataTable,
@@ -42,12 +41,12 @@ export function ProfitReportA4({
         />
       )}
 
-      {data.byCondition.length > 0 && (
+      {data.byCategory.length > 0 && (
         <DataTable
           format="a4"
-          title="By condition"
-          cols={[{ label: "Condition" }, { label: "Revenue", right: true }, { label: "Cost", right: true }, { label: "Profit", right: true }]}
-          rows={data.byCondition.map((c) => [REPORT_CONDITION_LABELS[c.condition] ?? c.condition, num(c.revenue), num(c.cost), num(c.profit)])}
+          title="By category"
+          cols={[{ label: "Category" }, { label: "Revenue", right: true }, { label: "Cost", right: true }, { label: "Profit", right: true }]}
+          rows={data.byCategory.map((c) => [nameCell(c.name), num(c.revenue), num(c.cost), num(c.profit)])}
         />
       )}
 

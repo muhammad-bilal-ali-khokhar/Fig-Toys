@@ -67,6 +67,7 @@ export async function createExpense(input: ExpenseInput, userId: string) {
         note: input.note || null,
         contactId: input.contactId || null,
         date: input.date ? new Date(input.date) : new Date(),
+        cashDrawerId: input.cashDrawerId || null,
         ...(input.clientRef ? { clientRef: input.clientRef } : {}),
       },
       include,
@@ -74,6 +75,7 @@ export async function createExpense(input: ExpenseInput, userId: string) {
     await moneyOut(tx, {
       account: "cash",
       amount: input.amount,
+      cashDrawerId: input.cashDrawerId || undefined,
       sourceType: "EXPENSE",
       sourceId: created.id,
       note: input.note || `${input.category} expense`,
@@ -109,12 +111,14 @@ export async function updateExpense(id: string, input: ExpenseUpdateInput, userI
         ...(input.note !== undefined ? { note: input.note || null } : {}),
         ...(input.contactId !== undefined ? { contactId: input.contactId || null } : {}),
         ...(input.date !== undefined && input.date ? { date: new Date(input.date) } : {}),
+        ...(input.cashDrawerId !== undefined ? { cashDrawerId: input.cashDrawerId || null } : {}),
       },
       include,
     });
     await moneyOut(tx, {
       account: "cash",
       amount: Number(updated.amount),
+      cashDrawerId: updated.cashDrawerId || undefined,
       sourceType: "EXPENSE",
       sourceId: updated.id,
       note: updated.note || `${updated.category} expense`,

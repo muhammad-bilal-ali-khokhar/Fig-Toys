@@ -72,6 +72,11 @@ export const PERMISSIONS = {
   // Money / balances (cash, bank, card settlement, transfers)
   moneyView: "money.view",
   moneyWrite: "money.write",
+  cashDrawerView: "cashDrawer.view",
+  cashDrawerCreate: "cashDrawer.create",
+  cashDrawerUpdate: "cashDrawer.update",
+  cashDrawerDelete: "cashDrawer.delete",
+  cashDrawerSetDefault: "cashDrawer.setDefault",
 
   // Reservations
   reservationView: "reservation.view",
@@ -155,7 +160,14 @@ export function storedPermissions(value: unknown): Permission[] {
 
 export function effectivePermissions(user: { role: Role; permissions?: unknown }): Permission[] {
   const stored = storedPermissions(user.permissions);
-  return stored.length > 0 ? stored : [...ROLE_PERMISSIONS[user.role]];
+  if (stored.length === 0) return [...ROLE_PERMISSIONS[user.role]];
+  const roleDefaults = ROLE_PERMISSIONS[user.role];
+  const storedSet = new Set(stored);
+  const merged = [...stored];
+  for (const p of roleDefaults) {
+    if (!storedSet.has(p)) merged.push(p);
+  }
+  return merged;
 }
 
 export function hasPermissionList(

@@ -96,9 +96,11 @@ export function Kpis2Widget({ data, fmt }: KpiWidgetProps) {
           sub={
             !data
               ? undefined
-              : data.money
-                ? `${fmt(data.money.totalBankBalance)} in bank${data.money.pendingCard > 0 ? ` · ${fmt(data.money.pendingCard)} card pending` : ""}`
-                : "register balance"
+              : data.money?.drawers && data.money.drawers.length > 0
+                ? data.money.drawers.map((d) => `${d.name} ${fmt(d.balance)}`).join(" · ")
+                : data.money
+                  ? `${fmt(data.money.totalBankBalance)} in bank${data.money.pendingCard > 0 ? ` · ${fmt(data.money.pendingCard)} card pending` : ""}`
+                  : "register balance"
           }
           tone={!data || data.cashOnHand >= 0 ? "text-success" : "text-error"}
           icon={RefundIcon}

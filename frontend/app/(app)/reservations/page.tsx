@@ -681,6 +681,7 @@ export default function ReservationsPage() {
     .map((p) => ({
       value: p.id,
       label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
+      searchKeywords: p.barcode ?? undefined,
       trailing: (
         <span className="text-xs text-ink-400">
           {formatPKR(p.sellPrice)} · {p.inStock} pcs

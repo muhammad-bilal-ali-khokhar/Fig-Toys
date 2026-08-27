@@ -170,6 +170,7 @@ export function InventoryFilterSheet({
                 onChange={(v) => onChange({ ...filters, status: v })}
                 options={STATUS_FILTER_OPTIONS}
                 placeholder="All statuses"
+                searchable
               />
             </div>
             <div>
@@ -179,6 +180,7 @@ export function InventoryFilterSheet({
                 onChange={(v) => onChange({ ...filters, carrier: v })}
                 options={CARRIER_FILTER_OPTIONS}
                 placeholder="All carriers"
+                searchable
               />
             </div>
             <div>
@@ -188,6 +190,7 @@ export function InventoryFilterSheet({
                 onChange={(v) => onChange({ ...filters, condition: v })}
                 options={CONDITION_FILTER_OPTIONS}
                 placeholder="All conditions"
+                searchable
               />
             </div>
             <div>

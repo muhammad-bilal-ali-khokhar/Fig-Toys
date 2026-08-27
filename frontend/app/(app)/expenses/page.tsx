@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Contact, Expense } from "@/lib/api-types";
+import type { CashDrawer, Contact, Expense } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import {
   EXPENSE_CATEGORY_LABELS,
@@ -52,6 +52,7 @@ export default function ExpensesPage() {
   const { toast } = useToast();
   const { data: expenses, loading, refetch } = useApi<Expense[]>("/expense");
   const { data: contacts } = useApi<Contact[]>("/contact");
+  const { data: cashDrawers } = useApi<CashDrawer[]>("/cash-drawer");
 
   const [categoryFilter, setCategoryFilter] = useState<"ALL" | Expense["category"]>("ALL");
   const [dateFilter, setDateFilter] = useState<ExpenseDateFilter>("ALL");
@@ -240,6 +241,7 @@ export default function ExpensesPage() {
           editing={editing}
           contacts={contacts ?? []}
           notes={notes}
+          cashDrawers={cashDrawers ?? []}
           onClose={() => {
             setPanelOpen(false);
             setEditing(null);
@@ -294,6 +296,7 @@ export default function ExpensesPage() {
                     setSort({ key, dir });
                   }}
                   placeholder={EXPENSE_TEXT.sort}
+                  searchable
                 />
               </div>
             </div>
@@ -442,6 +445,7 @@ export default function ExpensesPage() {
               onChange={(v) => setCategoryFilter(v as "ALL" | Expense["category"])}
               options={EXPENSE_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
               placeholder="All categories"
+              searchable
             />
           </div>
           <div>
@@ -451,6 +455,7 @@ export default function ExpensesPage() {
               onChange={(v) => setDateFilter(v as ExpenseDateFilter)}
               options={EXPENSE_DATE_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
               placeholder="All time"
+              searchable
             />
           </div>
           <div className="flex items-center justify-between pt-2">

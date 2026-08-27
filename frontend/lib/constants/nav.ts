@@ -38,6 +38,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: "Money",
     items: [
       { href: "/vouchers", label: "Vouchers", icon: "voucher" },
+      { href: "/transfers", label: "Transfers", icon: "transfer", permission: PERMISSIONS.moneyWrite },
       { href: "/expenses", label: "Expenses", icon: "expenses" },
       { href: "/reports/money", label: "Money & Bank", icon: "money", permission: PERMISSIONS.moneyView },
       { href: "/reports", label: "Reports", icon: "reports" },

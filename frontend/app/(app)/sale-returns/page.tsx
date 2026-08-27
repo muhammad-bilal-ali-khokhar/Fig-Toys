@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
-import { brandOf, type BankAccount, type Contact, type ProductSummary, type ReturnEligibility, type TransactionDetail, type Unit } from "@/lib/api-types";
+import { brandOf, type BankAccount, type CashDrawer, type Contact, type ProductSummary, type ReturnEligibility, type TransactionDetail, type Unit } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS } from "@/lib/constants";
 import { formatPKR, clampMoneyInput } from "@/lib/money";
@@ -74,6 +74,8 @@ export default function SaleReturnsPage() {
   const [bankRows, setBankRows] = useState<{ id: string; amount: string; bankId: string }[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
+  const { data: cashDrawers } = useApi<CashDrawer[]>("/cash-drawer");
+  const [cashDrawerId, setCashDrawerId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [returnNo, setReturnNo] = useState("RET-0001");
   const [returnDate, setReturnDate] = useState(() => {
@@ -157,6 +159,7 @@ export default function SaleReturnsPage() {
     .map((p) => ({
       value: p.id,
       label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
+      searchKeywords: p.barcode ?? undefined,
       trailing: <span className="text-xs text-ink-400">{formatPKR(p.sellPrice)}</span>,
     }));
 
@@ -510,8 +513,8 @@ export default function SaleReturnsPage() {
     }
     setSubmitting(true);
     try {
-      const payments: { method: "CASH" | "CREDIT" | "BANK_TRANSFER"; amount: number; bankAccountId?: string }[] = [];
-      if (cashAmt > 0) payments.push({ method: "CASH", amount: cashAmt });
+      const payments: { method: "CASH" | "CREDIT" | "BANK_TRANSFER"; amount: number; bankAccountId?: string; cashDrawerId?: string }[] = [];
+      if (cashAmt > 0) payments.push({ method: "CASH", amount: cashAmt, cashDrawerId: cashDrawerId || undefined });
       if (creditAmt > 0) payments.push({ method: "CREDIT", amount: creditAmt });
       for (const row of bankRows) {
         const amt = parseFloat(row.amount) || 0;

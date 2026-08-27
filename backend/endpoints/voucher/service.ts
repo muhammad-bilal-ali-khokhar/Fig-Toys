@@ -75,6 +75,7 @@ async function applyVoucherMoney(
     method: string;
     amount: number;
     bankAccountId?: string | null;
+    cashDrawerId?: string | null;
     date: Date;
     narration?: string | null;
     userId: string;
@@ -89,6 +90,7 @@ async function applyVoucherMoney(
     account: (bankAccountId ? "bank" : "cash") as "bank" | "cash",
     amount: v.amount,
     bankAccountId,
+    cashDrawerId: v.cashDrawerId ?? undefined,
     sourceType: moneySourceType(v.method),
     sourceId: v.id,
     note: v.narration || undefined,
@@ -134,6 +136,7 @@ export async function createVoucher(input: VoucherInput, userId: string) {
         amount: input.amount,
         method: input.method,
         bankAccountId: input.bankAccountId || null,
+        cashDrawerId: input.cashDrawerId || null,
         contactId: input.contactId,
         ...(input.clientRef ? { clientRef: input.clientRef } : {}),
         narration: input.narration || null,
@@ -149,6 +152,7 @@ export async function createVoucher(input: VoucherInput, userId: string) {
       method: created.method,
       amount: Number(created.amount),
       bankAccountId: created.bankAccountId,
+      cashDrawerId: created.cashDrawerId,
       date: created.date,
       narration: created.narration,
       userId,
@@ -191,6 +195,7 @@ export async function updateVoucher(id: string, input: VoucherUpdateInput, userI
         ...(input.amount !== undefined ? { amount: input.amount } : {}),
         ...(input.method !== undefined ? { method: input.method } : {}),
         ...(input.bankAccountId !== undefined ? { bankAccountId: input.bankAccountId || null } : {}),
+        ...(input.cashDrawerId !== undefined ? { cashDrawerId: input.cashDrawerId || null } : {}),
         ...(input.contactId !== undefined ? { contactId: input.contactId } : {}),
         ...(input.narration !== undefined ? { narration: input.narration || null } : {}),
         ...(input.date !== undefined && input.date ? { date: new Date(input.date) } : {}),
@@ -203,6 +208,7 @@ export async function updateVoucher(id: string, input: VoucherUpdateInput, userI
       method: updated.method,
       amount: Number(updated.amount),
       bankAccountId: updated.bankAccountId,
+      cashDrawerId: updated.cashDrawerId,
       date: updated.date,
       narration: updated.narration,
       userId,
@@ -239,6 +245,7 @@ export async function restoreVoucher(id: string, userId: string) {
       method: restored.method,
       amount: Number(restored.amount),
       bankAccountId: restored.bankAccountId,
+      cashDrawerId: restored.cashDrawerId,
       date: restored.date,
       narration: restored.narration,
       userId,

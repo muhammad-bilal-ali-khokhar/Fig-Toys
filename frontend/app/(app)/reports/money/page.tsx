@@ -13,7 +13,7 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { useToast } from "@/components/ui/toast";
 import { KpiCard, ReportCard } from "@/components/reports/report-card";
 import { XIcon } from "@/components/icons";
-import type { BankAccount, MoneyMovement, MoneyOverview } from "@/lib/api-types";
+import type { BankAccount, CashDrawer, MoneyMovement, MoneyOverview } from "@/lib/api-types";
 
 const SOURCE_LABELS: Record<string, string> = {
   SALE: "Sale",
@@ -67,6 +67,7 @@ export default function MoneyReportPage() {
   const [overview, setOverview] = useState<MoneyOverview | null>(null);
   const [movements, setMovements] = useState<MoneyMovement[]>([]);
   const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [drawers, setDrawers] = useState<CashDrawer[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [settleOpen, setSettleOpen] = useState(false);
@@ -80,6 +81,7 @@ export default function MoneyReportPage() {
         apiRequest<MoneyMovement[]>("/money/movements"),
       ]);
       setOverview(ov);
+      setDrawers(ov?.cashDrawers ?? []);
       setMovements(mv ?? []);
     } catch (err) {
       toast(err instanceof Error ? err.message : "Failed to load money", "error");
@@ -105,6 +107,11 @@ export default function MoneyReportPage() {
   const bankOptions = banks.map((b) => ({
     value: b.id,
     label: `${b.bankName} · ${b.name} (${b.accountNo})`,
+  }));
+
+  const drawerOptions = drawers.map((d) => ({
+    value: d.id,
+    label: d.name + (d.isDefault ? " (default)" : ""),
   }));
 
   return (
@@ -136,25 +143,41 @@ export default function MoneyReportPage() {
       ) : overview ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="Cash in hand" value={formatPKR(overview.cashBalance)} sub="Cash you physically hold" />
+            <KpiCard label="Cash in hand" value={formatPKR(overview.cashBalance)} sub={drawers.length > 0 ? `Across ${drawers.length} cash drawer${drawers.length > 1 ? "s" : ""}` : "Cash you physically hold"} />
             <KpiCard label="In bank" value={formatPKR(overview.totalBankBalance)} sub="Across all bank accounts" />
             <KpiCard
               label="Pending card"
               value={formatPKR(overview.pendingCard)}
-              sub="Card sales not yet settled. Record it under “Settle card” when the bank pays out"
+              sub="Card sales not yet settled. Record it under \u201cSettle card\u201d when the bank pays out"
             />
             <KpiCard
               label="Outstanding credit"
               value={formatPKR(overview.receivables - overview.payables)}
               sub={
                 overview.payables > 0
-                  ? `Customers owe ${formatPKR(overview.receivables)} · you owe ${formatPKR(overview.payables)}`
+                  ? `Customers owe ${formatPKR(overview.receivables)} \u00b7 you owe ${formatPKR(overview.payables)}`
                   : "What customers owe you on credit"
               }
             />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
+            {drawers.length > 0 && (
+              <ReportCard title="Cash drawers" sub="Balance per drawer">
+                <div className="space-y-2">
+                  {drawers.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-3.5 py-2.5">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink-900">{d.name}</p>
+                        {d.isDefault && <p className="text-xs text-ink-400">Default</p>}
+                      </div>
+                      <p className="shrink-0 text-sm font-bold text-ink-900">{formatPKR(d.balance)}</p>
+                    </div>
+                  ))}
+                </div>
+              </ReportCard>
+            )}
+
             <ReportCard title="Bank accounts" sub="Current balance per account">
               {overview.banks.length === 0 ? (
                 <p className="text-sm text-ink-400">No bank accounts added.</p>
@@ -225,7 +248,7 @@ export default function MoneyReportPage() {
                             <span className="font-medium text-ink-900">{SOURCE_LABELS[m.sourceType] ?? m.sourceType}</span>
                           </td>
                           <td className="px-2 py-2 text-ink-700">
-                            {m.account === "cash" ? "Cash" : m.bankAccount?.bankName ?? "Bank"}
+                            {m.account === "cash" ? (m.cashDrawer?.name ?? "Cash") : m.bankAccount?.bankName ?? "Bank"}
                           </td>
                           <td className="max-w-[240px] truncate px-2 py-2 text-ink-500">{m.note ?? "—"}</td>
                           <td className={`whitespace-nowrap px-2 py-2 text-right font-semibold ${inOut}`}>{signed}</td>
@@ -244,6 +267,7 @@ export default function MoneyReportPage() {
         <Modal title="Settle card money" onClose={() => setSettleOpen(false)}>
           <SettleForm
             banks={bankOptions}
+            drawers={drawerOptions}
             pendingCard={overview?.pendingCard ?? 0}
             onDone={() => {
               setSettleOpen(false);
@@ -257,6 +281,7 @@ export default function MoneyReportPage() {
         <Modal title="Transfer money" onClose={() => setTransferOpen(false)}>
           <TransferForm
             banks={bankOptions}
+            drawers={drawerOptions}
             onDone={() => {
               setTransferOpen(false);
               void refresh();
@@ -269,6 +294,7 @@ export default function MoneyReportPage() {
         <Modal title="Adjust balance" onClose={() => setAdjustOpen(false)}>
           <AdjustForm
             banks={bankOptions}
+            drawers={drawerOptions}
             onDone={() => {
               setAdjustOpen(false);
               void refresh();
@@ -282,10 +308,12 @@ export default function MoneyReportPage() {
 
 function SettleForm({
   banks,
+  drawers,
   pendingCard,
   onDone,
 }: {
   banks: { value: string; label: string }[];
+  drawers: { value: string; label: string }[];
   pendingCard: number;
   onDone: () => void;
 }) {
@@ -293,6 +321,7 @@ function SettleForm({
   const [amount, setAmount] = useState(pendingCard > 0 ? String(pendingCard) : "");
   const [target, setTarget] = useState<MoneyAccount>("bank");
   const [bankId, setBankId] = useState(banks[0]?.value ?? "");
+  const [drawerId, setDrawerId] = useState(drawers[0]?.value ?? "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -306,6 +335,10 @@ function SettleForm({
       toast("Pick which bank received the card money", "error");
       return;
     }
+    if (target === "cash" && drawers.length > 0 && !drawerId) {
+      toast("Pick which drawer received the card money", "error");
+      return;
+    }
     setBusy(true);
     try {
       await apiRequest("/money/settle-card", {
@@ -314,6 +347,7 @@ function SettleForm({
           amount: value,
           target,
           bankAccountId: target === "bank" ? bankId : undefined,
+          cashDrawerId: target === "cash" ? drawerId : undefined,
           note: note || undefined,
           date: toISODate(new Date()),
         },
@@ -330,7 +364,7 @@ function SettleForm({
   return (
     <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       <p className="text-xs text-ink-500">
-        The bank paid out card money into your account (or cash). Record it here so it shows as money you hold.
+        The bank paid out card money into your account (or cash drawer). Record it here so it shows as money you hold.
       </p>
       <Field label="Amount (Rs)">
         <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" inputMode="decimal" />
@@ -340,14 +374,19 @@ function SettleForm({
           value={target}
           options={[
             { value: "bank", label: "A bank account" },
-            { value: "cash", label: "Cash in hand" },
+            { value: "cash", label: "Cash drawer" },
           ]}
           onChange={(v) => setTarget(v as MoneyAccount)}
         />
       </Field>
       {target === "bank" && (
         <Field label="Bank account">
-          <Dropdown value={bankId} options={banks} onChange={setBankId} placeholder="Select bank…" />
+          <Dropdown value={bankId} options={banks} onChange={setBankId} placeholder="Select bank\u2026" searchable />
+        </Field>
+      )}
+      {target === "cash" && drawers.length > 0 && (
+        <Field label="Cash drawer">
+          <Dropdown value={drawerId} options={drawers} onChange={setDrawerId} placeholder="Select drawer\u2026" searchable />
         </Field>
       )}
       <Field label="Note">
@@ -362,17 +401,21 @@ function SettleForm({
 
 function TransferForm({
   banks,
+  drawers,
   onDone,
 }: {
   banks: { value: string; label: string }[];
+  drawers: { value: string; label: string }[];
   onDone: () => void;
 }) {
   const { toast } = useToast();
   const [amount, setAmount] = useState("");
   const [from, setFrom] = useState<MoneyAccount>("cash");
   const [fromBankId, setFromBankId] = useState(banks[0]?.value ?? "");
+  const [fromDrawerId, setFromDrawerId] = useState(drawers[0]?.value ?? "");
   const [to, setTo] = useState<MoneyAccount>("bank");
   const [toBankId, setToBankId] = useState(banks[0]?.value ?? "");
+  const [toDrawerId, setToDrawerId] = useState(drawers[0]?.value ?? "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -386,8 +429,16 @@ function TransferForm({
       toast("Pick the bank to move money from", "error");
       return;
     }
+    if (from === "cash" && drawers.length > 0 && !fromDrawerId) {
+      toast("Pick the drawer to move money from", "error");
+      return;
+    }
     if (to === "bank" && !toBankId) {
       toast("Pick the bank to move money into", "error");
+      return;
+    }
+    if (to === "cash" && drawers.length > 0 && !toDrawerId) {
+      toast("Pick the drawer to move money into", "error");
       return;
     }
     setBusy(true);
@@ -398,8 +449,10 @@ function TransferForm({
           amount: value,
           from,
           fromBankId: from === "bank" ? fromBankId : undefined,
+          fromCashDrawerId: from === "cash" ? fromDrawerId : undefined,
           to,
           toBankId: to === "bank" ? toBankId : undefined,
+          toCashDrawerId: to === "cash" ? toDrawerId : undefined,
           note: note || undefined,
           date: toISODate(new Date()),
         },
@@ -416,7 +469,7 @@ function TransferForm({
   return (
     <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       <p className="text-xs text-ink-500">
-        Move money between cash and a bank account. Both balances update.
+        Move money between cash drawers, bank accounts, or both. Both balances update.
       </p>
       <Field label="Amount (Rs)">
         <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" inputMode="decimal" />
@@ -426,7 +479,7 @@ function TransferForm({
           <Dropdown
             value={from}
             options={[
-              { value: "cash", label: "Cash" },
+              { value: "cash", label: "Cash drawer" },
               { value: "bank", label: "Bank" },
             ]}
             onChange={(v) => setFrom(v as MoneyAccount)}
@@ -436,7 +489,7 @@ function TransferForm({
           <Dropdown
             value={to}
             options={[
-              { value: "cash", label: "Cash" },
+              { value: "cash", label: "Cash drawer" },
               { value: "bank", label: "Bank" },
             ]}
             onChange={(v) => setTo(v as MoneyAccount)}
@@ -445,12 +498,22 @@ function TransferForm({
       </div>
       {from === "bank" && (
         <Field label="From bank">
-          <Dropdown value={fromBankId} options={banks} onChange={setFromBankId} placeholder="Select bank…" />
+          <Dropdown value={fromBankId} options={banks} onChange={setFromBankId} placeholder="Select bank\u2026" searchable />
+        </Field>
+      )}
+      {from === "cash" && drawers.length > 0 && (
+        <Field label="From drawer">
+          <Dropdown value={fromDrawerId} options={drawers} onChange={setFromDrawerId} placeholder="Select drawer\u2026" searchable />
         </Field>
       )}
       {to === "bank" && (
         <Field label="To bank">
-          <Dropdown value={toBankId} options={banks} onChange={setToBankId} placeholder="Select bank…" />
+          <Dropdown value={toBankId} options={banks} onChange={setToBankId} placeholder="Select bank\u2026" searchable />
+        </Field>
+      )}
+      {to === "cash" && drawers.length > 0 && (
+        <Field label="To drawer">
+          <Dropdown value={toDrawerId} options={drawers} onChange={setToDrawerId} placeholder="Select drawer\u2026" searchable />
         </Field>
       )}
       <Field label="Note">
@@ -465,15 +528,18 @@ function TransferForm({
 
 function AdjustForm({
   banks,
+  drawers,
   onDone,
 }: {
   banks: { value: string; label: string }[];
+  drawers: { value: string; label: string }[];
   onDone: () => void;
 }) {
   const { toast } = useToast();
   const [amount, setAmount] = useState("");
   const [account, setAccount] = useState<MoneyAccount>("cash");
   const [bankId, setBankId] = useState(banks[0]?.value ?? "");
+  const [drawerId, setDrawerId] = useState(drawers[0]?.value ?? "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -487,6 +553,10 @@ function AdjustForm({
       toast("Pick the bank account", "error");
       return;
     }
+    if (account === "cash" && drawers.length > 0 && !drawerId) {
+      toast("Pick the drawer", "error");
+      return;
+    }
     setBusy(true);
     try {
       await apiRequest("/money/adjust", {
@@ -494,6 +564,7 @@ function AdjustForm({
         body: {
           account,
           bankAccountId: account === "bank" ? bankId : undefined,
+          cashDrawerId: account === "cash" ? drawerId : undefined,
           amount: value,
           note: note || undefined,
           date: toISODate(new Date()),
@@ -520,7 +591,7 @@ function AdjustForm({
         <Dropdown
           value={account}
           options={[
-            { value: "cash", label: "Cash in hand" },
+            { value: "cash", label: "Cash drawer" },
             { value: "bank", label: "Bank account" },
           ]}
           onChange={(v) => setAccount(v as MoneyAccount)}
@@ -528,7 +599,12 @@ function AdjustForm({
       </Field>
       {account === "bank" && (
         <Field label="Bank account">
-          <Dropdown value={bankId} options={banks} onChange={setBankId} placeholder="Select bank…" />
+          <Dropdown value={bankId} options={banks} onChange={setBankId} placeholder="Select bank\u2026" searchable />
+        </Field>
+      )}
+      {account === "cash" && drawers.length > 0 && (
+        <Field label="Cash drawer">
+          <Dropdown value={drawerId} options={drawers} onChange={setDrawerId} placeholder="Select drawer\u2026" searchable />
         </Field>
       )}
       <Field label="Note">

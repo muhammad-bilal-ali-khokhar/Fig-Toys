@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import type { Brand, Category, CategoryType, Color, ScreenSize } from "@/lib/api-types";
+import type { Brand, CashDrawer, Category, CategoryType, Color, ScreenSize } from "@/lib/api-types";
 import {
   INVENTORY_COLUMNS,
   DEFAULT_INVENTORY_VIEW,
@@ -28,6 +28,7 @@ export function ManageWindow({
   brands,
   colors,
   screenSizes,
+  cashDrawers,
   initialTab,
   onClose,
   onChanged,
@@ -39,6 +40,7 @@ export function ManageWindow({
   brands?: Brand[];
   colors?: Color[];
   screenSizes?: ScreenSize[];
+  cashDrawers?: CashDrawer[];
   initialTab?: ManageTab;
   onClose: () => void;
   onChanged?: () => void;
@@ -79,6 +81,7 @@ export function ManageWindow({
         <CategoryTreeList
           key={catKey}
           categories={categories ?? []}
+          cashDrawers={cashDrawers ?? []}
           onChanged={() => {
             setCatKey((k) => k + 1);
             onChanged?.();
@@ -162,6 +165,8 @@ function CategoryNode({
   onRename,
   onDelete,
   onToggleActive,
+  onSetDrawer,
+  drawerOptions,
 }: {
   cat: Category;
   depth: number;
@@ -170,6 +175,8 @@ function CategoryNode({
   onRename: (c: Category, n: string) => void;
   onDelete: (c: Category) => void;
   onToggleActive: (c: Category) => void;
+  onSetDrawer: (c: Category, drawerId: string) => void;
+  drawerOptions: { value: string; label: string }[];
 }) {
   const hasChildren = (cat.children?.length ?? 0) > 0;
   const isExpanded = expanded.has(cat.id);
@@ -196,6 +203,17 @@ function CategoryNode({
           <p className="mt-0.5 text-xs text-ink-500">
             {hasChildren ? `${countDirectChildren(cat)} nested, ${countRecursive(cat)} product(s)` : `${cat._count?.products ?? 0} product(s)`}
           </p>
+          {isRoot && drawerOptions.length > 0 && (
+            <div className="mt-1.5">
+              <Dropdown
+                value={cat.defaultCashDrawer?.id ?? ""}
+                options={[{ value: "", label: "No drawer" }, ...drawerOptions]}
+                onChange={(v) => onSetDrawer(cat, v)}
+                className="w-44 !h-7 text-xs"
+                searchable
+              />
+            </div>
+          )}
         </div>
         <button type="button" onClick={() => { const next = window.prompt("Rename category", cat.name); if (next) onRename(cat, next); }} className="shrink-0 text-xs font-medium text-brand-600 hover:underline">Rename</button>
         <button type="button" onClick={() => onDelete(cat)} className="shrink-0 text-xs font-medium text-ink-500 hover:text-ink-900 hover:underline">Delete</button>
@@ -204,7 +222,7 @@ function CategoryNode({
       {isExpanded && hasChildren && (
         <div className="mt-1.5 space-y-1.5">
           {cat.children!.map((ch) => (
-            <CategoryNode key={ch.id} cat={ch} depth={depth + 1} expanded={expanded} onToggle={onToggle} onRename={onRename} onDelete={onDelete} onToggleActive={onToggleActive} />
+            <CategoryNode key={ch.id} cat={ch} depth={depth + 1} expanded={expanded} onToggle={onToggle} onRename={onRename} onDelete={onDelete} onToggleActive={onToggleActive} onSetDrawer={onSetDrawer} drawerOptions={drawerOptions} />
           ))}
         </div>
       )}
@@ -213,15 +231,18 @@ function CategoryNode({
 }
 function CategoryTreeList({
   categories,
+  cashDrawers,
   onChanged,
 }: {
   categories: Category[];
+  cashDrawers: CashDrawer[];
   onChanged: () => void;
 }) {
   const { toast } = useToast();
   const [subTab, setSubTab] = useState<"categories" | "subcategories">("categories");
   const [name, setName] = useState("");
   const [type, setType] = useState<CategoryType>("PHONE");
+  const [drawerId, setDrawerId] = useState("");
   const [subParentId, setSubParentId] = useState("");
   const [subName, setSubName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -247,8 +268,9 @@ function CategoryTreeList({
     }
     setSaving(true);
     try {
-      await apiRequest("/category", { method: "POST", body: { name: name.trim(), type } });
+      await apiRequest("/category", { method: "POST", body: { name: name.trim(), type, defaultCashDrawerId: drawerId || undefined } });
       setName("");
+      setDrawerId("");
       onChanged();
       toast("Category added", "success");
     } catch (err) {
@@ -311,6 +333,16 @@ function CategoryTreeList({
     }
   }
 
+  async function setDrawer(cat: Category, newDrawerId: string) {
+    try {
+      await apiRequest(`/category/${cat.id}`, { method: "PUT", body: { defaultCashDrawerId: newDrawerId || null } });
+      onChanged();
+      toast("Drawer updated", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to update drawer", "error");
+    }
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -349,13 +381,19 @@ function CategoryTreeList({
               <label className="mb-1 block text-xs font-semibold text-ink-500">Type</label>
               <Dropdown value={type} options={[{ value: "PHONE", label: "Phone" }, { value: "ACCESSORY", label: "Accessory" }]} onChange={(value) => setType(value as CategoryType)} className="w-32" />
             </div>
+            {cashDrawers.length > 0 && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ink-500">Cash drawer</label>
+                <Dropdown value={drawerId} options={[{ value: "", label: "None" }, ...cashDrawers.map((d) => ({ value: d.id, label: d.name }))]} onChange={setDrawerId} className="w-36" searchable />
+              </div>
+            )}
             <Button onClick={add} loading={saving}>Add</Button>
           </div>
 
           <ScrollView className="mt-5">
             <div className="space-y-2">
               {categories.map((cat) => (
-                <CategoryNode key={cat.id} cat={cat} depth={0} expanded={expandedParents} onToggle={toggleExpand} onRename={rename} onDelete={setDeleteTarget} onToggleActive={(c) => void toggleActive(c)} />
+                <CategoryNode key={cat.id} cat={cat} depth={0} expanded={expandedParents} onToggle={toggleExpand} onRename={rename} onDelete={setDeleteTarget} onToggleActive={(c) => void toggleActive(c)} onSetDrawer={(c, d) => void setDrawer(c, d)} drawerOptions={cashDrawers.map((d) => ({ value: d.id, label: d.name }))} />
               ))}
             </div>
           </ScrollView>
@@ -365,7 +403,7 @@ function CategoryTreeList({
           <div className="mt-5 flex items-end gap-2">
             <div className="flex-1">
               <label className="mb-1 block text-xs font-semibold text-ink-500">Parent category</label>
-              <Dropdown value={subParentId} options={allOptions} onChange={(value) => setSubParentId(value)} placeholder="Select parent… (any level)" />
+              <Dropdown value={subParentId} options={allOptions} onChange={(value) => setSubParentId(value)} placeholder="Select parent… (any level)" searchable />
             </div>
             <div className="flex-1">
               <label className="mb-1 block text-xs font-semibold text-ink-500">Subcategory name</label>
@@ -377,7 +415,7 @@ function CategoryTreeList({
           <ScrollView className="mt-5">
             <div className="space-y-2">
               {categories.map((cat) => (
-                <CategoryNode key={cat.id} cat={cat} depth={0} expanded={expandedParents} onToggle={toggleExpand} onRename={rename} onDelete={setDeleteTarget} onToggleActive={(c) => void toggleActive(c)} />
+                <CategoryNode key={cat.id} cat={cat} depth={0} expanded={expandedParents} onToggle={toggleExpand} onRename={rename} onDelete={setDeleteTarget} onToggleActive={(c) => void toggleActive(c)} onSetDrawer={(c, d) => void setDrawer(c, d)} drawerOptions={cashDrawers.map((d) => ({ value: d.id, label: d.name }))} />
               ))}
               {categories.length === 0 && <p className="py-4 text-center text-sm text-ink-400">No categories yet.</p>}
             </div>

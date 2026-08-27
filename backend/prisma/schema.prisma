@@ -195,14 +195,16 @@ model Brand {
 }
 
 model Category {
-  id        String       @id @default(cuid())
-  name      String
-  type      CategoryType @default(PHONE)
-  sortOrder Int          @default(0)
-  active    Boolean      @default(true)
-  parentId  String?
-  parent    Category?    @relation("CategoryTree", fields: [parentId], references: [id])
-  children  Category[]   @relation("CategoryTree")
+  id                  String       @id @default(cuid())
+  name                String
+  type                CategoryType @default(PHONE)
+  sortOrder           Int          @default(0)
+  active              Boolean      @default(true)
+  parentId            String?
+  parent              Category?    @relation("CategoryTree", fields: [parentId], references: [id])
+  children            Category[]   @relation("CategoryTree")
+  defaultCashDrawerId String?
+  defaultCashDrawer   CashDrawer?  @relation(fields: [defaultCashDrawerId], references: [id])
   createdAt DateTime     @default(now())
   products  Product[]
 
@@ -432,6 +434,8 @@ model Payment {
   reference     String?
   bankAccountId String?
   bankAccount   BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  cashDrawerId  String?
+  cashDrawer    CashDrawer?   @relation(fields: [cashDrawerId], references: [id])
   createdAt     DateTime      @default(now())
 }
 
@@ -465,6 +469,8 @@ model Voucher {
   method        PaymentMethod @default(CASH) // CASH or BANK_TRANSFER
   bankAccountId String?
   bankAccount   BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  cashDrawerId  String?
+  cashDrawer    CashDrawer?   @relation(fields: [cashDrawerId], references: [id])
   contactId     String?
   contact       Contact?      @relation(fields: [contactId], references: [id])
   narration     String?
@@ -499,15 +505,17 @@ model CreditPayment {
 // ============ SUPPORTING ============
 
 model Expense {
-  id        String   @id @default(cuid())
-  number    String   @default("")
-  category  String
-  amount    Decimal
-  note      String?
-  contactId String?
-  contact   Contact? @relation(fields: [contactId], references: [id])
-  date      DateTime @default(now())
-  clientRef String?  @unique
+  id           String      @id @default(cuid())
+  number       String      @default("")
+  category     String
+  amount       Decimal
+  note         String?
+  contactId    String?
+  contact      Contact?    @relation(fields: [contactId], references: [id])
+  cashDrawerId String?
+  cashDrawer   CashDrawer? @relation(fields: [cashDrawerId], references: [id])
+  date         DateTime    @default(now())
+  clientRef    String?     @unique
 }
 
 model AuditLog {
@@ -695,6 +703,23 @@ model CashAccount {
   @@map("cash_accounts")
 }
 
+model CashDrawer {
+  id        String   @id @default(cuid())
+  name      String
+  isDefault Boolean  @default(false)
+  active    Boolean  @default(true)
+  balance   Decimal  @default(0)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  payments       Payment[]
+  moneyMovements MoneyMovement[]
+  vouchers       Voucher[]
+  expenses       Expense[]
+  categories     Category[]
+
+  @@map("cash_drawers")
+}
+
 // Every change to cash or a bank account is recorded here so we can report
 // how much money sits in cash vs each bank account and show a movement history.
 model MoneyMovement {
@@ -705,6 +730,8 @@ model MoneyMovement {
   account       String        // "cash" | "bank"
   bankAccountId String?
   bankAccount   BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  cashDrawerId  String?
+  cashDrawer    CashDrawer?   @relation(fields: [cashDrawerId], references: [id])
   sourceType    String        // SALE | PURCHASE | EXPENSE | VOUCHER | RESERVATION | SALE_RETURN | PURCHASE_RETURN | CARD_SETTLEMENT | TRANSFER | ADJUSTMENT
   sourceId      String?
   note          String?
@@ -713,6 +740,7 @@ model MoneyMovement {
   createdAt     DateTime      @default(now())
 
   @@index([account, date])
+  @@index([cashDrawerId, date])
   @@index([sourceType, sourceId])
   @@map("money_movements")
 }

@@ -242,6 +242,7 @@ export default function ContactsPage() {
               onChange={setType}
               options={TYPE_FILTER_OPTIONS}
               placeholder="All types"
+              searchable
             />
           </div>
           <div className="flex items-center justify-between pt-2">

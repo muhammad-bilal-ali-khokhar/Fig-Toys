@@ -350,6 +350,7 @@ export async function purchasesReport(r: Range) {
 // ============ PROFIT REPORT ============
 
 export async function profitReport(r: Range) {
+  const catMapData = await loadCategoryMap();
   const [items, expenseRows] = await Promise.all([
     prisma.transactionItem.findMany({
       where: { transaction: { type: "SALE", ...rangeWhere(r) } },
@@ -362,6 +363,7 @@ export async function profitReport(r: Range) {
             brand: { select: { name: true } },
             model: true,
             costPrice: true,
+            category: { select: { id: true, name: true, parentId: true } },
           },
         },
         transaction: { select: { createdAt: true } },
@@ -373,18 +375,27 @@ export async function profitReport(r: Range) {
     }),
   ]);
 
-  const rows = items.map((i) => ({
-    key: dayKey(i.transaction.createdAt, r),
-    condition: i.unit?.condition ?? "ACCESSORY",
-    brand: i.product.brand.name,
-    model: `${i.product.brand.name} ${i.product.model}`,
-    revenue: n(i.total),
-    cost: n(i.unit?.costPrice ?? i.product.costPrice) * i.quantity,
-  }));
+  const rows = items.map((i) => {
+    const path = categoryPath(i.product.category?.id ?? null, catMapData);
+    const rootCategory = path[0] ?? i.product.category?.name ?? "Uncategorized";
+    const subCategory = path.length > 1 ? { key: path.join(" > "), name: path[path.length - 1], parentName: path.slice(0, -1).join(" > ") } : null;
+    return {
+      key: dayKey(i.transaction.createdAt, r),
+      condition: i.unit?.condition ?? "ACCESSORY",
+      brand: i.product.brand.name,
+      category: rootCategory,
+      subCategory,
+      model: `${i.product.brand.name} ${i.product.model}`,
+      revenue: n(i.total),
+      cost: n(i.unit?.costPrice ?? i.product.costPrice) * i.quantity,
+    };
+  });
 
   const byDay = new Map<string, { key: string; revenue: number; cost: number }>();
   const byBrand = new Map<string, { name: string; revenue: number; cost: number }>();
   const byCondition = new Map<string, { condition: string; revenue: number; cost: number }>();
+  const byCategory = new Map<string, { name: string; revenue: number; cost: number }>();
+  const bySubCategory = new Map<string, { name: string; parentName: string; revenue: number; cost: number }>();
   const byModel = new Map<string, { name: string; revenue: number; cost: number }>();
 
   for (const row of rows) {
@@ -402,6 +413,18 @@ export async function profitReport(r: Range) {
     c.revenue += row.revenue;
     c.cost += row.cost;
     byCondition.set(row.condition, c);
+
+    const cat = byCategory.get(row.category) ?? { name: row.category, revenue: 0, cost: 0 };
+    cat.revenue += row.revenue;
+    cat.cost += row.cost;
+    byCategory.set(row.category, cat);
+
+    if (row.subCategory) {
+      const cur = bySubCategory.get(row.subCategory.key) ?? { name: row.subCategory.name, parentName: row.subCategory.parentName, revenue: 0, cost: 0 };
+      cur.revenue += row.revenue;
+      cur.cost += row.cost;
+      bySubCategory.set(row.subCategory.key, cur);
+    }
 
     const m = byModel.get(row.model) ?? { name: row.model, revenue: 0, cost: 0 };
     m.revenue += row.revenue;
@@ -447,6 +470,8 @@ export async function profitReport(r: Range) {
     daily,
     byBrand: withProfit([...byBrand.values()]),
     byCondition: withProfit([...byCondition.values()]),
+    byCategory: withProfit([...byCategory.values()]),
+    bySubCategory: withProfit([...bySubCategory.values()]),
     byModel: withProfit([...byModel.values()]).slice(0, 20),
   };
 }
@@ -573,7 +598,7 @@ export async function stockReport(permissions: readonly Permission[]) {
 // ============ PAYMENTS / CASH FLOW ============
 
 export async function paymentsReport(r: Range) {
-  const [byMethod, salePaid, purchasePaid, creditPaid, vouchers, expenseTotal, bankPayments, bankVouchers] = await Promise.all([
+  const [byMethod, salePaid, purchasePaid, creditPaid, vouchers, expenseTotal, bankPayments, bankVouchers, cashDrawerPayments] = await Promise.all([
     prisma.payment.groupBy({
       by: ["method"],
       where: { ...rangeWhere(r) },
@@ -612,6 +637,12 @@ export async function paymentsReport(r: Range) {
       _sum: { amount: true },
       _count: true,
     }),
+    (prisma as any).payment.groupBy({
+      by: ["cashDrawerId"],
+      where: { method: "CASH", cashDrawerId: { not: null }, ...rangeWhere(r) },
+      _sum: { amount: true },
+      _count: true,
+    }),
   ]);
 
   const bankIds = [...new Set([
@@ -645,6 +676,20 @@ export async function paymentsReport(r: Range) {
   const crv = vouchers.filter((v) => v.type === "RECEIVING").reduce((s, v) => s + n(v.amount), 0);
   const cpv = vouchers.filter((v) => v.type === "PAYMENT").reduce((s, v) => s + n(v.amount), 0);
 
+  const drawerIds = cashDrawerPayments.map((d: any) => d.cashDrawerId).filter(Boolean);
+  const drawers = drawerIds.length > 0
+    ? await (prisma as any).cashDrawer.findMany({ where: { id: { in: drawerIds } }, select: { id: true, name: true } })
+    : [];
+  const drawerNameMap = new Map(drawers.map((d: any) => [d.id, d.name]));
+  const byDrawer = cashDrawerPayments
+    .map((d: any) => ({
+      drawerId: d.cashDrawerId,
+      name: drawerNameMap.get(d.cashDrawerId) ?? "Unknown",
+      amount: n(d._sum.amount),
+      count: d._count,
+    }))
+    .sort((a: { amount: number }, b: { amount: number }) => b.amount - a.amount);
+
   const inflows = [
     { label: "Sales received", amount: n(salePaid._sum.amount) },
     { label: "Credit recovered", amount: n(creditPaid._sum.amount) },
@@ -664,6 +709,7 @@ export async function paymentsReport(r: Range) {
     byBankAccount: [...bankMap.values()]
       .filter((b) => b.amount > 0)
       .sort((a, b) => b.amount - a.amount),
+    byDrawer,
     inflows: inflows.map((i) => ({ ...i, amount: round(i.amount) })),
     outflows: outflows.map((i) => ({ ...i, amount: round(i.amount) })),
     totalIn: round(inflows.reduce((s, i) => s + i.amount, 0)),

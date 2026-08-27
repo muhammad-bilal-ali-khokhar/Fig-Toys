@@ -17,7 +17,7 @@ import { setSoundPrefs } from "@/lib/sound";
 import { setUnsaved } from "@/lib/unsaved-guard";
 import { useQuickAdd } from "@/lib/quick-add";
 import { useUsedPricing } from "@/lib/used-pricing";
-import type { Bank, BankAccount, CompanyProfile } from "@/lib/api-types";
+import type { Bank, BankAccount, CashDrawer, Category, CompanyProfile } from "@/lib/api-types";
 import {
   CheckIcon,
   PlusIcon,
@@ -194,6 +194,17 @@ export default function SettingsPage() {
   const [deletingAccount, setDeletingAccount] = useState<BankAccount | null>(null);
   const [banks, setBanks] = useState<Bank[]>([]);
   const [banksOpen, setBanksOpen] = useState(false);
+  const [drawers, setDrawers] = useState<CashDrawer[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [drawerForm, setDrawerForm] = useState("");
+  const [drawerCategoryIds, setDrawerCategoryIds] = useState<string[]>([]);
+  const [editingDrawer, setEditingDrawer] = useState<CashDrawer | null>(null);
+  const [addingDrawer, setAddingDrawer] = useState(false);
+  const [savingDrawer, setSavingDrawer] = useState(false);
+  const [deletingDrawer, setDeletingDrawer] = useState<CashDrawer | null>(null);
+  const [deletingDrawerBusy, setDeletingDrawerBusy] = useState(false);
+  const [assignDrawer, setAssignDrawer] = useState<CashDrawer | null>(null);
+  const [assignCategoryId, setAssignCategoryId] = useState("");
   const [pinForm, setPinForm] = useState({ current: "", next: "" });
   const [changingPin, setChangingPin] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
@@ -268,6 +279,24 @@ export default function SettingsPage() {
   useEffect(() => {
     void loadBanks();
   }, [loadBanks]);
+
+  const loadDrawers = useCallback(async () => {
+    try {
+      const [d, c] = await Promise.all([
+        apiRequest<CashDrawer[]>("/cash-drawer"),
+        apiRequest<Category[]>("/category"),
+      ]);
+      setDrawers(d ?? []);
+      setCategories(c ?? []);
+    } catch {
+      setDrawers([]);
+      setCategories([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDrawers();
+  }, [loadDrawers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -449,6 +478,85 @@ export default function SettingsPage() {
     });
   }
 
+  async function saveDrawer() {
+    if (!drawerForm.trim()) { toast("Name is required", "error"); return; }
+    setSavingDrawer(true);
+    try {
+      let drawerId = editingDrawer?.id;
+      if (editingDrawer) {
+        await apiRequest(`/cash-drawer/${editingDrawer.id}`, { method: "PUT", body: { name: drawerForm.trim() } });
+        toast("Drawer renamed", "success");
+      } else {
+        const created = await apiRequest<CashDrawer>("/cash-drawer", { method: "POST", body: { name: drawerForm.trim() } });
+        drawerId = created?.id;
+        toast("Drawer added", "success");
+      }
+      if (drawerCategoryIds.length > 0 && drawerId) {
+        await Promise.all(
+          drawerCategoryIds.map((cid) =>
+            apiRequest(`/category/${cid}`, { method: "PUT", body: { defaultCashDrawerId: drawerId } })
+          ),
+        );
+      }
+      setAddingDrawer(false);
+      setEditingDrawer(null);
+      setDrawerForm("");
+      setDrawerCategoryIds([]);
+      await loadDrawers();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to save drawer", "error");
+    } finally {
+      setSavingDrawer(false);
+    }
+  }
+
+  async function setDefaultDrawer(id: string) {
+    try {
+      await apiRequest(`/cash-drawer/${id}/default`, { method: "POST" });
+      await loadDrawers();
+      toast("Default drawer updated", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to set default", "error");
+    }
+  }
+
+  async function confirmDeleteDrawer() {
+    if (!deletingDrawer) return;
+    setDeletingDrawerBusy(true);
+    try {
+      await apiRequest(`/cash-drawer/${deletingDrawer.id}`, { method: "DELETE" });
+      setDeletingDrawer(null);
+      await loadDrawers();
+      toast("Drawer deleted", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to delete drawer", "error");
+    } finally {
+      setDeletingDrawerBusy(false);
+    }
+  }
+
+  async function assignCategoryToDrawer(categoryId: string) {
+    if (!categoryId || !assignDrawer) return;
+    try {
+      await apiRequest(`/category/${categoryId}`, { method: "PUT", body: { defaultCashDrawerId: assignDrawer.id } });
+      setAssignCategoryId("");
+      await loadDrawers();
+      toast("Category assigned", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to assign category", "error");
+    }
+  }
+
+  async function unassignCategory(categoryId: string) {
+    try {
+      await apiRequest(`/category/${categoryId}`, { method: "PUT", body: { defaultCashDrawerId: null } });
+      await loadDrawers();
+      toast("Category unassigned", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to unassign category", "error");
+    }
+  }
+
   return (
     <div className="flex h-full gap-6">
       <SettingsSidebar activeTab={tab} onTabClick={onTabClick} dirty={dirty} />
@@ -576,6 +684,7 @@ export default function SettingsPage() {
                     onChange={(v) => setForm({ ...form, timezone: v })}
                     triggerClassName={!canEdit ? "opacity-60" : ""}
                     placeholder="Select timezone…"
+                    searchable
                   />
                 </Field>
               </div>
@@ -660,6 +769,7 @@ export default function SettingsPage() {
                     onChange={(v) => setForm({ ...form, currency: v })}
                     triggerClassName={!canEdit ? "opacity-60" : ""}
                     placeholder="Select currency…"
+                    searchable
                   />
                   <p className="mt-1 text-xs text-ink-400">
                     Symbol used on receipts and the dashboard:{" "}
@@ -785,6 +895,119 @@ export default function SettingsPage() {
                   iconBg="bg-brand-500"
                   label="Add bank account"
                   onClick={() => { setAddingAccount(true); setEditingAccount(null); setAccountForm(EMPTY_ACCOUNT); }}
+                  chevron
+                />
+              )}
+            </Group>
+
+            <PaneTitle title="Cash drawers" subtitle="Split your cash balance by category. Assign a drawer to a category and cash from sales auto-routes there." />
+            <Group>
+              {drawers.length === 0 && (
+                <div className="px-4 py-6 text-center">
+                  <span className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                    <WalletIcon className="h-5 w-5" />
+                  </span>
+                  <p className="text-sm font-medium text-ink-900">No cash drawers yet</p>
+                  <p className="mt-0.5 text-xs text-ink-500">
+                    {canEdit
+                      ? "Add a drawer to start splitting cash by category."
+                      : "Ask an Admin or Manager to add one."}
+                  </p>
+                  {canEdit && (
+                    <Button
+                      variant="grey"
+                      className="mt-3"
+                      onClick={() => { setAddingDrawer(true); setEditingDrawer(null); setDrawerForm(""); }}
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Add cash drawer
+                    </Button>
+                  )}
+                </div>
+              )}
+              {drawers.map((drawer) => {
+                const assigned = categories.filter((c) => c.defaultCashDrawer?.id === drawer.id);
+                return (
+                  <div key={drawer.id} className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white">
+                        <WalletIcon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-2 truncate text-sm font-medium text-ink-900">
+                          {drawer.name}
+                          {drawer.isDefault && <Badge variant="brand">Default</Badge>}
+                        </p>
+                        <p className="truncate text-xs text-ink-400">
+                          Balance: Rs {Number(drawer.balance).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <ContextMenu
+                          items={[
+                            ...(!drawer.isDefault
+                              ? [{
+                                  label: "Set as default",
+                                  leading: <CheckIcon className="h-4 w-4 text-ink-400" />,
+                                  onClick: () => void setDefaultDrawer(drawer.id),
+                                }]
+                              : []),
+                            {
+                              label: "Edit",
+                              leading: <CheckIcon className="h-4 w-4 text-ink-400" />,
+                              onClick: () => { setEditingDrawer(drawer); setAddingDrawer(true); setDrawerForm(drawer.name); setDrawerCategoryIds(categories.filter((c) => c.defaultCashDrawer?.id === drawer.id).map((c) => c.id)); },
+                            },
+                            {
+                              label: "Delete",
+                              leading: <TrashIcon className="h-4 w-4" />,
+                              danger: true,
+                              onClick: () => setDeletingDrawer(drawer),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-10">
+                      {assigned.map((c) => (
+                        <span key={c.id} className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-700">
+                          {c.name}
+                          <button
+                            type="button"
+                            onClick={() => void unassignCategory(c.id)}
+                            className="ml-0.5 rounded-full hover:bg-brand-200"
+                            title="Remove"
+                          >
+                            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} className="h-2.5 w-2.5">
+                              <path d="M3 3l6 6M9 3l-6 6" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                      {assigned.length === 0 && (
+                        <span className="text-[11px] text-ink-400">No categories assigned</span>
+                      )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => { setAssignDrawer(drawer); setAssignCategoryId(""); }}
+                          className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-brand-300 px-2 py-0.5 text-[11px] font-medium text-brand-600 hover:bg-brand-50"
+                        >
+                          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} className="h-2.5 w-2.5">
+                            <path d="M6 2v8M2 6h8" />
+                          </svg>
+                          Assign
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {!addingDrawer && drawers.length > 0 && canEdit && (
+                <Row
+                  icon={<PlusIcon className="h-4 w-4" />}
+                  iconBg="bg-emerald-500"
+                  label="Add cash drawer"
+                  onClick={() => { setAddingDrawer(true); setEditingDrawer(null); setDrawerForm(""); }}
                   chevron
                 />
               )}
@@ -1080,6 +1303,120 @@ export default function SettingsPage() {
         open={banksOpen}
         onClose={() => setBanksOpen(false)}
         onChanged={() => void loadBanks()}
+      />
+
+      <FormWindow
+        open={addingDrawer}
+        title={editingDrawer ? "Edit cash drawer" : "Add cash drawer"}
+        saveLabel={editingDrawer ? "Update" : "Add drawer"}
+        saving={savingDrawer}
+        onClose={() => { setAddingDrawer(false); setEditingDrawer(null); setDrawerForm(""); setDrawerCategoryIds([]); }}
+        onCancel={() => { setAddingDrawer(false); setEditingDrawer(null); setDrawerForm(""); setDrawerCategoryIds([]); }}
+        onSave={() => void saveDrawer()}
+      >
+        <FormField label="Drawer name">
+          <FormInput
+            value={drawerForm}
+            onChange={(e) => setDrawerForm(e.target.value)}
+            placeholder="e.g. New Phones"
+            autoFocus
+            className="ml-1"
+          />
+        </FormField>
+        <FormField label="Assign categories" hint="(optional)">
+          <Dropdown
+            value={drawerCategoryIds.length > 0 ? drawerCategoryIds[drawerCategoryIds.length - 1] : null}
+            options={categories
+              .filter((c) => !drawerCategoryIds.includes(c.id))
+              .map((c) => ({ value: c.id, label: c.name }))}
+            onChange={(v) => { if (v && !drawerCategoryIds.includes(v)) setDrawerCategoryIds((prev) => [...prev, v]); }}
+            placeholder="Add a category…"
+            searchable
+          />
+          {drawerCategoryIds.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {drawerCategoryIds.map((cid) => {
+                const cat = categories.find((c) => c.id === cid);
+                return cat ? (
+                  <span key={cid} className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-700">
+                    {cat.name}
+                    <button
+                      type="button"
+                      onClick={() => setDrawerCategoryIds((prev) => prev.filter((id) => id !== cid))}
+                      className="ml-0.5 rounded-full hover:bg-brand-200"
+                    >
+                      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} className="h-2.5 w-2.5">
+                        <path d="M3 3l6 6M9 3l-6 6" />
+                      </svg>
+                    </button>
+                  </span>
+                ) : null;
+              })}
+            </div>
+          )}
+        </FormField>
+      </FormWindow>
+
+      <Dialog
+        open={deletingDrawer !== null}
+        title="Delete drawer"
+        message={
+          deletingDrawer
+            ? `Delete "${deletingDrawer.name}"? Categories using this drawer will fall back to the default. Existing movements keep their records.`
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        busy={deletingDrawerBusy}
+        onConfirm={() => void confirmDeleteDrawer()}
+        onCancel={() => setDeletingDrawer(null)}
+      />
+
+      <Dialog
+        open={assignDrawer !== null}
+        title={`Assign to ${assignDrawer?.name ?? ""}`}
+        confirmLabel="Assign"
+        cancelLabel="Done"
+        onConfirm={() => { if (assignCategoryId) void assignCategoryToDrawer(assignCategoryId); }}
+        onCancel={() => { setAssignDrawer(null); setAssignCategoryId(""); }}
+        message={
+          <div>
+            <p className="mb-2 text-sm text-ink-500">Pick a category to route its cash sales to this drawer.</p>
+            <Dropdown
+              value={assignCategoryId || null}
+              options={categories
+                .filter((c) => c.defaultCashDrawer?.id !== assignDrawer?.id)
+                .map((c) => ({ value: c.id, label: `${c.name}${c.defaultCashDrawer ? ` (currently: ${c.defaultCashDrawer.name})` : ""}` }))}
+              onChange={setAssignCategoryId}
+              placeholder="Select category…"
+              searchable
+            />
+            {assignDrawer && (
+              <div className="mt-3">
+                <p className="mb-1.5 text-xs font-semibold text-ink-500">Already assigned</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {categories.filter((c) => c.defaultCashDrawer?.id === assignDrawer.id).map((c) => (
+                    <span key={c.id} className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-700">
+                      {c.name}
+                      <button
+                        type="button"
+                        onClick={() => void unassignCategory(c.id)}
+                        className="ml-0.5 rounded-full hover:bg-brand-200"
+                      >
+                        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={2} className="h-2.5 w-2.5">
+                          <path d="M3 3l6 6M9 3l-6 6" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                  {categories.filter((c) => c.defaultCashDrawer?.id === assignDrawer.id).length === 0 && (
+                    <p className="text-[11px] text-ink-400">None yet</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        }
       />
     </div>
   );

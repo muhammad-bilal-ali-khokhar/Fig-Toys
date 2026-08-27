@@ -1,27 +1,36 @@
 "use client";
 
+import { useState } from "react";
 import { PeriodPicker } from "@/components/reports/period-picker";
 import { usePeriodReport } from "@/components/reports/use-period-report";
 import { KpiCard } from "@/components/reports/report-card";
 import { TopList } from "@/components/reports/top-list";
 import { DailyBars } from "@/components/reports/daily-bars";
 import { ReportTable } from "@/components/reports/report-table";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { ProfitReport } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
-import { REPORT_CONDITION_LABELS } from "@/lib/constants";
 import { ReportPrint } from "@/components/reports/report-print";
 import { ReportDoc } from "@/app/(app)/print/dlayout";
 import { Button } from "@/components/ui/button";
 
+const VIEW_OPTIONS = [
+  { value: "category", label: "By category" },
+  { value: "subcategory", label: "By subcategory" },
+  { value: "brand", label: "By brand" },
+  { value: "model", label: "By model" },
+];
+
 export default function ProfitReportPage() {
   const { data, loading, range, setRange } = usePeriodReport<ProfitReport | null>("/report/profit");
+  const [view, setView] = useState("category");
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-ink-900">Profit report</h2>
-          <p className="text-xs text-ink-500">Revenue against cost of goods and expenses, broken down by day, brand, model and condition.</p>
+          <p className="text-xs text-ink-500">Revenue against cost of goods and expenses, broken down by day, category, brand and model.</p>
         </div>
         <ReportPrint
           trigger={(open, busy) => (
@@ -53,31 +62,67 @@ export default function ProfitReportPage() {
 
           <DailyBars title="Daily profit" points={data.daily.map((d) => ({ date: d.date, value: d.profit }))} />
 
-          <div className="grid gap-3 lg:grid-cols-3">
-            <TopList
-              title="By brand"
-              rows={data.byBrand.map((b) => ({ id: b.name, label: b.name, sub: `margin ${((b.profit / (b.revenue || 1)) * 100).toFixed(0)}%`, value: b.profit }))}
-              format={formatPKR}
-            />
-            <TopList
-              title="By condition"
-              rows={data.byCondition.map((c) => ({
-                id: c.condition,
-                label: REPORT_CONDITION_LABELS[c.condition] ?? c.condition,
-                value: c.profit,
-              }))}
-              format={formatPKR}
-            />
-            <ReportTable
-              columns={[
-                { key: "model", label: "Model", render: (r) => <span className="font-medium text-ink-900">{r.name}</span> },
-                { key: "revenue", label: "Revenue", align: "right", render: (r) => formatPKR(r.revenue) },
-                { key: "cost", label: "Cost", align: "right", render: (r) => formatPKR(r.cost) },
-                { key: "profit", label: "Profit", align: "right", render: (r) => <span className="font-semibold text-ink-900">{formatPKR(r.profit)}</span> },
-              ]}
-              rows={data.byModel}
-              rowKey={(r) => r.name}
-            />
+          <div className="rounded-3xl bg-white p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-bold text-ink-900">Profit breakdown</p>
+              <SegmentedControl options={VIEW_OPTIONS} value={view} onChange={setView} />
+            </div>
+            {view === "category" && (
+              <div className="grid gap-3 lg:grid-cols-3">
+                <TopList
+                  title="Top categories"
+                  rows={data.byCategory.map((b) => ({ id: b.name, label: b.name, sub: `margin ${((b.profit / (b.revenue || 1)) * 100).toFixed(0)}%`, value: b.profit }))}
+                  format={formatPKR}
+                />
+                <div className="lg:col-span-2">
+                  <ReportTable
+                    columns={[
+                      { key: "category", label: "Category", render: (r) => <span className="font-medium text-ink-900">{r.name}</span> },
+                      { key: "revenue", label: "Revenue", align: "right", render: (r) => formatPKR(r.revenue) },
+                      { key: "cost", label: "Cost", align: "right", render: (r) => formatPKR(r.cost) },
+                      { key: "profit", label: "Profit", align: "right", render: (r) => <span className="font-semibold text-ink-900">{formatPKR(r.profit)}</span> },
+                      { key: "margin", label: "Margin", align: "right", render: (r) => <span className="text-ink-500">{((r.profit / (r.revenue || 1)) * 100).toFixed(0)}%</span> },
+                    ]}
+                    rows={data.byCategory}
+                    rowKey={(r) => r.name}
+                  />
+                </div>
+              </div>
+            )}
+            {view === "subcategory" && (
+              <ReportTable
+                columns={[
+                  { key: "name", label: "Subcategory", render: (r) => <span className="font-medium text-ink-900">{r.name}</span> },
+                  { key: "parent", label: "Parent", render: (r) => <span className="text-ink-500">{r.parentName}</span> },
+                  { key: "revenue", label: "Revenue", align: "right", render: (r) => formatPKR(r.revenue) },
+                  { key: "cost", label: "Cost", align: "right", render: (r) => formatPKR(r.cost) },
+                  { key: "profit", label: "Profit", align: "right", render: (r) => <span className="font-semibold text-ink-900">{formatPKR(r.profit)}</span> },
+                  { key: "margin", label: "Margin", align: "right", render: (r) => <span className="text-ink-500">{((r.profit / (r.revenue || 1)) * 100).toFixed(0)}%</span> },
+                ]}
+                rows={data.bySubCategory}
+                rowKey={(r) => `${r.parentName} > ${r.name}`}
+              />
+            )}
+            {view === "brand" && (
+              <TopList
+                title="By brand"
+                rows={data.byBrand.map((b) => ({ id: b.name, label: b.name, sub: `margin ${((b.profit / (b.revenue || 1)) * 100).toFixed(0)}%`, value: b.profit }))}
+                format={formatPKR}
+              />
+            )}
+            {view === "model" && (
+              <ReportTable
+                columns={[
+                  { key: "model", label: "Model", render: (r) => <span className="font-medium text-ink-900">{r.name}</span> },
+                  { key: "revenue", label: "Revenue", align: "right", render: (r) => formatPKR(r.revenue) },
+                  { key: "cost", label: "Cost", align: "right", render: (r) => formatPKR(r.cost) },
+                  { key: "profit", label: "Profit", align: "right", render: (r) => <span className="font-semibold text-ink-900">{formatPKR(r.profit)}</span> },
+                  { key: "margin", label: "Margin", align: "right", render: (r) => <span className="text-ink-500">{((r.profit / (r.revenue || 1)) * 100).toFixed(0)}%</span> },
+                ]}
+                rows={data.byModel}
+                rowKey={(r) => r.name}
+              />
+            )}
           </div>
         </>
       ) : (

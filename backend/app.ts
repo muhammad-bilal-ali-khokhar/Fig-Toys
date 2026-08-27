@@ -19,6 +19,7 @@ import paymentRouter from "./endpoints/payment/routes";
 import dashboardRouter from "./endpoints/dashboard/routes";
 import settingsRouter from "./endpoints/settings/routes";
 import bankAccountRouter from "./endpoints/bank-account/routes";
+import cashDrawerRouter from "./endpoints/cash-drawer/routes";
 import printSettingRouter from "./endpoints/print-setting/routes";
 import inventoryRouter from "./endpoints/inventory/routes";
 import reservationRouter from "./endpoints/reservation/routes";
@@ -87,6 +88,7 @@ export function createApp() {
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/settings", settingsRouter);
   app.use("/api/bank-account", bankAccountRouter);
+  app.use("/api/cash-drawer", cashDrawerRouter);
   app.use("/api/print-setting", printSettingRouter);
   app.use("/api/inventory", inventoryRouter);
   app.use("/api/reservation", reservationRouter);

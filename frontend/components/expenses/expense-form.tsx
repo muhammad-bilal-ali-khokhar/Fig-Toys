@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import type { Contact, Expense } from "@/lib/api-types";
+import type { CashDrawer, Contact, Expense } from "@/lib/api-types";
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS, EXPENSE_TEXT } from "@/lib/constants";
 import { formatAmountInput, formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
@@ -40,6 +40,7 @@ export function ExpenseForm({
   editing,
   contacts = [],
   notes = [],
+  cashDrawers = [],
   onClose,
   onSaved,
   onCreated,
@@ -47,6 +48,7 @@ export function ExpenseForm({
   editing: Expense | null;
   contacts?: Contact[];
   notes?: string[];
+  cashDrawers?: CashDrawer[];
   onClose: () => void;
   onSaved: () => void;
   onCreated?: (expense: Expense) => void;
@@ -54,6 +56,7 @@ export function ExpenseForm({
   const { toast } = useToast();
   const [category, setCategory] = useState(editing?.category ?? EXPENSE_CATEGORIES[0].value);
   const [contactId, setContactId] = useState(editing?.contact?.id ?? "");
+  const [cashDrawerId, setCashDrawerId] = useState(editing?.cashDrawerId ?? cashDrawers.find((d) => d.isDefault)?.id ?? "");
   const [amount, setAmount] = useState(() => formatAmountInput(editing?.amount ?? ""));
   const [note, setNote] = useState(editing?.note ?? "");
   const [date, setDate] = useState(() => {
@@ -63,7 +66,7 @@ export function ExpenseForm({
   const [submitting, setSubmitting] = useState(false);
   const expenseClientRef = useRef<string | null>(null);
 
-  const dirty = useDirtyForm({ category, contactId, amount, note, date });
+  const dirty = useDirtyForm({ category, contactId, cashDrawerId, amount, note, date });
 
   const noteSuggestions = useMemo(
     () => Array.from(new Set(notes.map((n) => n.trim()).filter(Boolean))).slice(0, 12),
@@ -77,7 +80,7 @@ export function ExpenseForm({
   }));
 
   function onFieldChange(next: { category?: string; contactId?: string; amount?: string; note?: string; date?: string }) {
-    const updated = { category, contactId, amount, note, date, ...next };
+    const updated = { category, contactId, cashDrawerId, amount, note, date, ...next };
     if (next.category !== undefined) setCategory(next.category);
     if (next.contactId !== undefined) setContactId(next.contactId);
     if (next.amount !== undefined) setAmount(formatAmountInput(next.amount));
@@ -103,6 +106,7 @@ export function ExpenseForm({
         amount: value,
         note: note || undefined,
         contactId: contactId || undefined,
+        cashDrawerId: cashDrawerId || undefined,
         date,
         ...(!editing ? { clientRef: (expenseClientRef.current ??= crypto.randomUUID()) } : {}),
       };
@@ -140,6 +144,7 @@ export function ExpenseForm({
               value={category}
               options={EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
               onChange={(value) => onFieldChange({ category: value })}
+              searchable
             />
           </Field>
 
@@ -169,6 +174,20 @@ export function ExpenseForm({
               />
             </div>
           </Field>
+
+          {cashDrawers.length > 1 && (
+            <Field label="Cash drawer">
+              <Dropdown
+                value={cashDrawerId}
+                options={cashDrawers.map((d) => ({ value: d.id, label: d.name }))}
+                onChange={(value) => { setCashDrawerId(value); dirty.markDirty({ category, contactId, cashDrawerId: value, amount, note, date }); }}
+                placeholder="Select drawer"
+              />
+              <p className="mt-1.5 text-xs text-ink-400">
+                Which cash drawer should this expense be paid from?
+              </p>
+            </Field>
+          )}
 
           <Field label={EXPENSE_TEXT.date}>
             <DatePicker value={date} onChange={(value) => onFieldChange({ date: value })} />

@@ -207,7 +207,7 @@ export function PrintSettingsTab() {
             <div key={t.key} className="flex items-center justify-between gap-3">
               <span className="text-sm font-medium text-ink-900">{t.label}</span>
               <div className="w-72">
-                <Dropdown value={formatFor(t.key)} options={FORMAT_OPTIONS} onChange={(v) => setFormat(t.key, v as PrintFormatId)} />
+                <Dropdown value={formatFor(t.key)} options={FORMAT_OPTIONS} onChange={(v) => setFormat(t.key, v as PrintFormatId)} searchable />
               </div>
             </div>
           ))}
@@ -228,7 +228,7 @@ export function PrintSettingsTab() {
           </Button>
         </div>
         <div className="mt-3">
-          <Dropdown value={thermalDoc} options={DOC_TYPES.map((d) => ({ value: d.key, label: d.label }))} onChange={(v) => setThermalDoc(v as PrintDocType)} />
+          <Dropdown value={thermalDoc} options={DOC_TYPES.map((d) => ({ value: d.key, label: d.label }))} onChange={(v) => setThermalDoc(v as PrintDocType)} searchable />
         </div>
         {thermalIsA4 && <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-xs text-ink-700">This document is set to A4 — thermal tuning only applies when 58mm or 80mm is selected above.</p>}
         <p className="mt-3 rounded-xl bg-ink-50 px-3 py-2 text-xs text-ink-700">Changes are saved with “Save defaults” and are also applied live in Print Studio. Adjust until the roll feeds cleanly.</p>
