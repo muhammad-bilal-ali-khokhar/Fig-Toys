@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.31
+## v0.2.32
+
+- Released on: 2026-08-27
+
+- fix: profit report groups by parent category and adds subcategory view
 
 - Released on: 2026-08-26
 
