@@ -30,7 +30,8 @@ contextBridge.exposeInMainWorld("fig", {
   },
   update: {
     status: () => ipcRenderer.invoke("update:status"),
-    check: () => ipcRenderer.invoke("update:check"),
+    check: (opts) => ipcRenderer.invoke("update:check", opts),
+    checkAuto: () => ipcRenderer.invoke("update:check-auto"),
     download: () => ipcRenderer.invoke("update:download"),
     install: () => ipcRenderer.invoke("update:install"),
     openChangelog: () => ipcRenderer.invoke("update:open-changelog"),
@@ -38,6 +39,11 @@ contextBridge.exposeInMainWorld("fig", {
       const handler = (_event, state) => cb(state);
       ipcRenderer.on("update:status", handler);
       return () => ipcRenderer.removeListener("update:status", handler);
+    },
+    onAutoAvailable: (cb) => {
+      const handler = (_event, state) => cb(state);
+      ipcRenderer.on("update:auto-available", handler);
+      return () => ipcRenderer.removeListener("update:auto-available", handler);
     },
   },
   error: {

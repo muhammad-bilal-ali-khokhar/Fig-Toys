@@ -294,6 +294,7 @@ try {
     updateState.lastCheckedAt = new Date().toISOString();
     logging.write(`OTA: update available ${info.version} (differential via blockmap, ~few MB not full 122 MB)`);
     pushUpdateState();
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("update:auto-available", updateSnapshot()); } catch {}
   });
   autoUpdater.on("update-not-available", () => {
     updateState.available = false;
@@ -361,9 +362,11 @@ try {
   logging.write(`OTA: electron-updater not available (${e.message}) — falling back to full download`);
 }
 
-function checkForUpdates() {
+function checkForUpdates({ auto = false } = {}) {
+  logging.write(`OTA: check started (auto=${auto}) platform=${process.platform} version=${app.getVersion()}`);
   if (process.platform !== "win32") {
     updateState.error = "Updates are available for Windows only.";
+    logging.write(`OTA: skipped - Windows only (auto=${auto})`);
     pushUpdateState();
     return;
   }
@@ -1429,9 +1432,18 @@ if (isUpdater) {
   // available update, apply a downloaded one, or open the release page.
   ipcMain.handle("update:status", () => updateSnapshot());
 
-  ipcMain.handle("update:check", () => {
+  ipcMain.handle("update:check", (_e, opts) => {
+    const auto = Boolean(opts && opts.auto);
     if (!updateState.checking) {
-      checkForUpdates();
+      checkForUpdates({ auto });
+      logging.write(`OTA: manual check triggered (auto=${auto})`);
+    }
+    return updateSnapshot();
+  });
+  ipcMain.handle("update:check-auto", () => {
+    if (!updateState.checking) {
+      logging.write("OTA: auto check triggered on startup");
+      checkForUpdates({ auto: true });
     }
     return updateSnapshot();
   });
