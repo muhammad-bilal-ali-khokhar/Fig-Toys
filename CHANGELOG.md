@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.33
+## v0.2.34
+
+- Released on: 2026-10-19
+
+- feat: dark mode, dealer rebates, maintenance reset, richer product import/export and 32-bit Windows builds
 
 - Released on: 2026-08-27
 

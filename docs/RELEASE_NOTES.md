@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.34
+
 - **Start fresh whenever you need.** A new Reset data page in Settings lets you clear your shop and begin again with a clean slate. Tick the things you want to remove, such as sales and purchases, products and stock, customers and suppliers, reservations, purchase orders, money records or old logs, then confirm once. Your staff accounts, shop details, license, bank accounts, brands, categories, colors and cities always stay, so you never have to set up all over again.
 
 - **Add a new product or supplier right inside Purchases.** No more jumping to Products or Contacts while a customer is waiting. Next to the Product picker there is a New button that opens the full product form, and next to the vendor picker a New button opens the contact form already set to vendor. Save once and the new item is selected for this purchase automatically, so you can keep going without losing your work.
