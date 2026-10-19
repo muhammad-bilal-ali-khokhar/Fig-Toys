@@ -86,6 +86,7 @@ export const PERMISSIONS = {
   printSetDefault: "print.setDefault",
   userManage: "user.manage",
   auditView: "audit.view",
+  resetData: "data.reset",
   cashSessionView: "cashSession.view",
   cashSessionOpen: "cashSession.open",
   cashSessionClose: "cashSession.close",
@@ -104,6 +105,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   PERMISSIONS.userManage,
   PERMISSIONS.auditView,
   PERMISSIONS.backup,
+  PERMISSIONS.resetData,
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
@@ -230,6 +232,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "purchaseOrder.receive": "Receive purchase orders",
   "purchaseOrder.cancel": "Cancel purchase orders",
   "audit.view": "View activity log",
+  "data.reset": "Reset shop data",
 };
 
 export function permissionLabel(key: Permission) {
@@ -340,6 +343,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.printSetDefault,
       PERMISSIONS.userManage,
       PERMISSIONS.auditView,
+      PERMISSIONS.resetData,
     ],
   },
 ];

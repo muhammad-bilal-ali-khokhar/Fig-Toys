@@ -14,6 +14,7 @@ const TYPE_LABELS: Record<string, string> = {
   PURCHASE: "Purchase",
   SALE_RETURN: "Sale Return",
   PURCHASE_RETURN: "Purchase Return",
+  REBATE: "Rebate",
 };
 
 const TYPE_PREFIX: Record<string, string> = {
@@ -21,6 +22,7 @@ const TYPE_PREFIX: Record<string, string> = {
   PURCHASE: "PUR-",
   SALE_RETURN: "RET-",
   PURCHASE_RETURN: "PCR-",
+  REBATE: "REB-",
 };
 
 export function ModifyPicker({
@@ -31,7 +33,7 @@ export function ModifyPicker({
 }: {
   open: boolean;
   onClose: () => void;
-  type: "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN";
+  type: "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "REBATE";
   onSelect: (txn: Transaction) => void;
 }) {
   const [docs, setDocs] = useState<Transaction[]>([]);

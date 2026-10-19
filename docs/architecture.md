@@ -108,6 +108,7 @@ fig-mobile-pos/
 | `GET /api/audit` · `/meta` | `endpoints/audit/` | Audit log (filter + paginate) |
 | `GET/POST /api/cash-session` | `endpoints/cash-session/` | Cash open/close, Z-report reconciliation |
 | `GET /api/backup` · `POST /api/backup/restore` | `endpoints/backup/` | SQLite backup/restore |
+| `POST /api/maintenance/reset` | `endpoints/maintenance/` | Admin shop-data reset (keeps users, shop, license, banks, catalog lists) |
 | `GET/POST /api/purchase-order` · `/receive` | `endpoints/purchase-order/` | Purchase orders + partial/complete receive |
 | `GET /api/money` | `endpoints/money/` | Money & bank summaries |
 | `POST /api/feedback` | `endpoints/feedback/` | In-app feedback / crash reports |

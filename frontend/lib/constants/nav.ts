@@ -12,6 +12,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/sale-returns", label: "Sale Returns", icon: "refund" },
       { href: "/purchases", label: "Purchases", icon: "purchases" },
       { href: "/purchase-returns", label: "Purchase Returns", icon: "returns" },
+      { href: "/rebate", label: "Rebate", icon: "returns" },
       { href: "/purchase-orders", label: "Purchase Orders", icon: "purchases" },
     ],
   },

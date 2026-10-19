@@ -7,8 +7,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useApi } from "@/lib/use-api";
 import { hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
-import { SOUND, APP, CURRENCIES, currencyOf, DEFAULT_TIMEZONE, TIMEZONES, type SoundKind } from "@/lib/constants";
-import { THEMES } from "@/lib/constants";
+import { SOUND, APP, CURRENCIES, currencyOf, DEFAULT_TIMEZONE, TIMEZONES, RESET_TEXT, type SoundKind } from "@/lib/constants";
+import { COLOR_MODES, THEMES } from "@/lib/constants";
 import { DASHBOARD_LAYOUTS } from "@/lib/constants/layouts";
 import { useTheme } from "@/lib/theme-context";
 import { useDashboardLayout } from "@/lib/dashboard-layout-context";
@@ -40,6 +40,7 @@ import { BankManageWindow } from "@/components/settings/bank-manage-window";
 import { SettingsSidebar, SETTINGS_TABS, type TabId } from "@/components/settings/settings-sidebar";
 import { ActivityLog } from "@/components/audit/activity-log";
 import { BackupTab } from "@/components/settings/backup-tab";
+import { ResetTab } from "@/components/settings/reset-tab";
 import { PrintSettingsTab } from "@/components/settings/print-settings-tab";
 import { AutoPrintTab } from "@/components/settings/auto-print-tab";
 import { DesktopAppTab } from "@/components/settings/desktop-app-tab";
@@ -170,7 +171,7 @@ function PaneTitle({ title, subtitle, action }: { title: string; subtitle?: stri
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, mode, setMode } = useTheme();
   const { layout: dashboardLayout, setLayout: setDashboardLayout } = useDashboardLayout();
   const searchParams = useSearchParams();
   const { data, loading } = useApi<CompanyProfile>("/settings/company");
@@ -1157,6 +1158,12 @@ export default function SettingsPage() {
             <BackupTab />
           </div>
         )}
+        {tab === "reset" && hasPermission(user, PERMISSIONS.resetData) && (
+          <>
+            <PaneTitle title={RESET_TEXT.title} subtitle={RESET_TEXT.subtitle} />
+            <ResetTab />
+          </>
+        )}
         {tab === "print" && hasPermission(user, PERMISSIONS.printView) && (
           <div>
             <h3 className="mb-4 text-lg font-bold text-ink-900">Print & thermal</h3>
@@ -1192,6 +1199,37 @@ export default function SettingsPage() {
         {tab === "theme" && (
           <>
             <PaneTitle title="Theme" subtitle="Pick the colour style for the whole app." />
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {COLOR_MODES.map((m) => {
+                const active = mode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setMode(m.id)}
+                    className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                      active
+                        ? "border-brand-500 bg-brand-50 ring-2 ring-brand-500/20"
+                        : "border-ink-200 bg-white hover:border-ink-300"
+                    }`}
+                  >
+                    <span>
+                      <span className="block text-sm font-bold text-ink-900">{m.label}</span>
+                      <span className="block text-xs text-ink-500">{m.description}</span>
+                    </span>
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                        active
+                          ? "border-brand-500 bg-brand-500 text-white"
+                          : "border-ink-300 text-transparent"
+                      }`}
+                    >
+                      <CheckIcon className="h-3 w-3" />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {THEMES.map((t) => {
                 const active = theme === t.id;

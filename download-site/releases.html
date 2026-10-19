@@ -199,7 +199,7 @@
                         : "";
                     const size = document.createElement("span");
                     size.className = "text-sm text-ink-500";
-                    size.textContent = v.size ? v.size + " · 64-bit" : "";
+                    size.textContent = v.size || "";
                     title.append(name, date, size);
                     el.append(title);
                     if (v.description) {

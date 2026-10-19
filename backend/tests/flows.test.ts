@@ -273,6 +273,110 @@ describe("financial integrity: payments reconcile to transaction totals", () => 
   });
 });
 
+describe("rebate flow: dealer price protection", () => {
+  beforeAll(async () => {
+    const s = await seedScenario();
+    vendorId = s.vendor.id;
+    productId = s.product.id;
+    cookie = (await login(app, "FLOWS_ADMIN")).cookie;
+  });
+
+  async function nextImei() {
+    imeiCounter += 1;
+    return String(imeiCounter);
+  }
+
+  it("reduces the unit cost and records money in from the dealer", async () => {
+    const [unit] = await addStockUnits(productId, 1, 150000, Number(await nextImei()));
+    const res = await request(app)
+      .post("/api/transaction/rebate")
+      .set(auth(cookie))
+      .send({
+        contactId: vendorId,
+        items: [{ productId, unitId: unit.id, newCost: 120000 }],
+        refundMethod: "CASH",
+      });
+    expect(res.status).toBe(201);
+    expect(Number(res.body.data.total)).toBe(30000);
+
+    const after = await prisma.unit.findUniqueOrThrow({ where: { id: unit.id } });
+    expect(Number(after.costPrice)).toBe(120000);
+    expect(after.status).toBe("IN_STOCK");
+
+    const payment = await prisma.payment.findFirstOrThrow({ where: { transactionId: res.body.data.id } });
+    expect(payment.method).toBe("CASH");
+    expect(Number(payment.amount)).toBe(30000);
+  });
+
+  it("rejects a rebate when the new price is not lower than cost", async () => {
+    const [unit] = await addStockUnits(productId, 1, 150000, Number(await nextImei()));
+    const res = await request(app)
+      .post("/api/transaction/rebate")
+      .set(auth(cookie))
+      .send({
+        contactId: vendorId,
+        items: [{ productId, unitId: unit.id, newCost: 150000 }],
+        refundMethod: "CASH",
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error?.code).toBe("rebate.no_drop");
+    const after = await prisma.unit.findUniqueOrThrow({ where: { id: unit.id } });
+    expect(Number(after.costPrice)).toBe(150000);
+  });
+
+  it("voids a rebate and restores the original unit cost", async () => {
+    const [unit] = await addStockUnits(productId, 1, 150000, Number(await nextImei()));
+    const res = await request(app)
+      .post("/api/transaction/rebate")
+      .set(auth(cookie))
+      .send({
+        contactId: vendorId,
+        items: [{ productId, unitId: unit.id, newCost: 100000 }],
+        refundMethod: "CASH",
+      });
+    expect(res.status).toBe(201);
+
+    const voidRes = await request(app)
+      .post(`/api/transaction/rebate/${res.body.data.id}/void`)
+      .set(auth(cookie));
+    expect(voidRes.status).toBe(200);
+
+    const after = await prisma.unit.findUniqueOrThrow({ where: { id: unit.id } });
+    expect(Number(after.costPrice)).toBe(150000);
+    expect(await prisma.transaction.findUnique({ where: { id: res.body.data.id } })).toBeNull();
+  });
+
+  it("modifies a rebate to a new price", async () => {
+    const [unit] = await addStockUnits(productId, 1, 150000, Number(await nextImei()));
+    const res = await request(app)
+      .post("/api/transaction/rebate")
+      .set(auth(cookie))
+      .send({
+        contactId: vendorId,
+        items: [{ productId, unitId: unit.id, newCost: 140000 }],
+        refundMethod: "CASH",
+      });
+    expect(res.status).toBe(201);
+
+    const mod = await request(app)
+      .put(`/api/transaction/${res.body.data.id}/rebate`)
+      .set(auth(cookie))
+      .send({
+        contactId: vendorId,
+        number: res.body.data.number,
+        items: [{ productId, unitId: unit.id, newCost: 110000 }],
+        refundMethod: "CASH",
+      });
+    expect(mod.status).toBe(200);
+    expect(Number(mod.body.data.total)).toBe(40000);
+
+    const after = await prisma.unit.findUniqueOrThrow({ where: { id: unit.id } });
+    expect(Number(after.costPrice)).toBe(110000);
+    const sum = await prisma.payment.aggregate({ where: { transactionId: res.body.data.id }, _sum: { amount: true } });
+    expect(Number(sum._sum.amount ?? 0)).toBe(40000);
+  });
+});
+
 afterAll(async () => {
   await prisma.$disconnect();
 });

@@ -65,6 +65,24 @@ export const DEFAULT_THEME: ThemeId = "fig";
 
 export const THEME_STORAGE_KEY = "fig.theme";
 
+export type ColorMode = "light" | "dark" | "auto";
+
+export type ColorModeDef = {
+  id: ColorMode;
+  label: string;
+  description: string;
+};
+
+export const DEFAULT_COLOR_MODE: ColorMode = "light";
+
+export const MODE_STORAGE_KEY = "fig.mode";
+
+export const COLOR_MODES: ColorModeDef[] = [
+  { id: "light", label: "Light", description: "Bright surfaces, dark text." },
+  { id: "dark", label: "Dark", description: "Dim surfaces, easy on the eyes." },
+  { id: "auto", label: "Auto", description: "Follows your system setting." },
+] as const;
+
 export const THEMES: ThemeDef[] = [
   {
     id: "fig",

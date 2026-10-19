@@ -295,6 +295,7 @@ const MONEY_NOTES: Record<string, { cash: string; bank: string }> = {
   PURCHASE: { cash: "Purchase (cash)", bank: "Purchase (bank)" },
   SALE_RETURN: { cash: "Sale return refund", bank: "Sale return refund" },
   PURCHASE_RETURN: { cash: "Purchase return received", bank: "Purchase return received" },
+  REBATE: { cash: "Rebate received", bank: "Rebate received" },
 };
 
 export type ApplyPaymentsOptions = {

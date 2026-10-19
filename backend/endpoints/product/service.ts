@@ -108,6 +108,7 @@ export async function listProducts({ q, categoryId }: { q?: string; categoryId?:
       barcode: (p as any).barcode ?? null,
       carrier: (p as any).carrier ?? null,
       image: p.image,
+      specs: p.specs,
       sellPrice: p.sellPrice,
       costPrice: p.costPrice,
       retailPrice: p.retailPrice,
@@ -318,11 +319,11 @@ async function findOrCreateBrand(name: string) {
   return prisma.brand.create({ data: { name, active: true } });
 }
 
-async function findOrCreateCategory(name: string) {
-  const found = await prisma.category.findFirst({ where: { name } });
+async function findOrCreateCategory(name: string, parentId: string | null = null, type?: "PHONE" | "ACCESSORY") {
+  const found = await prisma.category.findFirst({ where: { name, parentId } });
   if (found) return found;
-  const type = name.toLowerCase().includes("accessory") ? "ACCESSORY" : "PHONE";
-  return prisma.category.create({ data: { name, type: type as "ACCESSORY" | "PHONE", active: true } });
+  const resolvedType = type ?? (name.toLowerCase().includes("accessory") ? "ACCESSORY" : "PHONE");
+  return prisma.category.create({ data: { name, parentId, type: resolvedType, active: true } });
 }
 
 async function findOrCreateColor(name: string) {
@@ -342,10 +343,13 @@ export async function importProducts(rows: ImportProductInput[], userId: string)
   for (const row of rows) {
     try {
       const brand = await findOrCreateBrand(row.brand);
-      const category = await findOrCreateCategory(row.category);
+      const parentCategory = await findOrCreateCategory(row.category);
+      const category = row.subcategory
+        ? await findOrCreateCategory(row.subcategory, parentCategory.id, parentCategory.type)
+        : parentCategory;
       const color = row.color ? await findOrCreateColor(row.color) : null;
 
-      const carrier = (row as any).carrier ?? null;
+      const carrier = row.carrier ?? null;
       const dupKey = `${brand.id}|${row.model}|${row.storage ?? ""}|${color?.id ?? ""}|${category.id}|${carrier ?? ""}`;
       if (seen.has(dupKey)) {
         skipped.push({ brand: row.brand, model: row.model, reason: "duplicate in file" });
@@ -369,6 +373,7 @@ export async function importProducts(rows: ImportProductInput[], userId: string)
 
       seen.add(dupKey);
       const sku = row.sku?.trim() ? row.sku.trim() : formatSku(skuCounter++);
+      const isUsed = [parentCategory.name, category.name].some((n) => n.toLowerCase().includes("used"));
       const product = await prisma.product.create({
         data: {
           sku,
@@ -379,10 +384,14 @@ export async function importProducts(rows: ImportProductInput[], userId: string)
           screenSize: row.screenSize,
           colorId: color?.id ?? null,
           categoryId: category.id,
-          carrier: carrier as any,
+          carrier,
+          barcode: row.barcode,
+          image: row.image,
+          specs: row.specs,
           sellPrice: row.sellPrice,
           costPrice: row.costPrice,
-          retailPrice: row.retailPrice ?? null,
+          retailPrice: isUsed ? null : (row.retailPrice ?? null),
+          lowStockThreshold: row.lowStockThreshold ?? 2,
           priceHistory: {
             create: { sellPrice: row.sellPrice, costPrice: row.costPrice },
           },

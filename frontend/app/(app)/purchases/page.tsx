@@ -5,11 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import { brandOf, type CashDrawer, type Color, type Contact, type ProductSummary, type PurchaseOrder, type Transaction, type TransactionDetail, type BankAccount } from "@/lib/api-types";
+import { brandOf, type BankAccount, type Brand, type CashDrawer, type Category, type Color, type Contact, type ProductSummary, type PurchaseOrder, type Transaction, type TransactionDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { CARRIER_LABELS, MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { PERMISSIONS } from "@/lib/constants/permissions";
-import { hasPermission } from "@/lib/roles";
+import { canViewCosts, hasPermission } from "@/lib/roles";
 import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,9 @@ import { ModifyPicker } from "@/components/transactions/modify-picker";
 import { TransactionReceipt } from "@/components/transactions/transaction-receipt";
 import { useSaveShortcut } from "@/lib/use-save-shortcut";
 import { Dialog } from "@/components/ui/dialog";
+import { Sheet } from "@/components/ui/sheet";
+import { ProductForm, EMPTY_PRODUCT_FORM, type ProductFormValues } from "@/components/products/product-form";
+import { ContactForm, EMPTY_CONTACT_FORM, type ContactFormValues } from "@/components/contacts/contact-form";
 import { playPop, playSuccess } from "@/lib/sound";
 import { ScannerButton } from "@/components/scanner/scanner-button";
 import { useScannerScan } from "@/components/scanner/global-scanner";
@@ -88,9 +91,18 @@ export default function PurchasesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { data: contacts } = useApi<Contact[]>("/contact");
-  const { data: products } = useApi<ProductSummary[]>("/product");
+  const { data: contacts, refetch: refetchContacts } = useApi<Contact[]>("/contact");
+  const { data: products, refetch: refetchProducts } = useApi<ProductSummary[]>("/product");
   const { data: colors } = useApi<Color[]>("/color");
+  const { data: brands } = useApi<Brand[]>("/brand");
+  const { data: categories } = useApi<Category[]>("/category");
+  const canCreateProduct = hasPermission(user, PERMISSIONS.productCreate);
+  const canCreateContact = hasPermission(user, PERMISSIONS.contactCreate);
+  const viewCosts = canViewCosts(user);
+  const [productFormOpen, setProductFormOpen] = useState(false);
+  const [contactFormOpen, setContactFormOpen] = useState(false);
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
   const [flow, setFlow] = useState<"NEW" | "USED" | "ACCESSORY" | null>(null);
   const [tab, setTab] = useState<"NEW" | "USED">("NEW");
   const [contactId, setContactId] = useState<string | null>(null);
@@ -301,6 +313,79 @@ export default function PurchasesPage() {
     const p = (products ?? []).find((x) => x.id === value);
     if (p?.costPrice) setPrice(String(p.costPrice));
     if (p?.sellPrice) setSalePrice(String(p.sellPrice));
+  }
+
+  async function saveQuickProduct(values: ProductFormValues) {
+    if (!values.brandId || !values.model.trim() || !values.categoryId) {
+      toast("Brand, model and category are required", "error");
+      return;
+    }
+    setSavingProduct(true);
+    try {
+      const created = await apiRequest<{ id: string; costPrice?: string; sellPrice?: string }>("/product", {
+        method: "POST",
+        body: {
+          brandId: values.brandId,
+          model: values.model.trim(),
+          storage: values.storage || undefined,
+          ram: values.ram || undefined,
+          screenSize: values.screenSize || undefined,
+          colorId: values.colorId || undefined,
+          categoryId: values.categoryId,
+          carrier: values.carrier || undefined,
+          barcode: values.barcode || undefined,
+          image: values.image || undefined,
+          sellPrice: parseFloat(values.sellPrice) || 0,
+          costPrice: parseFloat(values.costPrice) || 0,
+          retailPrice: values.retailPrice ? parseFloat(values.retailPrice) : undefined,
+        },
+      });
+      toast("Product created", "success");
+      setProductFormOpen(false);
+      await refetchProducts();
+      setSelProductId(created.id);
+      if (created.costPrice) setPrice(String(created.costPrice));
+      if (created.sellPrice) setSalePrice(String(created.sellPrice));
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to create product", "error");
+    } finally {
+      setSavingProduct(false);
+    }
+  }
+
+  async function saveQuickContact(values: ContactFormValues) {
+    if (!values.name.trim()) {
+      toast("Name is required", "error");
+      return;
+    }
+    setSavingContact(true);
+    try {
+      const created = await apiRequest<{ id: string }>("/contact", {
+        method: "POST",
+        body: {
+          type: values.type,
+          name: values.name.trim(),
+          phone: values.phone.trim() || undefined,
+          email: values.email.trim() || undefined,
+          address: values.address.trim() || undefined,
+          city: values.city.trim() || undefined,
+          cnic: values.cnic.trim() || undefined,
+          photoUrl: values.photoUrl || undefined,
+          cnicFrontUrl: values.cnicFrontUrl || undefined,
+          cnicBackUrl: values.cnicBackUrl || undefined,
+          notes: values.notes.trim() || undefined,
+          creditLimit: parseFloat(values.creditLimit) || 0,
+        },
+      });
+      toast("Contact created", "success");
+      setContactFormOpen(false);
+      await refetchContacts();
+      setContactId(created.id);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to create contact", "error");
+    } finally {
+      setSavingContact(false);
+    }
   }
 
   function openImeiPopup() {
@@ -995,13 +1080,13 @@ export default function PurchasesPage() {
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
             <div className="shrink-0">
               <div className="flex flex-wrap items-end gap-3">
-                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">{tab === "NEW" ? "Vendor" : "Seller"}</p>{contactOptions.length > 0 && (<Dropdown value={contactId} options={contactOptions} onChange={setContactId} triggerClassName="bg-white" searchable placeholder="Select…" />)}</div>
+                <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">{tab === "NEW" ? "Vendor" : "Seller"}</p><div className="flex items-end gap-2"><div className="min-w-0 flex-1">{contactOptions.length > 0 && (<Dropdown value={contactId} options={contactOptions} onChange={setContactId} triggerClassName="bg-white" searchable placeholder="Select…" />)}</div>{canCreateContact && (<Button type="button" variant="grey" className="h-9 shrink-0 px-3" onClick={() => setContactFormOpen(true)}><PlusIcon className="h-4 w-4" />New</Button>)}</div></div>
                 <div className="w-28 shrink-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Purchase #</p><Input value={purchaseNo} readOnly variant="white" className="bg-white text-center px-2" /></div>
                 <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Date & time</p><DatePicker value={purchaseDate} onChange={setPurchaseDate} withTime /></div>
                 <div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Discount</p><div className="flex items-center gap-2"><PriceInput value={discountPct} max={100} onChange={setDiscountPct} className="flex-1 min-w-0 bg-white" suffix="%" /><PriceInput value={parseFloat(discount) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => setDiscount(n > 0 ? String(n) : "")} className="flex-1 min-w-0 bg-white" suffix="Rs" /></div></div>
               </div>
             </div>
-            <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); if (flow === "ACCESSORY") openBarcodePopup(); else openImeiPopup(); }}><div className="flex flex-col gap-3"><div className="flex flex-wrap items-end gap-3"><div className="min-w-[200px] flex-[2]"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div>{usedPricingEnabled && flow === "USED" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Sale price</p><Input value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="Sale" inputMode="decimal" className="bg-white" /></div>)}<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div>{flow !== "ACCESSORY" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p><Dropdown value={colorId} options={colorOptions} onChange={setColorId} triggerClassName="bg-white" searchable placeholder="Select…" /></div>)}<Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div>{flow === "USED" && (<div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p><Input value={batteryHealth} onChange={(e) => setBatteryHealth(e.target.value)} inputMode="numeric" placeholder="Optional" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p><Dropdown triggerClassName="bg-white" value={grade} options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))} onChange={setGrade} /></div></div>)}</div></form></section>
+            <section className="shrink-0"><form onSubmit={(e) => { e.preventDefault(); if (flow === "ACCESSORY") openBarcodePopup(); else openImeiPopup(); }}><div className="flex flex-col gap-3"><div className="flex flex-wrap items-end gap-3"><div className="min-w-[200px] flex-[2]"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product</p><div className="flex items-end gap-2"><div className="min-w-0 flex-1"><Dropdown value={selProductId} options={productOptions} onChange={onProductSelect} triggerClassName="bg-white" searchable placeholder="Select product…" /></div>{canCreateProduct && (<Button type="button" variant="grey" className="h-9 shrink-0 px-3" onClick={() => setProductFormOpen(true)}><PlusIcon className="h-4 w-4" />New</Button>)}</div></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cost</p><Input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Auto-filled" inputMode="decimal" className="bg-white" /></div>{usedPricingEnabled && flow === "USED" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Sale price</p><Input value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="Sale" inputMode="decimal" className="bg-white" /></div>)}<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Qty</p><Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" className="bg-white text-center" /></div>{flow !== "ACCESSORY" && (<div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Color</p><Dropdown value={colorId} options={colorOptions} onChange={setColorId} triggerClassName="bg-white" searchable placeholder="Select…" /></div>)}<Button type="submit" className="h-9 shrink-0 px-4 text-sm active:scale-[0.97] transition-transform duration-100"><PlusIcon className="h-4 w-4" />Add</Button></div>{flow === "USED" && (<div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Battery</p><Input value={batteryHealth} onChange={(e) => setBatteryHealth(e.target.value)} inputMode="numeric" placeholder="Optional" className="bg-white" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Grade</p><Dropdown triggerClassName="bg-white" value={grade} options={["A", "B", "C", "D"].map((g) => ({ value: g, label: `Grade ${g}` }))} onChange={setGrade} /></div></div>)}</div></form></section>
             <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white"><table className={`w-full table-fixed text-sm ${usedPricingEnabled && flow === "USED" ? "min-w-[640px]" : "min-w-[480px]"}`}><thead className="sticky top-0 bg-white"><tr className="text-left text-xs uppercase tracking-wide text-ink-500"><th className="w-[180px] px-1.5 py-1.5 text-center">Item</th><th className="w-14 px-1.5 py-1.5 text-center">Qty</th>{flow === "USED" && <th className="w-16 px-1.5 py-1.5 text-center">Grade</th>}<th className="w-24 px-1.5 py-1.5 text-center">Cost</th>{usedPricingEnabled && flow === "USED" && <th className="w-24 px-1.5 py-1.5 text-center">Sale</th>}<th className="w-[148px] px-1.5 py-1.5 text-center">Disc</th><th className="w-24 px-1.5 py-1.5 text-center">Amount</th><th className="w-12 px-4 py-3" /></tr></thead><tbody>{(() => {
               const groups = new Map<string, PendingUnit[]>();
               const plain: PendingUnit[] = [];
@@ -1065,6 +1150,27 @@ export default function PurchasesPage() {
          {popup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{popup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{[popup.colorLabel, popup.batteryHealth ? `Battery ${popup.batteryHealth}%` : null].filter(Boolean).join(" · ")}{" · "}{formatPKR(popup.price)} each</p><div className="my-4 flex items-center justify-center gap-1 text-4xl font-bold"><span className={validCount === popup.qty ? "text-brand-600" : "text-ink-900"}>{validCount}</span><span className="text-ink-400">/</span><span className="text-ink-400">{popup.qty}</span></div><div className="-mr-1 mt-4 h-72 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{popupImeis.map((val, i) => (<ImeiRow key={i} index={i} value={val} onChange={updatePopupImei} onEnter={handlePopupImeiEnter} onClear={clearPopupImei} inputRef={(el) => { imeiFieldRefs.current[i] = el; }} />))}</div><div className="mt-5 flex shrink-0 justify-end gap-2"><ScannerButton label="Scan" variant="grey" /><Button variant="grey" onClick={closePopup}>Cancel</Button><Button onClick={() => commit(popupImeis.filter((v) => v.length === 15))} disabled={validCount === 0} className="active:scale-[0.97] transition-transform duration-100">{`Add ${validCount} pcs`}</Button></div></div></div>)}
         {barcodePopup && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-4"><div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white px-5 py-5"><h3 className="text-lg font-bold text-ink-900">{barcodePopup.productLabel}</h3><p className="mt-0.5 text-xs text-ink-500">{formatPKR(barcodePopup.price)} each</p><div className="my-4"><Checkbox checked={sameBarcode} onChange={setSameBarcode} label={`Same barcode for all ${barcodePopup.qty} pcs`} /></div>{sameBarcode ? (<div className="flex items-center gap-2"><Input value={singleBarcode} onChange={(e) => setSingleBarcode(e.target.value)} placeholder="Scan or type barcode" className="flex-1" /><Button variant="grey" onClick={() => setSingleBarcode("")}>Clear</Button></div>) : (<div className="-mr-1 h-64 space-y-2 overflow-y-auto overscroll-none py-1 pr-1">{barcodes.map((val, i) => (<div key={i} className="flex items-center gap-2"><span className="w-5 shrink-0 text-right text-xs text-ink-400">{i + 1}.</span><Input ref={(el) => { barcodeFieldRefs.current[i] = el; }} value={val} onChange={(e) => updateBarcode(i, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleBarcodeEnter(i); } }} placeholder={`Barcode ${i + 1}`} className="min-w-0 flex-1" />{val.trim() ? (<CheckIcon className="h-4 w-4 shrink-0 text-brand-600" />) : (<button type="button" onClick={() => clearBarcode(i)} className="shrink-0 text-ink-300 hover:text-error">✕</button>)}</div>))}</div>)}<div className="mt-5 flex shrink-0 justify-end gap-2"><Button variant="grey" onClick={closeBarcodePopup}>Cancel</Button><Button onClick={() => commitBarcodes()}>{sameBarcode ? `Add ${barcodePopup.qty} pcs` : `Add ${barcodes.filter((v) => v.trim()).length} pcs`}</Button></div></div></div>)}
         <Dialog open={lowPriceDialog !== null} title="Sale price below cost?" message={<p className="text-sm text-ink-600">{lowPriceDialog?.label} sale price is at or below its cost. You can still purchase it, but this phone will show a loss.</p>} confirmLabel="Add anyway" destructive onCancel={() => setLowPriceDialog(null)} onConfirm={() => { lowPriceDialog?.proceed(); setLowPriceDialog(null); }} />
+        <Sheet open={productFormOpen} title="New product" onClose={() => setProductFormOpen(false)} width="max-w-2xl">
+          <ProductForm
+            initial={EMPTY_PRODUCT_FORM}
+            brands={(brands ?? []).filter((b) => b.active)}
+            categories={(categories ?? []).filter((c) => c.active)}
+            colors={(colors ?? []).filter((c) => c.active)}
+            viewCosts={viewCosts}
+            saving={savingProduct}
+            type={flow ?? undefined}
+            onSave={saveQuickProduct}
+            onCancel={() => setProductFormOpen(false)}
+          />
+        </Sheet>
+        <Sheet open={contactFormOpen} title="New contact" onClose={() => setContactFormOpen(false)} width="max-w-xl">
+          <ContactForm
+            initial={{ ...EMPTY_CONTACT_FORM, type: flow === "USED" ? "USED_VENDOR" : "VENDOR" }}
+            saving={savingContact}
+            onSave={saveQuickContact}
+            onCancel={() => setContactFormOpen(false)}
+          />
+        </Sheet>
       </div>
     );
   }

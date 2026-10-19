@@ -63,6 +63,7 @@ export const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   "PURCHASE.CREATE": "Purchase made",
   "SALE_RETURN.CREATE": "Sale returned",
   "PURCHASE_RETURN.CREATE": "Purchase returned",
+  "REBATE.CREATE": "Rebate recorded",
   "RESERVATION.CREATE": "Reservation added",
   "RESERVATION.CANCEL": "Reservation cancelled",
   "RESERVATION.RETURN": "Consignment returned",

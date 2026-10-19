@@ -14,6 +14,7 @@ export * from "./onboarding";
 export * from "./print";
 export * from "./products";
 export * from "./reports";
+export * from "./reset";
 export * from "./sound";
 export * from "./themes";
 export * from "./layouts";

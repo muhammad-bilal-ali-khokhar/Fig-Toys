@@ -92,6 +92,7 @@ export const PERMISSIONS = {
   printWrite: "print.write",
   userManage: "user.manage",
   auditView: "audit.view",
+  resetData: "data.reset",
 
   // Cash reconciliation (Z-report)
   cashSessionView: "cashSession.view",
@@ -116,6 +117,7 @@ const ADMIN_ONLY: readonly Permission[] = [
   PERMISSIONS.userManage,
   PERMISSIONS.auditView,
   PERMISSIONS.backup,
+  PERMISSIONS.resetData,
   PERMISSIONS.printWrite,
 ];
 

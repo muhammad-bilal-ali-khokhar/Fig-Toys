@@ -12,6 +12,7 @@ import type {
   CreatePurchaseInput,
   CreateSaleInput,
   PurchaseReturnInput,
+  RebateInput,
   SaleReturnInput,
 } from "./schemas";
 
@@ -85,6 +86,10 @@ function statusFor(total: number, paid: number) {
   if (paid >= total) return "PAID" as const;
   if (paid > 0) return "PARTIAL" as const;
   return "PENDING" as const;
+}
+
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
 }
 
 function includeTransaction() {
@@ -853,6 +858,289 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
   });
 
   return transaction;
+}
+
+// Applies a dealer price-protection rebate: for units still in stock, the dealer
+// refunds the difference between the original cost and the new (dropped) price.
+// Each line stores the pre-drop cost in unitPrice and the rebate amount in total
+// so a void/modify can restore the original cost.
+async function rebateLines(
+  tx: Prisma.TransactionClient,
+  items: RebateInput["items"],
+): Promise<{ createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[]; total: number }> {
+  const unitIds = items.map((i) => i.unitId).filter(Boolean) as string[];
+  if (new Set(unitIds).size !== unitIds.length) {
+    throw new ApiError(400, "unit.duplicate", "A unit is listed more than once");
+  }
+  const productIds = [...new Set(items.map((i) => i.productId))];
+  const [products, units] = await Promise.all([
+    tx.product.findMany({ where: { id: { in: productIds } } }),
+    unitIds.length ? tx.unit.findMany({ where: { id: { in: unitIds } } }) : Promise.resolve([]),
+  ]);
+  const productMap = new Map(products.map((p) => [p.id, p]));
+  const unitMap = new Map(units.map((u) => [u.id, u]));
+  const productCosts = new Map<string, number>();
+
+  const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
+  let total = 0;
+
+  for (const item of items) {
+    const product = productMap.get(item.productId);
+    if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+
+    if (item.unitId) {
+      const unit = unitMap.get(item.unitId);
+      if (!unit) throw new ApiError(404, "unit.not_found", "Unit not found");
+      if (unit.productId !== item.productId) {
+        throw new ApiError(400, "unit.product_mismatch", `Unit ${unit.imei} does not match this product`);
+      }
+      if (unit.status !== "IN_STOCK") {
+        throw new ApiError(400, "unit.not_in_stock", `Unit ${unit.imei} is not in stock`);
+      }
+      const original = Number(unit.costPrice);
+      if (item.newCost >= original - 0.001) {
+        throw new ApiError(400, "rebate.no_drop", `New price for ${unit.imei} must be less than the current cost`);
+      }
+      const rebate = round2(original - item.newCost);
+      await tx.unit.update({ where: { id: unit.id }, data: { costPrice: item.newCost } });
+      total += rebate;
+      createdItems.push({
+        productId: item.productId,
+        unitId: unit.id,
+        quantity: 1,
+        unitPrice: original,
+        discount: 0,
+        total: rebate,
+      });
+    } else {
+      const original = productCosts.get(product.id) ?? Number(product.costPrice);
+      if (item.newCost >= original - 0.001) {
+        throw new ApiError(400, "rebate.no_drop", `New price for ${product.model} must be less than the current cost`);
+      }
+      const rebate = round2((original - item.newCost) * item.quantity);
+      productCosts.set(product.id, item.newCost);
+      await tx.product.update({ where: { id: product.id }, data: { costPrice: item.newCost } });
+      total += rebate;
+      createdItems.push({
+        productId: item.productId,
+        unitId: null,
+        quantity: item.quantity,
+        unitPrice: original,
+        discount: 0,
+        total: rebate,
+      });
+    }
+  }
+  return { createdItems, total: round2(total) };
+}
+
+async function restoreRebateCosts(
+  tx: Prisma.TransactionClient,
+  items: { unitId: string | null; productId: string; unitPrice: unknown }[],
+) {
+  for (const item of items) {
+    const costPrice = Number(item.unitPrice);
+    if (item.unitId) {
+      await tx.unit.updateMany({ where: { id: item.unitId }, data: { costPrice } });
+    } else {
+      await tx.product.updateMany({ where: { id: item.productId }, data: { costPrice } });
+    }
+  }
+}
+
+export async function createRebate(input: RebateInput, userId: string) {
+  const contact = await prisma.contact.findUnique({ where: { id: input.contactId } });
+  if (!contact) throw new ApiError(404, "contact.not_found", "Contact not found");
+
+  if (input.clientRef) {
+    const existing = await prisma.transaction.findUnique({
+      where: { clientRef: input.clientRef },
+      include: includeTransaction(),
+    });
+    if (existing) return existing;
+  }
+
+  const number = await resolveNumber(input.number, "REB");
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
+
+  const transaction = await prisma.$transaction(async (tx) => {
+    const { createdItems, total } = await rebateLines(tx, input.items);
+
+    const paidInput = input.payments.reduce((sum, p) => sum + p.amount, 0);
+    if (paidInput > total + 0.001) {
+      throw new ApiError(400, "payment.overpaid", "Payments exceed the rebate total");
+    }
+
+    const explicitPayments = input.payments.length > 0;
+    const payments = explicitPayments
+      ? input.payments
+      : [{ method: input.refundMethod, amount: total }];
+    const status = explicitPayments
+      ? statusFor(total, paidInput)
+      : input.refundMethod === "CASH"
+        ? "PAID"
+        : "PENDING";
+
+    const created = await tx.transaction.create({
+      data: {
+        type: "REBATE",
+        number,
+        ...(input.clientRef ? { clientRef: input.clientRef } : {}),
+        contactId: input.contactId,
+        userId,
+        subtotal: total,
+        discount: 0,
+        total,
+        status,
+        note: input.note ?? null,
+        ...(createdAt ? { createdAt } : {}),
+        items: { create: createdItems },
+      },
+    });
+
+    await applyPayments(tx, {
+      transactionId: created.id,
+      contactId: input.contactId,
+      payments,
+      sourceType: "REBATE",
+      moneySign: 1,
+      balanceSign: 1,
+      creditCreate: true,
+    });
+
+    return created;
+  });
+
+  await writeAudit({
+    userId,
+    action: "REBATE.CREATE",
+    entity: "Transaction",
+    entityId: transaction.id,
+    details: JSON.stringify({ number, total: Number(transaction.total) }),
+  });
+
+  return prisma.transaction.findUnique({ where: { id: transaction.id }, include: includeTransaction() });
+}
+
+export async function modifyRebate(id: string, input: RebateInput, userId: string) {
+  const existing = await prisma.transaction.findUnique({
+    where: { id },
+    include: { items: true, payments: true },
+  });
+  if (!existing) throw new ApiError(404, "transaction.not_found", "Transaction not found");
+  if (existing.type !== "REBATE") throw new ApiError(400, "transaction.not_rebate", "Only rebates can be modified");
+
+  const number = input.number ?? existing.number;
+  let createdAt: Date | undefined;
+  if (input.date) {
+    createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
+  }
+
+  const transaction = await prisma.$transaction(async (tx) => {
+    await restoreRebateCosts(tx, existing.items);
+    for (const p of existing.payments) {
+      if (p.method === "CREDIT") {
+        await tx.creditAccount.update({
+          where: { contactId: existing.contactId },
+          data: { balance: { decrement: Number(p.amount) } },
+        });
+      }
+    }
+    await reverseMoney(tx, "REBATE", id);
+    await tx.payment.deleteMany({ where: { transactionId: id } });
+
+    const { createdItems, total } = await rebateLines(tx, input.items);
+
+    const paidInput = input.payments.reduce((sum, p) => sum + p.amount, 0);
+    if (paidInput > total + 0.001) {
+      throw new ApiError(400, "payment.overpaid", "Payments exceed the rebate total");
+    }
+    const explicitPayments = input.payments.length > 0;
+    const payments = explicitPayments
+      ? input.payments
+      : [{ method: input.refundMethod, amount: total }];
+    const status = explicitPayments
+      ? statusFor(total, paidInput)
+      : input.refundMethod === "CASH"
+        ? "PAID"
+        : "PENDING";
+
+    await tx.transaction.update({
+      where: { id },
+      data: {
+        number,
+        contactId: input.contactId,
+        userId,
+        subtotal: total,
+        discount: 0,
+        total,
+        status,
+        note: input.note ?? null,
+        ...(createdAt ? { createdAt } : {}),
+      },
+    });
+
+    await tx.transactionItem.deleteMany({ where: { transactionId: id } });
+    await tx.transactionItem.createMany({ data: createdItems.map((ci) => ({ ...ci, transactionId: id })) });
+
+    await applyPayments(tx, {
+      transactionId: id,
+      contactId: input.contactId,
+      payments,
+      sourceType: "REBATE",
+      moneySign: 1,
+      balanceSign: 1,
+      creditCreate: true,
+    });
+
+    return tx.transaction.findUnique({ where: { id } });
+  });
+
+  await writeAudit({
+    userId,
+    action: "REBATE.MODIFY",
+    entity: "Transaction",
+    entityId: id,
+    details: JSON.stringify({ number, total: Number(transaction!.total) }),
+  });
+
+  return prisma.transaction.findUnique({ where: { id }, include: includeTransaction() });
+}
+
+export async function voidRebate(id: string, userId: string) {
+  const txn = await prisma.transaction.findUnique({
+    where: { id },
+    include: { items: true, payments: true },
+  });
+  if (!txn) throw new ApiError(404, "transaction.not_found", "Transaction not found");
+  if (txn.type !== "REBATE") throw new ApiError(400, "transaction.not_rebate", "Only rebates can be voided");
+
+  await prisma.$transaction(async (tx) => {
+    await restoreRebateCosts(tx, txn.items);
+    for (const p of txn.payments) {
+      if (p.method === "CREDIT") {
+        await tx.creditAccount.update({
+          where: { contactId: txn.contactId },
+          data: { balance: { decrement: Number(p.amount) } },
+        });
+      }
+    }
+    await reverseMoney(tx, "REBATE", id);
+    await tx.transaction.delete({ where: { id } });
+  });
+
+  await writeAudit({
+    userId,
+    action: "REBATE.VOID",
+    entity: "Transaction",
+    entityId: id,
+    details: JSON.stringify({ number: txn.number, total: Number(txn.total) }),
+  });
+
+  return { id, number: txn.number };
 }
 
 export async function voidReturn(id: string, userId: string) {

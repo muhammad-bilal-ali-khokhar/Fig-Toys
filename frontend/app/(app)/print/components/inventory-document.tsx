@@ -43,7 +43,7 @@ export function InventoryDocument({
 
   const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: config.paddingMm ? `${config.paddingMm}mm` : undefined } as const;
   return (
-    <div style={thermalStyle} className={`bg-white ${pad} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
+    <div data-print-surface style={thermalStyle} className={`bg-white ${pad} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0 flex-1">
           <p className={isA4 ? "break-words text-2xl font-bold tracking-tight text-ink-900" : "break-words font-mono text-[14px] font-black uppercase tracking-wide text-black"}>

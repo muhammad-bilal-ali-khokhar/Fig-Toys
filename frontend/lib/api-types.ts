@@ -149,6 +149,7 @@ export type ProductSummary = {
   barcode: string | null;
   carrier?: string | null;
   image?: string | null;
+  specs?: string | null;
   sellPrice: string;
   costPrice?: string;
   retailPrice?: string | null;
@@ -446,7 +447,7 @@ export type Expense = {
 
 export type Transaction = {
   id: string;
-  type: "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN";
+  type: "SALE" | "PURCHASE" | "SALE_RETURN" | "PURCHASE_RETURN" | "REBATE";
   number: string;
   contact: { id: string; name: string; phone: string | null };
   user: { id: string; name: string };

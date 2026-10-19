@@ -27,7 +27,7 @@ export function SoldCategoryWidget({ data, rangeLabel }: { data?: DashboardOverv
           <>
             <div className="grid flex-1 grid-cols-2 gap-3 px-5 pb-3">
               {entries.map(([name, qty], i) => (
-                <div key={name} className="rounded-3xl bg-ink-50 p-4" style={{ backgroundColor: i === 0 ? "rgb(250 245 247)" : undefined }}>
+                <div key={name} className={`rounded-3xl p-4 ${i === 0 ? "bg-brand-50" : "bg-ink-50"}`}>
                   <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-500">
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ROOT_COLORS[i % ROOT_COLORS.length] }} />
                     {name}

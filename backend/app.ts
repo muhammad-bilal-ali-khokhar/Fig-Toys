@@ -31,6 +31,7 @@ import setupRouter from "./endpoints/setup/routes";
 import auditRouter from "./endpoints/audit/routes";
 import cashSessionRouter from "./endpoints/cash-session/routes";
 import backupRouter from "./endpoints/backup/routes";
+import maintenanceRouter from "./endpoints/maintenance/routes";
 import purchaseOrderRouter from "./endpoints/purchase-order/routes";
 import moneyRouter from "./endpoints/money/routes";
 import feedbackRouter from "./endpoints/feedback/routes";
@@ -100,6 +101,7 @@ export function createApp() {
   app.use("/api/audit", auditRouter);
   app.use("/api/cash-session", cashSessionRouter);
   app.use("/api/backup", backupRouter);
+  app.use("/api/maintenance", maintenanceRouter);
   app.use("/api/purchase-order", purchaseOrderRouter);
   app.use("/api/money", moneyRouter);
   app.use("/api/feedback", feedbackRouter);

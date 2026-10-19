@@ -25,7 +25,7 @@ import { ManageWindow } from "@/components/products/manage-window";
 import { SortHeader } from "@/components/ui/sort-header";
 import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
-import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon, HeadphonesIcon, SmartphoneIcon } from "@/components/icons";
+import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon, CopyIcon, HeadphonesIcon, SmartphoneIcon } from "@/components/icons";
 
 type SortKey = "brand" | "color" | "categoryName" | "sku" | "sellPrice" | "retailPrice" | "costPrice";
 
@@ -92,6 +92,7 @@ export default function ProductsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [duplicateId, setDuplicateId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [manageTab, setManageTab] = useState<"category" | "brand" | "color">("category");
@@ -211,6 +212,7 @@ export default function ProductsPage() {
 
   function openCreate() {
     setEditingId(null);
+    setDuplicateId(null);
     setCreateType(null);
     setFormKey((k) => k + 1);
     setOpen(true);
@@ -218,6 +220,15 @@ export default function ProductsPage() {
 
   function openEdit(p: ProductSummary) {
     setEditingId(p.id);
+    setDuplicateId(null);
+    setCreateType(null);
+    setFormKey((k) => k + 1);
+    setOpen(true);
+  }
+
+  function openDuplicate(p: ProductSummary) {
+    setEditingId(null);
+    setDuplicateId(p.id);
     setCreateType(null);
     setFormKey((k) => k + 1);
     setOpen(true);
@@ -250,7 +261,8 @@ export default function ProductsPage() {
   }
 
   function initialForm(): ProductFormValues {
-    if (!editingId) {
+    const sourceId = editingId ?? duplicateId;
+    if (!sourceId) {
       const isPhone = createType !== "ACCESSORY";
       const defaultCarrier = createType === "NEW" ? "PTA" : createType === "USED" ? "" : "";
       return {
@@ -260,7 +272,7 @@ export default function ProductsPage() {
         carrier: isPhone ? defaultCarrier : "",
       };
     }
-    const p = (data ?? []).find((x) => x.id === editingId);
+    const p = (data ?? []).find((x) => x.id === sourceId);
     if (!p) {
       return {
         ...EMPTY_PRODUCT_FORM,
@@ -303,7 +315,8 @@ export default function ProductsPage() {
     }
     const cat = categories?.find((c) => c.id === values.categoryId) ?? activeCategories.find((c) => c.id === values.categoryId) ?? findCategory(categories ?? [], values.categoryId);
     const isPhoneCat = cat?.type === "PHONE";
-    const isUsedCat = !!cat?.name.toLowerCase().includes("used");
+    const parentCat = cat?.parentId ? activeCategories.find((c) => c.id === cat.parentId) : null;
+    const isUsedCat = !!cat?.name.toLowerCase().includes("used") || !!parentCat?.name.toLowerCase().includes("used");
     if (isPhoneCat && !values.carrier) {
       if (isUsedCat) { toast("Carrier is required for Used phones", "error"); return; }
     }
@@ -388,10 +401,15 @@ export default function ProductsPage() {
       "Color",
       "Category",
       "Subcategory",
+      "Carrier",
       "SKU",
+      "Barcode",
+      "Image",
+      "Specs",
       "Sell price",
       ...(viewCosts ? ["Cost price"] : []),
       "Retail price",
+      "Low stock threshold",
     ];
     const rows = filtered.map((p) =>
       [
@@ -403,10 +421,15 @@ export default function ProductsPage() {
         p.color ?? "",
         p.parentCategoryName ?? p.categoryName,
         p.parentCategoryName ? p.categoryName : "",
+        p.carrier ?? "",
         p.sku ?? "",
+        p.barcode ?? "",
+        p.image ?? "",
+        p.specs ?? "",
         p.sellPrice,
         ...(viewCosts ? [p.costPrice ?? ""] : []),
         p.retailPrice ?? "",
+        p.lowStockThreshold,
       ],
     );
     downloadCsv("products.csv", headers, rows);
@@ -558,7 +581,7 @@ export default function ProductsPage() {
                 <SortHeader label="Sell price" k="sellPrice" sort={sort} onSort={onSort} right />
                 <SortHeader label="Retail price" k="retailPrice" sort={sort} onSort={onSort} right />
                 {viewCosts && <SortHeader label="Cost" k="costPrice" sort={sort} onSort={onSort} right />}
-                <th className="w-12 px-2 py-3" />
+                <th className="w-20 px-2 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -609,6 +632,15 @@ export default function ProductsPage() {
                       <td className="px-5 py-3 text-right text-ink-500">{formatPKR(p.costPrice)}</td>
                     )}
                     <td className="px-2 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      {canCreate && (
+                        <button
+                          onClick={() => openDuplicate(p)}
+                          title="Duplicate product"
+                          className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-100 hover:text-ink-700"
+                        >
+                          <CopyIcon className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => void openPriceHistory(p)}
                         title="Price history"
@@ -658,11 +690,11 @@ export default function ProductsPage() {
 
       <Sheet
         open={open}
-        title={editingId ? "Edit product" : createType ? `Add ${createType === "ACCESSORY" ? "Accessory" : createType === "USED" ? "Used Phone" : "Phone"}` : "New product"}
+        title={editingId ? "Edit product" : duplicateId ? "Duplicate product" : createType ? `Add ${createType === "ACCESSORY" ? "Accessory" : createType === "USED" ? "Used Phone" : "Phone"}` : "New product"}
         onClose={() => setOpen(false)}
         width="max-w-2xl"
       >
-        {!editingId && !createType ? (
+        {!editingId && !duplicateId && !createType ? (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-ink-500">What are you adding?</p>
             {[
@@ -845,9 +877,9 @@ export default function ProductsPage() {
         description={
           <>
             Upload a CSV with columns:{" "}
-            <span className="font-semibold text-ink-700">Brand, Model, Storage, RAM, Screen size, Color, Category, SKU, Sell price, Cost price, Retail price</span>.
+            <span className="font-semibold text-ink-700">Brand, Model, Storage, RAM, Screen size, Color, Category, Subcategory, Carrier, SKU, Barcode, Image, Specs, Sell price, Cost price, Retail price, Low stock threshold</span>.
             Brand, Model and Category are required. New brands, colors and categories are created automatically;
-            existing products are skipped.
+            the exported products.csv can be edited and imported back. Existing products are skipped.
           </>
         }
         importing={importing}
@@ -909,10 +941,16 @@ function parseProductsCsv(text: string) {
     screenSize?: string;
     color?: string;
     category: string;
+    subcategory?: string;
+    carrier?: string;
     sku?: string;
+    barcode?: string;
+    image?: string;
+    specs?: string;
     sellPrice: number;
     costPrice: number;
     retailPrice?: number;
+    lowStockThreshold?: number;
   }[] = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -929,6 +967,8 @@ function parseProductsCsv(text: string) {
     const sellPrice = parseFloat(at("sellprice")) || 0;
     const costPrice = parseFloat(at("costprice")) || 0;
     const retailPrice = at("retailprice") ? parseFloat(at("retailprice")) : undefined;
+    const lowStockThreshold = at("lowstockthreshold") ? parseInt(at("lowstockthreshold"), 10) : undefined;
+    const carrier = at("carrier").toUpperCase();
     rows.push({
       brand,
       model,
@@ -937,10 +977,16 @@ function parseProductsCsv(text: string) {
       screenSize: at("screensize") || undefined,
       color: at("color") || undefined,
       category,
+      subcategory: at("subcategory") || undefined,
+      carrier: ["PTA", "NON_PTA", "SIM_LOCKED"].includes(carrier) ? carrier : undefined,
       sku: at("sku") || undefined,
+      barcode: at("barcode") || undefined,
+      image: at("image") || undefined,
+      specs: at("specs") || undefined,
       sellPrice,
       costPrice,
       retailPrice: retailPrice && !Number.isNaN(retailPrice) ? retailPrice : undefined,
+      lowStockThreshold: lowStockThreshold && !Number.isNaN(lowStockThreshold) ? lowStockThreshold : undefined,
     });
   }
   return rows;

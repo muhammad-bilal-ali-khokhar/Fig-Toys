@@ -3,6 +3,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "SALE_RETURN.CREATE": "Sale return created",
   "PURCHASE.CREATE": "Purchase created",
   "PURCHASE_RETURN.CREATE": "Purchase return created",
+  "REBATE.CREATE": "Rebate recorded",
+  "REBATE.MODIFY": "Rebate updated",
+  "REBATE.VOID": "Rebate voided",
   "VOUCHER.CREATE": "Voucher created",
   "VOUCHER.UPDATE": "Voucher updated",
   "VOUCHER.REVERSE": "Voucher reversed",
@@ -52,6 +55,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "PRINT.UPDATE": "Print layout updated",
   "PRINT.DELETE": "Print layout deleted",
   "PRINT.SET_DEFAULT": "Default print set",
+  "DATA.RESET": "Shop data reset",
 };
 
 export function auditActionLabel(action: string): string {

@@ -2040,3 +2040,93 @@ svg *:focus {
 .toast-in {
   animation: toast-in 0.2s ease-out;
 }
+
+/* Dark mode. One axis over every palette: the neutral scale is tinted with the
+   active theme's accent, so each colour theme gets its own matching dark
+   variant. Toggle with data-mode="dark" on <html>. */
+[data-mode="dark"] {
+  color-scheme: dark;
+
+  --color-ink-50: color-mix(in srgb, var(--color-brand-500) 6%, #0a0a0c);
+  --color-ink-100: color-mix(in srgb, var(--color-brand-500) 7%, #131317);
+  --color-ink-200: color-mix(in srgb, var(--color-brand-500) 8%, #1c1c22);
+  --color-ink-300: color-mix(in srgb, var(--color-brand-500) 9%, #282830);
+  --color-ink-400: color-mix(in srgb, var(--color-brand-500) 14%, #3c3c46);
+  --color-ink-500: color-mix(in srgb, var(--color-brand-500) 20%, #5f5f6b);
+  --color-ink-600: color-mix(in srgb, var(--color-brand-500) 24%, #8b8b96);
+  --color-ink-700: color-mix(in srgb, var(--color-brand-500) 22%, #b3b3bc);
+  --color-ink-800: color-mix(in srgb, var(--color-brand-500) 18%, #d2d2d9);
+  --color-ink-900: color-mix(in srgb, var(--color-brand-500) 14%, #e7e7eb);
+  --color-ink-950: color-mix(in srgb, var(--color-brand-500) 11%, #f5f5f7);
+
+  --color-brand-50: color-mix(in srgb, var(--color-brand-500) 14%, #0a0a0c);
+  --color-brand-100: color-mix(in srgb, var(--color-brand-500) 22%, #0a0a0c);
+  --color-brand-200: color-mix(in srgb, var(--color-brand-500) 32%, #0a0a0c);
+}
+
+/* Muted text needs to stay readable on the dark scale. */
+[data-mode="dark"] .text-ink-300 { color: var(--color-ink-600); }
+[data-mode="dark"] .text-ink-400 { color: var(--color-ink-600); }
+[data-mode="dark"] .text-ink-500 { color: var(--color-ink-700); }
+[data-mode="dark"] .text-ink-600 { color: var(--color-ink-800); }
+[data-mode="dark"] .text-black { color: var(--color-ink-900); }
+
+/* Cards and intentionally dark panels keep their depth. */
+[data-mode="dark"] .bg-white { background-color: var(--color-ink-100); }
+[data-mode="dark"] .bg-white\/80 { background-color: color-mix(in srgb, var(--color-ink-100) 80%, transparent); }
+[data-mode="dark"] .bg-white\/70 { background-color: color-mix(in srgb, var(--color-ink-100) 70%, transparent); }
+[data-mode="dark"] .bg-ink-800 { background-color: color-mix(in srgb, var(--color-brand-500) 12%, #1c1c22); }
+[data-mode="dark"] .bg-ink-900 { background-color: color-mix(in srgb, var(--color-brand-500) 10%, #131317); }
+[data-mode="dark"] .bg-ink-950 { background-color: #0a0a0c; }
+[data-mode="dark"] .bg-ink-900\/40 { background-color: rgb(0 0 0 / 0.6); }
+[data-mode="dark"] .bg-ink-950\/80 { background-color: rgb(0 0 0 / 0.8); }
+
+[data-mode="dark"] .border-ink-50 { border-color: var(--color-ink-200); }
+[data-mode="dark"] .border-ink-100 { border-color: var(--color-ink-200); }
+[data-mode="dark"] .border-ink-900 { border-color: var(--color-ink-400); }
+[data-mode="dark"] .border-black { border-color: var(--color-ink-300); }
+[data-mode="dark"] .ring-ink-100 { --tw-ring-color: var(--color-ink-200); }
+
+/* Printed paper always stays white, whatever the mode. */
+[data-mode="dark"] [data-print-surface] {
+  color-scheme: light;
+
+  --color-ink-50: #faf8f3;
+  --color-ink-100: #f3efe7;
+  --color-ink-200: #e6ded1;
+  --color-ink-300: #d3c7b6;
+  --color-ink-400: #aaa08f;
+  --color-ink-500: #7d7467;
+  --color-ink-600: #5c554b;
+  --color-ink-700: #443f37;
+  --color-ink-800: #2d2924;
+  --color-ink-900: #1c1916;
+  --color-ink-950: #0f0d0b;
+}
+
+[data-mode="dark"] [data-print-surface] .bg-white { background-color: #fff; }
+[data-mode="dark"] [data-print-surface] .bg-ink-900 { background-color: var(--color-ink-900); }
+[data-mode="dark"] [data-print-surface] .text-black { color: #000; }
+[data-mode="dark"] [data-print-surface] .text-ink-300 { color: var(--color-ink-300); }
+[data-mode="dark"] [data-print-surface] .text-ink-400 { color: var(--color-ink-400); }
+[data-mode="dark"] [data-print-surface] .text-ink-500 { color: var(--color-ink-500); }
+[data-mode="dark"] [data-print-surface] .text-ink-600 { color: var(--color-ink-600); }
+[data-mode="dark"] [data-print-surface] .border-black { border-color: #000; }
+
+/* Theme switch: while <html> carries this class, colours tween together so a
+   theme or mode change never leaves some elements snapping. */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition:
+    background-color 280ms ease,
+    background-image 280ms ease,
+    border-color 280ms ease,
+    outline-color 280ms ease,
+    color 280ms ease,
+    fill 280ms ease,
+    stroke 280ms ease,
+    box-shadow 280ms ease,
+    text-decoration-color 280ms ease !important;
+}

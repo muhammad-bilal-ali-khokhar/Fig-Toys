@@ -2,20 +2,24 @@ import type { Request, Response } from "express";
 import {
   createPurchase,
   createPurchaseReturn,
+  createRebate,
   createSale,
   createSaleReturn,
   getTransaction,
   listTransactions,
   modifyPurchase,
   modifyPurchaseReturn,
+  modifyRebate,
   modifySale,
   modifySaleReturn,
+  voidRebate,
   voidReturn,
 } from "./service";
 import type {
   CreatePurchaseInput,
   CreateSaleInput,
   PurchaseReturnInput,
+  RebateInput,
   SaleReturnInput,
 } from "./schemas";
 
@@ -56,6 +60,18 @@ export async function purchaseReturnHandler(req: Request, res: Response) {
 
 export async function voidReturnHandler(req: Request, res: Response) {
   res.json({ data: await voidReturn(req.params.id, req.user!.id) });
+}
+
+export async function createRebateHandler(req: Request, res: Response) {
+  res.status(201).json({ data: await createRebate(req.body as RebateInput, req.user!.id) });
+}
+
+export async function modifyRebateHandler(req: Request, res: Response) {
+  res.json({ data: await modifyRebate(req.params.id, req.body as RebateInput, req.user!.id) });
+}
+
+export async function voidRebateHandler(req: Request, res: Response) {
+  res.json({ data: await voidRebate(req.params.id, req.user!.id) });
 }
 
 export async function modifySaleHandler(req: Request, res: Response) {

@@ -578,7 +578,7 @@ export function ReceiptDocument({
   const thermalStyle = isA4 ? {} : { fontSize: config.fontSize, lineHeight: config.lineHeight, padding: config.paddingMm ? `${config.paddingMm}mm` : undefined, margin: config.marginMm ? `${config.marginMm}mm` : undefined } as const;
   const densityClass = config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
   return (
-    <div style={thermalStyle} className={`${isA4 ? "space-y-6 print:space-y-0" : "bg-white"} ${isA4 ? "" : ""} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
+    <div data-print-surface style={thermalStyle} className={`${isA4 ? "space-y-6 print:space-y-0" : "bg-white"} ${isA4 ? "" : ""} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
       {isA4 ? (
         a4Pages.map((pageItems, pageIndex) => (
           <div
@@ -676,7 +676,7 @@ export function VoucherDocument({
   }
 
   return (
-    <div style={thermalStyle} className={`bg-white ${pad} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
+    <div data-print-surface style={thermalStyle} className={`bg-white ${pad} ${base} ${densityClass} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${isA4 ? "text-ink-900" : "text-black"}`}>
       <div>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -840,7 +840,7 @@ export function ExpenseVoucherDocument({
   const densityClass = isA4 ? "" : config.density === "bold" ? "font-black" : config.density === "light" ? "font-normal" : "font-bold";
 
   return (
-    <div style={thermalStyle} className={`bg-white ${pad} ${base} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${densityClass} ${isA4 ? "text-ink-900" : "text-black"}`}>
+    <div data-print-surface style={thermalStyle} className={`bg-white ${pad} ${base} ${isA4 ? "" : config.compact ? "leading-tight" : ""} ${densityClass} ${isA4 ? "text-ink-900" : "text-black"}`}>
       <div>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -957,7 +957,7 @@ export function ReservationDocument({
   const pad = isA4 ? "px-12 py-10" : "";
   const base = isA4 ? "text-sm" : "font-mono font-bold text-black";
   return (
-    <div style={thermalStyle} className={`bg-white ${pad} ${base} ${densityClass} ${isA4 ? "text-ink-900" : "text-black"}`}>
+    <div data-print-surface style={thermalStyle} className={`bg-white ${pad} ${base} ${densityClass} ${isA4 ? "text-ink-900" : "text-black"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {options.header && (

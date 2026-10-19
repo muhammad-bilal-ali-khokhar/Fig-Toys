@@ -93,7 +93,26 @@ export const purchaseReturnSchema = z.object({
   clientRef: z.string().trim().max(120).optional(),
 }).refine((d) => d.unitIds.length > 0 || d.items.length > 0, { message: "At least one unit or item is required", path: ["unitIds"] });
 
+export const rebateItemSchema = z.object({
+  productId: z.string().min(1, "productId is required"),
+  unitId: z.string().trim().optional(),
+  quantity: z.coerce.number().int().min(1).default(1),
+  newCost: z.coerce.number().min(0, "New price must be 0 or more"),
+});
+
+export const rebateSchema = z.object({
+  contactId: z.string().min(1, "contactId is required"),
+  items: z.array(rebateItemSchema).min(1, "At least one item is required"),
+  payments: z.array(paymentSchema).optional().default([]),
+  refundMethod: z.enum(["CASH", "CREDIT"]).default("CASH"),
+  note: z.string().trim().optional(),
+  number: z.string().trim().optional(),
+  date: z.string().trim().optional(),
+  clientRef: z.string().trim().max(120).optional(),
+});
+
 export type CreateSaleInput = z.infer<typeof createSaleSchema>;
 export type CreatePurchaseInput = z.infer<typeof createPurchaseSchema>;
 export type SaleReturnInput = z.infer<typeof saleReturnSchema>;
 export type PurchaseReturnInput = z.infer<typeof purchaseReturnSchema>;
+export type RebateInput = z.infer<typeof rebateSchema>;

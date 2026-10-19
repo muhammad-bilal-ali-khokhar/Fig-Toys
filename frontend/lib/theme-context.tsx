@@ -3,17 +3,51 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import { DEFAULT_THEME, THEME_STORAGE_KEY, THEMES, type ThemeId } from "@/lib/constants";
+import {
+  DEFAULT_COLOR_MODE,
+  DEFAULT_THEME,
+  MODE_STORAGE_KEY,
+  THEME_STORAGE_KEY,
+  THEMES,
+  type ColorMode,
+  type ThemeId,
+} from "@/lib/constants";
 
 type ThemeContextValue = {
   theme: ThemeId;
   setTheme: (theme: ThemeId) => void;
+  mode: ColorMode;
+  setMode: (mode: ColorMode) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+let transitionTimer: ReturnType<typeof setTimeout> | undefined;
+
+function withThemeTransition(change: () => void) {
+  const el = document.documentElement;
+  el.classList.add("theme-transition");
+  change();
+  clearTimeout(transitionTimer);
+  transitionTimer = setTimeout(() => el.classList.remove("theme-transition"), 320);
+}
+
+function readStoredMode(): ColorMode {
+  const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+  if (stored === "light" || stored === "dark" || stored === "auto") return stored;
+  return DEFAULT_COLOR_MODE;
+}
+
+function resolveMode(mode: ColorMode): "light" | "dark" {
+  if (mode === "auto") {
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return mode;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeId>(DEFAULT_THEME);
+  const [mode, setModeState] = useState<ColorMode>(DEFAULT_COLOR_MODE);
   const loadedRef = useRef(false);
   const { user, status } = useAuth();
 
@@ -57,18 +91,31 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [status, user]);
 
   useEffect(() => {
+    setModeState(readStoredMode());
+  }, []);
+
+  useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.mode = resolveMode(mode);
+  }, [mode]);
+
+  const setMode = useCallback((next: ColorMode) => {
+    window.localStorage.setItem(MODE_STORAGE_KEY, next);
+    withThemeTransition(() => setModeState(next));
+  }, []);
 
   const setTheme = useCallback((next: ThemeId) => {
     window.localStorage.setItem(THEME_STORAGE_KEY, next);
     const fig = typeof window !== "undefined" ? window.fig : undefined;
     if (fig?.theme) void fig.theme.set(next);
-    setThemeState(next);
+    withThemeTransition(() => setThemeState(next));
     void apiRequest("/settings/theme", { method: "PUT", body: { theme: next }, suppressUnauthorizedEvent: true }).catch(() => {});
   }, []);
 
-  return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
+  return <ThemeContext.Provider value={{ theme, setTheme, mode, setMode }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

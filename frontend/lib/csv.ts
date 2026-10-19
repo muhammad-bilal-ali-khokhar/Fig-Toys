@@ -33,9 +33,11 @@ export function downloadCsv(
   headers: string[],
   rows: (string | number | null | undefined)[][],
 ) {
+  const cell = (c: string | number | null | undefined) =>
+    `"${c == null ? "" : String(c).replace(/"/g, '""')}"`;
   const csv = [
-    headers.join(","),
-    ...rows.map((r) => r.map((c) => (c == null ? "" : String(c))).join(",")),
+    headers.map(cell).join(","),
+    ...rows.map((r) => r.map(cell).join(",")),
   ].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);

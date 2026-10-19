@@ -5,21 +5,25 @@ import { PERMISSIONS } from "../../core/lib/permissions";
 import { validate } from "../../core/middleware/validate";
 import {
   createPurchaseHandler,
+  createRebateHandler,
   createSaleHandler,
   getHandler,
   listHandler,
   modifyPurchaseHandler,
   modifyPurchaseReturnHandler,
+  modifyRebateHandler,
   modifySaleHandler,
   modifySaleReturnHandler,
   purchaseReturnHandler,
   saleReturnHandler,
+  voidRebateHandler,
   voidReturnHandler,
 } from "./handlers";
 import {
   createPurchaseSchema,
   createSaleSchema,
   purchaseReturnSchema,
+  rebateSchema,
   saleReturnSchema,
 } from "./schemas";
 
@@ -37,6 +41,9 @@ router.put("/:id/purchase", requirePermission(PERMISSIONS.purchaseCreate), valid
 router.post("/purchase/returns", requirePermission(PERMISSIONS.purchaseReturn), validate(purchaseReturnSchema), asyncHandler(purchaseReturnHandler));
 router.put("/:id/sale-return", requirePermission(PERMISSIONS.saleReturn), validate(saleReturnSchema), asyncHandler(modifySaleReturnHandler));
 router.put("/:id/purchase-return", requirePermission(PERMISSIONS.purchaseReturn), validate(purchaseReturnSchema), asyncHandler(modifyPurchaseReturnHandler));
+router.post("/rebate", requirePermission(PERMISSIONS.purchaseReturn), validate(rebateSchema), asyncHandler(createRebateHandler));
+router.put("/:id/rebate", requirePermission(PERMISSIONS.purchaseReturn), validate(rebateSchema), asyncHandler(modifyRebateHandler));
+router.post("/rebate/:id/void", requirePermission(PERMISSIONS.returnVoid), asyncHandler(voidRebateHandler));
 router.post("/returns/:id/void", requirePermission(PERMISSIONS.returnVoid), asyncHandler(voidReturnHandler));
 
 export default router;

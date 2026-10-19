@@ -48,15 +48,15 @@ function resolve(): ChartColors {
 }
 
 export function useChartColors(): ChartColors {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
   const [colors, setColors] = useState<ChartColors>(FALLBACK);
 
   useEffect(() => {
     setColors(resolve());
     const observer = new MutationObserver(() => setColors(resolve()));
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-mode"] });
     return () => observer.disconnect();
-  }, [theme]);
+  }, [theme, mode]);
 
   return colors;
 }

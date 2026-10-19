@@ -840,7 +840,7 @@ export async function ledgerReport(contactId: string, r: Range) {
       }),
     ]);
     for (const t of prevTxns) {
-      const isDebit = t.type === "SALE" || t.type === "PURCHASE_RETURN";
+      const isDebit = t.type === "SALE" || t.type === "PURCHASE_RETURN" || t.type === "REBATE";
       opening += isDebit ? n(t.total) : -n(t.total);
     }
     for (const p of prevPayments) {
@@ -893,7 +893,7 @@ export async function ledgerReport(contactId: string, r: Range) {
   const entries: Entry[] = [];
 
   for (const t of transactions) {
-    const isDebit = t.type === "SALE" || t.type === "PURCHASE_RETURN";
+    const isDebit = t.type === "SALE" || t.type === "PURCHASE_RETURN" || t.type === "REBATE";
     entries.push({
       id: `t-${t.id}`,
       date: t.createdAt,

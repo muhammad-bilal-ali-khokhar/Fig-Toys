@@ -15,9 +15,10 @@
     "dev": "electron . --dev",
     "pack": "electron-builder --dir --publish never",
     "dist": "electron-builder --publish never",
-    "pack:win": "electron-builder --win --dir --publish never",
+    "pack:win": "electron-builder --win --dir --x64 --ia32 --publish never",
     "dist:win": "electron-builder --win --publish never",
     "rebuild": "electron-rebuild -f --only better-sqlite3 --module-dir ../backend",
+    "rebuild:ia32": "electron-rebuild -f -a ia32 --only better-sqlite3 --module-dir ../backend",
     "rebuild:dev": "npm --prefix ../backend rebuild better-sqlite3",
     "build:production": "npm --prefix ../backend run build:production && npm --prefix ../frontend run build:production"
   },
