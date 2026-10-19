@@ -17,7 +17,6 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const backend = path.resolve(dir, "..");
 const root = path.resolve(backend, "..");
 
-const source = path.join(backend, "node_modules", "better-sqlite3", "build", "Release", "better_sqlite3.node");
 const nativeDir = process.env.FIG_IA32_NATIVE_DIR
   ? path.resolve(process.env.FIG_IA32_NATIVE_DIR)
   : path.join(root, "production", "backend", "native", "better-sqlite3");
@@ -49,7 +48,35 @@ function machineName(machine) {
 
 if (!fs.existsSync(bindingFile)) fail(`No production better-sqlite3 bundle at ${nativeDir} - run the backend build:production first.`);
 if (!fs.existsSync(x64Prebuild)) fail(`Missing ${x64Prebuild} - the 64-bit Windows prebuild is required.`);
-if (!fs.existsSync(source)) fail(`Missing ${source} - run \`npm run rebuild:ia32\` in desktop/ first.`);
+
+// electron-rebuild can drop the compiled binary in a few places depending on
+// version, so hunt for every better_sqlite3.node under node_modules and keep the
+// one that is actually 32-bit.
+function findCompiled(dir) {
+  const found = [];
+  const walk = (d) => {
+    let entries;
+    try {
+      entries = fs.readdirSync(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name === "better_sqlite3.node") found.push(full);
+    }
+  };
+  walk(dir);
+  return found;
+}
+
+const candidates = findCompiled(path.join(backend, "node_modules"));
+const source = candidates.find((f) => peMachine(f) === PE_I386);
+if (!source) {
+  const seen = candidates.map((f) => `${f} (${machineName(peMachine(f))})`).join("\n  ") || "  (none found)";
+  fail(`No 32-bit better_sqlite3.node found under backend/node_modules - run \`npm run rebuild:ia32\` in desktop/ first.\nCandidates:\n  ${seen}`);
+}
 
 const x64Machine = peMachine(x64Prebuild);
 if (x64Machine !== PE_AMD64) fail(`The bundled 64-bit prebuild is ${machineName(x64Machine)} - expected 64-bit (x64).`);
