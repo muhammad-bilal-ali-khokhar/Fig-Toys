@@ -1,7 +1,5 @@
 ## Unreleased
 
-## v0.2.34
-
 - **Start fresh whenever you need.** A new Reset data page in Settings lets you clear your shop and begin again with a clean slate. Tick the things you want to remove, such as sales and purchases, products and stock, customers and suppliers, reservations, purchase orders, money records or old logs, then confirm once. Your staff accounts, shop details, license, bank accounts, brands, categories, colors and cities always stay, so you never have to set up all over again.
 
 - **Add a new product or supplier right inside Purchases.** No more jumping to Products or Contacts while a customer is waiting. Next to the Product picker there is a New button that opens the full product form, and next to the vendor picker a New button opens the contact form already set to vendor. Save once and the new item is selected for this purchase automatically, so you can keep going without losing your work.
@@ -9,6 +7,9 @@
 - **Dark mode is here.** Your whole shop can now switch to a calm, eye friendly dark look in one tap. Every colour theme gets a matching dark version, so late night closing, early morning opening and long shifts are easier on your eyes while your bills and receipts still print bright and clean on paper. Find it in Settings, Theme, then choose Light, Dark or Auto to follow your PC.
 - **Import and export now cover your whole product.** Your product CSV carries every detail you see in the app: category and subcategory, carrier, SKU, barcode, image, specs, sell and cost prices, retail price and low stock alert level. Export your products, edit them in Excel, then import them back. Subcategories stay under their parent category and images, specs and stock alerts come back exactly as they were. Find it on the Products page under Import and Export.
 - **Dealer rebates for price drops are here.** When a supplier drops the price on a phone you already bought, get the difference back for every unit still sitting in your shop. Pick the product, type the new price, then scan the IMEIs you still own and Fig POS works out exactly what the dealer owes you. Receive it as cash, into a bank account or onto the dealer's account, and your phone's cost updates on its own so every future sale shows the real profit. Find it in the sidebar under Rebate, and change or void any rebate later in one tap.
+
+## v0.2.34
+
 ## v0.2.33
 
 
