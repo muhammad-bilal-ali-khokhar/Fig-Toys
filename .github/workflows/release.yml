@@ -155,17 +155,6 @@ jobs:
         working-directory: backend
         run: npm run build:production
 
-      # better-sqlite3 has no official 32-bit prebuild, so compile it for ia32
-      # and drop it into the production bundle. The universal installer ships
-      # both payloads and NSIS installs the matching one.
-      - name: Rebuild native modules (32-bit)
-        working-directory: desktop
-        run: npm run rebuild:ia32
-
-      - name: Add 32-bit native module to production bundle
-        working-directory: backend
-        run: node scripts/add-ia32-native.mjs
-
       - name: Package installer
         working-directory: desktop
         run: npm run dist:win
@@ -181,7 +170,6 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           tar -a -c -f "release/Fig.Mobile.POS-${VERSION}-no-install.zip" -C release/win-unpacked .
-          tar -a -c -f "release/Fig.Mobile.POS-${VERSION}-no-install-32bit.zip" -C release/win-ia32-unpacked .
 
       - name: Upload installer
         uses: actions/upload-artifact@v4

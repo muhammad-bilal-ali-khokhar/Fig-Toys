@@ -8,7 +8,7 @@ each release without overwriting earlier notes.
 
 - Released on: 2026-10-19
 
-- feat: dark mode, dealer rebates, maintenance reset, richer product import/export and 32-bit Windows builds
+- feat: dark mode, dealer rebates, maintenance reset, richer product import/export
 
 - Released on: 2026-08-27
 

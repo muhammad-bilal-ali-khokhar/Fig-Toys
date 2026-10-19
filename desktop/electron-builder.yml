@@ -37,15 +37,11 @@ extraResources:
 npmRebuild: true
 
 # Windows is the only release target. macOS is not built or released.
-# One universal installer carries both payloads and NSIS installs the matching
-# one, so a single .exe covers 64-bit and 32-bit PCs (keeps latest.yml and the
-# download page on one file).
 win:
   target:
     - target: nsis
       arch:
         - x64
-        - ia32
   icon: build/icon.ico
   artifactName: Fig-POS-Setup-${version}.${ext}
 

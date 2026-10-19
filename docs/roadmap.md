@@ -46,7 +46,7 @@
 - [x] **Purchase orders** (order → partial/complete receive into stock)
 - [ ] Search perf (indexes, debounce, pagination)
 - [ ] Bulk import/export catalog (partial: CSV import/export exists)
-- [x] **Windows desktop app + auto-releases** — Electron shell (`desktop/`): bundles the production backend + frontend, runs fully offline in Local mode (or opens a hosted URL). One-click **Release** workflow (`.github/workflows/release.yml`) bumps the version, builds one universal NSIS installer (64-bit + 32-bit in a single `.exe`) on a Windows runner, and publishes it (+ `latest.yml` + `.blockmap` for OTA self-updates) to a GitHub Release; native `better-sqlite3` rebuilt for Windows+Electron in both 64-bit and 32-bit. The installer picks the matching architecture at install time, detects an existing install and asks before updating.
+- [x] **Windows desktop app + auto-releases** — Electron shell (`desktop/`): bundles the production backend + frontend, runs fully offline in Local mode (or opens a hosted URL). One-click **Release** workflow (`.github/workflows/release.yml`) bumps the version, builds a 64-bit NSIS installer on a Windows runner, and publishes it (+ `latest.yml` + `.blockmap` for OTA self-updates) to a GitHub Release; native `better-sqlite3` rebuilt for Windows+Electron. The installer detects an existing install and asks before updating.
 
 ## Phase 5 — Later
 - [ ] Offline queue for POS
