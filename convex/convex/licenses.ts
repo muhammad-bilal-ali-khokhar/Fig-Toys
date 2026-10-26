@@ -32,6 +32,7 @@ export const getDetails = internalQuery({
       customerName: row.customerName,
       edition: row.edition,
       maxDevices: row.maxDevices,
+      pricePkr: row.pricePkr ?? null,
       expiresAt: row.expiresAt ?? null,
       createdAt: row.createdAt,
       redeemedAt: row.redeemedAt ?? null,

@@ -1,5 +1,29 @@
 ## Unreleased
 
+- **Free User for lifetime access.** From any client, the owner can mark a shop as a Free User. It never expires and is never asked for a monthly payment. The button is clearly visible beside Edit plan.
+- **Install the owner console like an app.** The admin can be added to the home screen and opened like a normal app. A bell button enables payment alerts, and new payment requests arrive as notifications.
+- **Approve from the notification.** Tap the notification to open Payments with the exact pending request ready. Approve once and the shop gets 30 more days automatically.
+- **Payment account settings.** Admin can update the account title, account number, WhatsApp contact and QR image from Settings. The latest details appear on the customer payment window.
+- **Pay to your own account.** The renewal window now shows your account title, account number and QR. Customers can send the payment and submit an optional transaction ID. When you approve it in Payments, the license is extended by 30 days and Fig POS unlocks.
+- **Update payment details from Settings.** Admin can change the account title, account number and QR image at any time. The latest details appear immediately on the customer payment window.
+- **Settings now feels like Fig POS.** A clean second sidebar keeps Profile, Pricing and payments, Trials and access, Integration, and Data and reset organised and one tap away.
+- **Set client access in minutes.** In a client, choose one minute, 30 days, or any length in between and apply it as trial access or paid access. Manage payments, trials and access without adding another tool.
+- **Everything important is now one tap from your dashboard.** Add a client, open payments or jump straight to licenses from the top of the owner console. Fewer clicks, faster daily work.
+- **Pricing now lives inside Settings.** Set the monthly price, payment length, trial length, payment accounts and support details in one place instead of a separate page.
+- **Add a client with their own login.** Create the shop, owner, username, password and trial length from Clients. Choose one minute for testing or 14 days for a normal trial.
+- **Set a trial in minutes when editing a client.** The edit client window now includes a trial minutes field with one minute and 14 day shortcuts.
+- **Popups always open in the centre.** Every window now sits above the full dashboard and is centred on screen, even when opened from a card or a long page.
+- **Test a trial in one minute.** The owner console can give a shop a one minute trial when you need to see the locked payment screen quickly, then switch back to the normal 14 day trial. A new POS stays locked until the owner provides an activation code.
+- **Create activation codes from the owner console.** Generate the same 10 digit code the POS activation screen expects, choose the customer, device limit, price and expiry, then copy it and send it to the shop. No more switching to a separate tool.
+- **Your owner dashboard now follows your shop.** The console shows the same live license status and payment history as Fig POS, so you always know whether a shop is on trial, active or expired and when the last payment arrived. A clear Live POS data badge separates real shop data from demo data.
+- **A friendly trial inside Fig POS.** When the owner grants a trial, Fig POS shows a clear banner with the exact end date, end time and live countdown. Shop owners always know how many days, hours and minutes are left. New installs require an activation code before they can be used.
+- **A payment window that protects your work.** When the trial or paid period ends, Fig POS shows a locked payment window that cannot be dismissed. The shop owner sends the amount to the shown account or QR and submits an optional transaction ID. When the owner approves it in Payments, the license is extended by 30 days and Fig POS unlocks.
+- **License history you can trust.** Settings, License now shows whether the shop is on trial, active, free or expired, the purchase date, last payment date, time remaining and every recorded payment.
+- **A brand new Fig license portal.** Manage every shop running Fig POS from one calm dashboard. See who is on a free trial, who is paid, who is expiring and who needs help, with exact dates and live countdowns so nothing slips.
+- **Payments you can verify in seconds.** Shop owners send JazzCash, Easypaisa or bank details straight from their portal. Approve a payment and Fig adds the new days automatically, issues a fresh license key and unlocks the shop.
+- **14 day trials that sell themselves.** Every new shop starts with a clear 14 day trial, sees the exact end date and time, and gets a friendly renewal screen when it ends. Blocked shops see a support message instead of a payment screen.
+- **Your pricing, your accounts.** Set the monthly price, duration and payment accounts once, then give any shop a custom price when needed. Generate, copy or revoke keys and block or unblock a shop in one tap.
+
 ## v0.2.35
 
 - **Start fresh whenever you need.** A new Reset data page in Settings lets you clear your shop and begin again with a clean slate. Tick the things you want to remove, such as sales and purchases, products and stock, customers and suppliers, reservations, purchase orders, money records or old logs, then confirm once. Your staff accounts, shop details, license, bank accounts, brands, categories, colors and cities always stay, so you never have to set up all over again.

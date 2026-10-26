@@ -28,7 +28,7 @@ export default function ActivatePage() {
     if (status !== "ready" || loading) return;
     if (needsSetup) {
       router.replace("/onboarding");
-    } else if (license?.status === "ACTIVE") {
+    } else if (license?.status === "ACTIVE" || license?.status === "TRIAL") {
       router.replace(user ? "/dashboard" : "/login");
     }
   }, [status, license, needsSetup, loading, user, router]);

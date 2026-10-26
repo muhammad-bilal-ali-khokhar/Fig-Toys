@@ -1,0 +1,279 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif,
+    system-ui, sans-serif;
+
+  --color-brand-50: #faf5f7;
+  --color-brand-100: #f3e5eb;
+  --color-brand-200: #e5c7d5;
+  --color-brand-300: #d39ab5;
+  --color-brand-400: #bb6d91;
+  --color-brand-500: #9b3f68;
+  --color-brand-600: #853456;
+  --color-brand-700: #6f2a48;
+  --color-brand-800: #57223b;
+  --color-brand-900: #421a2e;
+  --color-brand-950: #250c18;
+
+  --color-ink-50: #faf8f3;
+  --color-ink-100: #f3efe7;
+  --color-ink-200: #e6ded1;
+  --color-ink-300: #d3c7b6;
+  --color-ink-400: #aaa08f;
+  --color-ink-500: #7d7467;
+  --color-ink-600: #5c554b;
+  --color-ink-700: #443f37;
+  --color-ink-800: #2d2924;
+  --color-ink-900: #1c1916;
+  --color-ink-950: #0f0d0b;
+
+  --color-teal-50: #f2f8f1;
+  --color-teal-100: #dcebd8;
+  --color-teal-200: #bddbb5;
+  --color-teal-300: #91c58a;
+  --color-teal-400: #65aa63;
+  --color-teal-500: #4a8f4d;
+  --color-teal-600: #3a733e;
+  --color-teal-700: #2f5b33;
+  --color-teal-800: #27482b;
+  --color-teal-900: #203a25;
+
+  --color-gold-50: #fff9e8;
+  --color-gold-100: #fff0bd;
+  --color-gold-200: #ffe08a;
+  --color-gold-300: #fbc95a;
+  --color-gold-400: #f5b832;
+  --color-gold-500: #e9a21a;
+  --color-gold-600: #c68112;
+  --color-gold-700: #9e640f;
+  --color-gold-800: #774a10;
+  --color-gold-900: #57360e;
+
+  --color-success: #3f8f4a;
+  --color-error: #c0392b;
+  --color-warning: #c98a24;
+  --color-info: #3b6ea8;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-900 antialiased;
+  }
+
+  ::selection {
+    @apply bg-brand-200 text-brand-900;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-ink-200/80 bg-white shadow-[0_1px_2px_rgba(28,25,22,0.04),0_12px_32px_-24px_rgba(28,25,22,0.25)];
+  }
+
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost,
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800;
+  }
+
+  .btn-secondary {
+    @apply border border-ink-200 bg-white text-ink-800 hover:border-ink-300 hover:bg-ink-50;
+  }
+
+  .btn-ghost {
+    @apply text-ink-600 hover:bg-ink-100 hover:text-ink-900;
+  }
+
+  .btn-danger {
+    @apply bg-error text-white hover:brightness-95;
+  }
+
+  .btn-sm {
+    @apply rounded-lg px-3 py-1.5 text-xs;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 transition focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:bg-ink-50;
+  }
+
+  .textarea {
+    @apply min-h-[90px] w-full resize-y rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 transition focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:bg-ink-50;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-500;
+  }
+
+  .field-error {
+    @apply mt-1.5 text-xs font-medium text-error;
+  }
+
+  .badge {
+    @apply inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold;
+  }
+
+  .badge-trial {
+    @apply border-gold-200 bg-gold-50 text-gold-800;
+  }
+
+  .badge-active {
+    @apply border-teal-200 bg-teal-50 text-teal-800;
+  }
+
+  .badge-expired {
+    @apply border-red-200 bg-red-50 text-red-800;
+  }
+
+  .badge-blocked {
+    @apply border-ink-300 bg-ink-100 text-ink-700;
+  }
+
+  .table-wrap {
+    @apply w-full overflow-x-auto;
+  }
+
+  .table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+
+  .table thead th {
+    @apply whitespace-nowrap border-b border-ink-200 bg-ink-50/70 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-ink-500;
+  }
+
+  .table tbody td {
+    @apply border-b border-ink-100 px-4 py-3.5 align-middle;
+  }
+
+  .table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .table tbody tr {
+    @apply transition hover:bg-brand-50/40;
+  }
+
+  .table-link {
+    @apply text-sm font-semibold text-ink-900 hover:text-brand-700;
+  }
+
+  .stat-card {
+    @apply flex flex-col gap-2 rounded-2xl border border-ink-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(28,25,22,0.04),0_12px_32px_-24px_rgba(28,25,22,0.25)];
+  }
+
+  .stat-label {
+    @apply text-xs font-semibold uppercase tracking-wide text-ink-500;
+  }
+
+  .stat-value {
+    @apply text-2xl font-semibold tracking-tight text-ink-900;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-brand-100/80 transition hover:bg-white/10 hover:text-white;
+  }
+
+  .sidebar-link-active {
+    @apply bg-white/15 text-white shadow-sm;
+  }
+
+  .progress-track {
+    @apply h-2 w-full overflow-hidden rounded-full bg-ink-100;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full bg-brand-500 transition-all duration-500;
+  }
+
+  .dialog-backdrop {
+    @apply fixed inset-0 z-[200] flex items-center justify-center bg-ink-950/40 p-4 backdrop-blur-sm;
+  }
+
+  .dialog-panel {
+    @apply max-h-[92vh] w-full overflow-y-auto rounded-2xl border border-ink-200 bg-white p-6 shadow-2xl;
+    animation: dialog-in 0.2s ease-out both;
+  }
+
+  .section-title {
+    @apply text-sm font-semibold text-ink-900;
+  }
+
+  .muted {
+    @apply text-sm text-ink-500;
+  }
+
+  .link {
+    @apply font-semibold text-brand-700 underline-offset-4 hover:underline;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-lg border border-ink-200 bg-ink-50 px-2 py-1 font-mono text-xs text-ink-700;
+  }
+
+  .divider {
+    @apply my-5 h-px w-full bg-ink-100;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
+
+.animate-dialog-in {
+  animation: dialog-in 0.2s ease-out both;
+}
+
+.animate-toast-in {
+  animation: toast-in 0.25s ease-out both;
+}

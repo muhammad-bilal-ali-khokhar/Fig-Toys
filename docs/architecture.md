@@ -96,6 +96,8 @@ fig-mobile-pos/
 | `GET/POST /api/payment/collect` | `endpoints/payment/` | Credit collections |
 | `GET/POST /api/bank-account` | `endpoints/bank-account/` | Shop bank accounts |
 | `GET/POST /api/print-setting` | `endpoints/print-setting/` | Per-document print format settings |
+| `GET /api/license/status` + `POST /api/license/activate` `/redeem` `/payment` | `endpoints/license/` | Trial, activation, paywall and payment history |
+| `POST /api/license/safepay/checkout` + `GET /safepay/status` `/callback` `/cancel` | `endpoints/license/` | Safepay sandbox checkout and server-side payment verification |
 | `GET /api/report/*` | `endpoints/report/` | Sales, profit, stock valuation, statements, payments-by-account, Z-report |
 | `GET /api/dashboard` + widgets | `endpoints/dashboard/` | Analytics data + saved layouts |
 | `GET/POST /api/inventory` | `endpoints/inventory/` | Inventory lists + filters (NEW/USED, status) |

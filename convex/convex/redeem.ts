@@ -49,6 +49,7 @@ export const recordActivation = internalMutation({
       customerName: row.customerName,
       edition: row.edition,
       maxDevices: row.maxDevices,
+      pricePkr: row.pricePkr,
       expiresAt: row.expiresAt,
       deviceId,
     };
@@ -77,6 +78,7 @@ export const redeem = httpAction(async (ctx, request) => {
     customerName: string;
     edition: string;
     maxDevices: number;
+    pricePkr?: number;
     expiresAt?: number;
     deviceId: string;
   };
@@ -96,6 +98,7 @@ export const redeem = httpAction(async (ctx, request) => {
       exp: result.expiresAt !== undefined ? Math.floor(result.expiresAt / 1000) : null,
       maxDevices: result.maxDevices,
       iat: Math.floor(Date.now() / 1000),
+      pricePkr: result.pricePkr,
     });
   } catch (e) {
     return json({ message: e instanceof Error ? e.message : "Could not sign the license key." }, 500);
@@ -108,6 +111,7 @@ export const redeem = httpAction(async (ctx, request) => {
       edition: result.edition,
       expiresAt: result.expiresAt !== undefined ? new Date(result.expiresAt).toISOString() : null,
       maxDevices: result.maxDevices,
+      pricePkr: result.pricePkr ?? null,
       deviceId: result.deviceId,
     },
     200,

@@ -10,6 +10,7 @@ export type LicensePayload = {
   exp: number | null;
   maxDevices: number;
   iat: number;
+  pricePkr?: number;
 };
 
 export type LicenseVerification =
@@ -39,6 +40,10 @@ function decodePayload(payloadB64: string): LicensePayload | null {
       exp: typeof raw.exp === "number" ? raw.exp : null,
       maxDevices: typeof raw.maxDevices === "number" && raw.maxDevices > 0 ? raw.maxDevices : 1,
       iat: typeof raw.iat === "number" ? raw.iat : 0,
+      pricePkr:
+        typeof raw.pricePkr === "number" && raw.pricePkr > 0
+          ? Math.round(raw.pricePkr)
+          : undefined,
     };
   } catch {
     return null;

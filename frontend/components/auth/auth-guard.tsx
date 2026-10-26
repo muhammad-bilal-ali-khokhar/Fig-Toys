@@ -24,7 +24,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       user &&
       licenseLoading === false &&
       license &&
-      license.status !== "ACTIVE"
+      license.status === "UNLICENSED"
     ) {
       router.replace("/activate");
     }

@@ -23,7 +23,7 @@ export function requireLicense(): RequestHandler {
       const license = await prisma.license.findUnique({ where: { id: LICENSE_ID } });
       const active =
         license &&
-        license.status === "ACTIVE" &&
+        (license.status === "ACTIVE" || license.status === "TRIAL") &&
         (!license.expiresAt || license.expiresAt.getTime() >= Date.now());
 
       if (!active) {

@@ -45,7 +45,8 @@ export default function OnboardingPage() {
     pasteClipboard,
   } = useOnboarding({ refetchLicense: refetch });
 
-  const licenseActive = license?.status === "ACTIVE";
+  const licenseActive =
+    license?.status === "ACTIVE" || license?.status === "TRIAL";
 
   useEffect(() => {
     if (status === "ready" && user) router.replace("/dashboard");

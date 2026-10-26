@@ -856,7 +856,65 @@ function ensureBackendData() {
   }
 }
 
+function getSafepayConfig() {
+  const keys = [
+    "SAFEPAY_ENV",
+    "SAFEPAY_API_KEY",
+    "SAFEPAY_SECRET_KEY",
+    "SAFEPAY_REDIRECT_URL",
+    "SAFEPAY_CANCEL_URL",
+    "SAFEPAY_WEBHOOK_SECRET",
+    "LICENSE_PAYMENT_MODE",
+    "LICENSE_JAZZCASH_NAME",
+    "LICENSE_JAZZCASH_NUMBER",
+    "LICENSE_JAZZCASH_QR_URL",
+    "LICENSE_PERIOD_DAYS",
+  ];
+  const config = {};
+
+  try {
+    const file = path.join(userDataDir(), "safepay.json");
+    if (fs.existsSync(file)) {
+      const data = JSON.parse(fs.readFileSync(file, "utf8"));
+      for (const key of keys) {
+        if (typeof data[key] === "string" && data[key].trim()) {
+          config[key] = data[key].trim();
+        }
+      }
+      return config;
+    }
+  } catch {}
+
+  try {
+    const file = path.join(process.resourcesPath, "safepay.json");
+    if (fs.existsSync(file)) {
+      const data = JSON.parse(fs.readFileSync(file, "utf8"));
+      for (const key of keys) {
+        if (typeof data[key] === "string" && data[key].trim()) {
+          config[key] = data[key].trim();
+        }
+      }
+      return config;
+    }
+  } catch {}
+
+  try {
+    const file = path.join(__dirname, "..", "backend", ".env");
+    if (fs.existsSync(file)) {
+      for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+        const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+        if (!match || !keys.includes(match[1])) continue;
+        const value = match[2].trim().replace(/^["']|["']$/g, "");
+        if (value) config[match[1]] = value;
+      }
+    }
+  } catch {}
+
+  return config;
+}
+
 function spawnBackend() {
+  const safepayEnv = getSafepayConfig();
   const baseEnv = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: "1",
@@ -876,6 +934,7 @@ function spawnBackend() {
     LICENSE_PUBLIC_KEY: getLicensePublicKey(),
     LICENSE_REDEEM_URL: getRedeemUrl(),
     FIG_DESKTOP: "1",
+    ...safepayEnv,
   };
 
   // Prefer the compiled backend bundle; fall back to tsx for development.

@@ -13,6 +13,7 @@ export default defineSchema({
     customerName: v.string(),
     edition: v.string(),
     maxDevices: v.number(),
+    pricePkr: v.optional(v.number()),
     expiresAt: v.optional(v.number()),
     createdAt: v.number(),
     redeemedAt: v.optional(v.number()),

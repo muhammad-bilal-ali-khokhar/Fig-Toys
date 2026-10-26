@@ -22,6 +22,13 @@ export function useLicenseStatus() {
 
   useEffect(() => {
     void refetch();
+    const timer = window.setInterval(() => void refetch(), 30_000);
+    const onFocus = () => void refetch();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [refetch]);
 
   return { license, loading, refetch };

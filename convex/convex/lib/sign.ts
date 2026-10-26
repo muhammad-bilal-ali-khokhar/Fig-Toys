@@ -9,6 +9,7 @@ export type TokenPayload = {
   exp: number | null;
   maxDevices: number;
   iat: number;
+  pricePkr?: number;
 };
 
 function b64url(bytes: Uint8Array): string {

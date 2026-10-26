@@ -34,6 +34,7 @@ export const createCode = internalMutation({
     customerName: v.string(),
     edition: v.string(),
     maxDevices: v.number(),
+    pricePkr: v.optional(v.number()),
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -44,6 +45,7 @@ export const createCode = internalMutation({
       customerName: args.customerName,
       edition: args.edition,
       maxDevices: args.maxDevices,
+      pricePkr: args.pricePkr,
       expiresAt: args.expiresAt,
       createdAt: Date.now(),
     });
@@ -56,7 +58,7 @@ export const mintActivationCode = httpAction(async (ctx, request) => {
     return json({ message: "Unauthorized." }, 401);
   }
 
-  let body: { customerName?: unknown; edition?: unknown; maxDevices?: unknown; expiresAt?: unknown } | null = null;
+  let body: { customerName?: unknown; edition?: unknown; maxDevices?: unknown; pricePkr?: unknown; expiresAt?: unknown } | null = null;
   try {
     body = await request.json();
   } catch {
@@ -66,6 +68,10 @@ export const mintActivationCode = httpAction(async (ctx, request) => {
   const customerName = typeof body?.customerName === "string" ? body.customerName.trim() : "";
   const edition = typeof body?.edition === "string" ? body.edition.trim() : "PRO";
   const maxDevices = typeof body?.maxDevices === "number" ? body.maxDevices : 1;
+  const pricePkr =
+    typeof body?.pricePkr === "number" && body.pricePkr > 0
+      ? Math.round(body.pricePkr)
+      : undefined;
   const expiresAt = typeof body?.expiresAt === "number" ? body.expiresAt : undefined;
 
   if (!customerName) {
@@ -76,6 +82,7 @@ export const mintActivationCode = httpAction(async (ctx, request) => {
     customerName,
     edition,
     maxDevices,
+    pricePkr,
     expiresAt,
   });
 
