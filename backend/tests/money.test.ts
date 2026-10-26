@@ -95,6 +95,7 @@ describe("card settlement guard", () => {
     await resetDb();
     await seedUser("settle_admin", "ADMIN");
     await seedCatalog();
+    await prisma.cashDrawer.create({ data: { name: "Main", isDefault: true } });
     cookie = (await login(app, "settle_admin")).cookie;
   });
 
