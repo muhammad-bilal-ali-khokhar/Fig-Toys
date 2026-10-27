@@ -23,6 +23,8 @@ import {
   stackExpiry,
 } from "./lib/data";
 import { createAdminNotification } from "./lib/notify";
+import { LICENSE_PREFIX, verifyLicenseToken } from "./lib/sign";
+import { linkLegacyClient } from "./lib/legacy";
 
 async function snapshot(ctx: any) {
   const clients = (await ctx.db.query("clients").collect())
@@ -989,6 +991,17 @@ export const installStatus = internalMutation({
         .withIndex("by_code", (q) => q.eq("code", code.trim()))
         .unique();
       if (row?.clientId) client = await findClientById(ctx, row.clientId);
+    }
+    if (!client && code && deviceId && code.startsWith(LICENSE_PREFIX)) {
+      const payload = await verifyLicenseToken(code);
+      if (payload) {
+        const linked = await linkLegacyClient(ctx, {
+          deviceId,
+          payload,
+          appVersion,
+        });
+        client = await findClientById(ctx, linked.clientId);
+      }
     }
     if (!client) {
       return { status: "unlicensed" as const, serverTime: now };

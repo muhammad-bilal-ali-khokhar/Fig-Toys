@@ -17,6 +17,7 @@ import {
 } from "./lib/data";
 import { verifyLicenseToken } from "./lib/sign";
 import { createAdminNotification } from "./lib/notify";
+import { linkLegacyClient } from "./lib/legacy";
 
 function clientStatus(client: any, now: number) {
   if (client.blocked) return "blocked" as const;
@@ -261,59 +262,21 @@ export const claimInstallation = internalMutation({
     localPricePkr: v.optional(v.number()),
   },
   handler: async (ctx, input) => {
-    const existing = await findClientByDevice(ctx, input.deviceId);
-    if (existing) {
-      return { clientId: existing.id, created: false };
-    }
-    const pricing = await getPricing(ctx);
-    const now = Date.now();
-    const id = newId("c");
-    const tokenExpiry =
-      input.exp === null ? null : new Date(input.exp * 1000).getTime();
-    const localExpiry =
-      typeof input.localExpiresAt === "number" ? input.localExpiresAt : 0;
-    const name = input.localCustomerName?.trim() || input.sub;
-    await ctx.db.insert("clients", {
-      id,
-      shopName: name,
-      ownerName: name,
-      email: "",
-      phone: "",
-      city: "",
+    return await linkLegacyClient(ctx, {
       deviceId: input.deviceId,
-      registeredAt: now,
-      lastSeenAt: now,
-      lastVersion: input.appVersion,
-      plan: "monthly",
-      monthlyPricePkr:
-        input.localPricePkr ??
-        input.pricePkr ??
-        pricing.defaultMonthlyPricePkr,
-      durationDays: pricing.durationDays,
-      trialEndsAt: now,
-      paidUntil:
-        tokenExpiry === null
-          ? undefined
-          : Math.max(tokenExpiry, localExpiry),
-      lifetime: tokenExpiry === null,
-      blocked: false,
-      notes: "Migrated from an existing Fig POS license.",
-      source: "pos",
+      payload: {
+        sub: input.sub,
+        iss: "MYKO",
+        exp: input.exp,
+        maxDevices: input.maxDevices,
+        iat: 0,
+        pricePkr: input.pricePkr,
+      },
+      appVersion: input.appVersion,
+      localExpiresAt: input.localExpiresAt,
+      localCustomerName: input.localCustomerName,
+      localPricePkr: input.localPricePkr,
     });
-    await logActivity(ctx, {
-      actor: input.sub,
-      clientId: id,
-      kind: "register",
-      message: `Linked existing installation ${input.sub}.`,
-    });
-    await createAdminNotification(ctx, {
-      type: "client",
-      title: "Existing shop linked",
-      body: `${name} is now linked to the owner console.`,
-      url: `/clients/${id}`,
-      clientId: id,
-    });
-    return { clientId: id, created: true };
   },
 });
 
