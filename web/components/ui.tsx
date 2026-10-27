@@ -3,7 +3,9 @@
 import {
   useEffect,
   type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
   type ReactNode,
+  type TextareaHTMLAttributes,
 } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
@@ -104,6 +106,20 @@ export function Field({
       {error ? <p className="field-error">{error}</p> : null}
     </div>
   );
+}
+
+export function Input({
+  className = "",
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`input ${className}`.trim()} {...props} />;
+}
+
+export function Textarea({
+  className = "",
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={`textarea ${className}`.trim()} {...props} />;
 }
 
 export function Modal({
@@ -224,19 +240,10 @@ export function InfoRow({
 
 export function LogoMark({ className = "h-9 w-9" }: { className?: string }) {
   return (
-    <div
-      className={`flex items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm ${className}`}
-    >
-      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
-        <path
-          d="M7 17c0-5.5 3-10 10-10 0 7-4.5 10-10 10Z"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinejoin="round"
-        />
-        <path d="M7 17c2.5-1.5 5-4 6.5-7.5" stroke="currentColor" strokeWidth="1.8" />
-        <path d="M7 17c0-2.2.6-4.3 1.8-6.1" stroke="currentColor" strokeWidth="1.8" />
-      </svg>
-    </div>
+    <img
+      src="/icon.png"
+      alt=""
+      className={`shrink-0 rounded-xl object-contain ${className}`}
+    />
   );
 }

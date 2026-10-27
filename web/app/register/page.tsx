@@ -59,11 +59,11 @@ export default function RegisterPage() {
     return Object.keys(next).length === 0;
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!validate()) return;
     setBusy(true);
-    const result = registerClient({
+    const result = await registerClient({
       ...form,
       phone: normalizePhone(form.phone),
     });

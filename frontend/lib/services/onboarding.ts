@@ -26,9 +26,13 @@ export type LicenseStatus = {
   periodDays: number;
   jazzcashName: string;
   jazzcashNumber: string;
+  easypaisaNumber: string;
+  bankName: string;
+  accountNumber: string;
   qrUrl: string;
   whatsapp: string;
   paymentMode: "sandbox" | "live" | "manual";
+  portalUrl: string | null;
   payments: LicensePayment[];
 };
 
@@ -60,8 +64,10 @@ export function getSetupStatus() {
   return apiRequest<{ needsSetup: boolean }>("/setup/status");
 }
 
-export function getLicenseStatus() {
-  return apiRequest<LicenseStatus>("/license/status");
+export function getLicenseStatus(force = false) {
+  return apiRequest<LicenseStatus>(
+    `/license/status${force ? "?force=1" : ""}`,
+  );
 }
 
 export function redeemLicense(code: string) {
@@ -69,6 +75,39 @@ export function redeemLicense(code: string) {
     method: "POST",
     body: { code },
   });
+}
+
+export type LicensePaymentStatus = {
+  status: "PENDING" | "PAID" | "REJECTED" | string;
+  id: string;
+  amountPkr: number;
+  method: string;
+  txnId: string;
+  note: string | null;
+  rejectionReason?: string | null;
+};
+
+export type LicensePaymentResult = {
+  payment: LicensePaymentStatus;
+};
+
+export function submitLicensePayment(input: {
+  amountPkr: number;
+  method: "jazzcash" | "easypaisa" | "bank";
+  txnId: string;
+  note?: string;
+}) {
+  return apiRequest<LicensePaymentResult>("/license/payment", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function getLicensePaymentStatus() {
+  return apiRequest<{
+    payment: LicensePaymentStatus | null;
+    licenseStatus: string | null;
+  }>("/license/payment-status");
 }
 
 export function activateLicense(key: string) {

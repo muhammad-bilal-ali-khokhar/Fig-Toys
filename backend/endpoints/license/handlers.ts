@@ -7,6 +7,7 @@ import {
   getAdminLicenseSnapshot,
   getAdminPaymentConfig,
   getJazzcashRequest,
+  getLicensePaymentStatus,
   getLicenseStatus,
   redeemLicense,
   rejectJazzcashRequest,
@@ -18,7 +19,7 @@ import {
   submitLicensePayment,
   updateAdminPaymentConfig,
 } from "./service";
-import type { ActivateInput, PaymentInput, RedeemInput } from "./schemas";
+import type { ActivateInput, PaymentRequestInput, RedeemInput } from "./schemas";
 import {
   getPushStatus,
   sendAdminPush,
@@ -26,8 +27,9 @@ import {
   unsubscribeAdminPush,
 } from "./push";
 
-export async function statusHandler(_req: Request, res: Response) {
-  res.json({ data: await getLicenseStatus() });
+export async function statusHandler(req: Request, res: Response) {
+  const force = String(req.query.force ?? "") === "1";
+  res.json({ data: await getLicenseStatus(force) });
 }
 
 export async function activateHandler(req: Request, res: Response) {
@@ -39,7 +41,11 @@ export async function redeemHandler(req: Request, res: Response) {
 }
 
 export async function paymentHandler(req: Request, res: Response) {
-  res.status(200).json({ data: await submitLicensePayment(req.body as PaymentInput) });
+  res.status(200).json({ data: await submitLicensePayment(req.body as PaymentRequestInput) });
+}
+
+export async function paymentStatusHandler(_req: Request, res: Response) {
+  res.json({ data: await getLicensePaymentStatus() });
 }
 
 export async function adminSnapshotHandler(_req: Request, res: Response) {

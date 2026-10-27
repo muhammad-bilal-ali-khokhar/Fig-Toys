@@ -6,22 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import {
-  DEMO_ADMIN,
-  STORAGE,
-  TEXT,
-} from "./constants";
-import { addDays } from "./format";
-import { generateLicenseKey, stackExpiry } from "./license";
-import { liveDatabase, type LiveSnapshot } from "./live";
-import { newId, seedDatabase } from "./seed";
+import { STORAGE } from "./constants";
 import type {
-  ActivityEvent,
-  ActivityKind,
   Client,
   ClientInput,
   CreateClientInput,
@@ -53,107 +42,164 @@ type StoreValue = {
   authReady: boolean;
   currentClientId: string | null;
   currentClient: Client | null;
-  signIn: (email: string, password: string) => ActionResult<null>;
+  signIn: (email: string, password: string) => Promise<ActionResult<null>>;
   signOut: () => void;
-  registerClient: (input: ClientInput) => ActionResult<Client>;
-  createClient: (input: CreateClientInput) => ActionResult<Client>;
+  registerClient: (input: ClientInput) => Promise<ActionResult<Client>>;
+  createClient: (input: CreateClientInput) => Promise<ActionResult<Client>>;
   setCurrentClient: (clientId: string | null) => void;
   setClientPlan: (
     clientId: string,
     monthlyPricePkr: number,
     durationDays: number,
-  ) => void;
-  setClientBlocked: (clientId: string, blocked: boolean) => void;
-  setClientTrial: (clientId: string, minutes: number) => void;
-  setClientAccess: (clientId: string, minutes: number) => void;
-  setClientFree: (clientId: string) => void;
-  submitPayment: (input: SubmitPaymentInput) => ActionResult<PaymentRequest>;
-  approvePayment: (paymentId: string) => ActionResult<LicenseKey>;
-  rejectPayment: (paymentId: string, reason: string) => ActionResult<null>;
-  issueKey: (clientId: string, durationDays: number) => ActionResult<LicenseKey>;
-  revokeKey: (keyId: string) => void;
-  updatePricing: (pricing: Pricing) => void;
-  updateAdmin: (name: string, email: string) => void;
-  expireClient: (clientId: string) => void;
-  resetDemo: () => void;
+  ) => Promise<void>;
+  setClientBlocked: (clientId: string, blocked: boolean) => Promise<void>;
+  setClientTrial: (clientId: string, minutes: number) => Promise<void>;
+  setClientAccess: (clientId: string, minutes: number) => Promise<void>;
+  setClientFree: (clientId: string) => Promise<void>;
+  submitPayment: (
+    input: SubmitPaymentInput,
+  ) => Promise<ActionResult<PaymentRequest>>;
+  approvePayment: (paymentId: string) => Promise<ActionResult<LicenseKey>>;
+  rejectPayment: (
+    paymentId: string,
+    reason: string,
+  ) => Promise<ActionResult<null>>;
+  issueKey: (
+    clientId: string,
+    durationDays: number,
+  ) => Promise<ActionResult<LicenseKey>>;
+  mintCode: (input: {
+    customerName: string;
+    maxDevices: number;
+    pricePkr: number;
+    expiresAt?: number;
+  }) => Promise<
+    ActionResult<{
+      code: string;
+      customerName: string;
+      maxDevices: number;
+      pricePkr: number;
+      expiresAt: number | null;
+    }>
+  >;
+  revokeKey: (keyId: string) => Promise<void>;
+  reviveKey: (keyId: string) => Promise<void>;
+  revokeDevice: (activationId: string) => Promise<void>;
+  resolveCrashReport: (reportId: string) => Promise<void>;
+  updatePricing: (pricing: Pricing) => Promise<void>;
+  updateAdmin: (name: string, email: string) => Promise<void>;
+  expireClient: (clientId: string) => Promise<void>;
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
 
-function cloneSeed(): WebDatabase {
-  return seedDatabase();
-}
+const DEFAULT_PRICING: Pricing = {
+  defaultMonthlyPricePkr: 5000,
+  durationDays: 30,
+  trialDays: 14,
+  jazzcash: "",
+  easypaisa: "",
+  bankName: "",
+  accountTitle: "",
+  accountNumber: "",
+  qrUrl: "",
+  supportPhone: "",
+  supportEmail: "",
+};
 
-function readDatabase(): WebDatabase | null {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(STORAGE.database);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as WebDatabase;
-    if (!parsed || !Array.isArray(parsed.clients) || !parsed.pricing) return null;
-    return parsed;
-  } catch {
-    return null;
+const EMPTY_DB: WebDatabase = {
+  clients: [],
+  payments: [],
+  keys: [],
+  crashReports: [],
+  pricing: DEFAULT_PRICING,
+  activity: [],
+  admin: { name: "Fig Admin", email: "" },
+};
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(
+      data && typeof data.error === "string"
+        ? data.error
+        : "The request failed. Try again.",
+    );
   }
-}
-
-function persistDatabase(db: WebDatabase) {
-  window.localStorage.setItem(STORAGE.database, JSON.stringify(db));
-}
-
-function activityEvent(
-  db: WebDatabase,
-  kind: ActivityKind,
-  message: string,
-  clientId: string | null,
-  actor: string,
-  at: string,
-): ActivityEvent {
-  return {
-    id: newId("a"),
-    at,
-    actor,
-    clientId,
-    kind,
-    message,
-  };
-}
-
-function withActivity(
-  db: WebDatabase,
-  event: ActivityEvent,
-): ActivityEvent[] {
-  return [event, ...db.activity].slice(0, 80);
-}
-
-function pendingFor(db: WebDatabase, clientId: string): PaymentRequest | undefined {
-  return db.payments.find(
-    (payment) => payment.clientId === clientId && payment.status === "pending",
-  );
+  return data as T;
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [db, setDb] = useState<WebDatabase>(() => cloneSeed());
-  const [live, setLive] = useState(false);
+  const [db, setDb] = useState<WebDatabase>(EMPTY_DB);
   const [ready, setReady] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [adminSignedIn, setAdminSignedIn] = useState(false);
-  const [currentClientId, setCurrentClientId] = useState<string | null>(null);
+  const [currentClientId, setCurrentClientIdState] = useState<string | null>(
+    null,
+  );
   const [now, setNow] = useState(() => Date.now());
-  const dbRef = useRef(db);
+
+  const refresh = useCallback(async () => {
+    const data = await request<WebDatabase>("/api/admin/state");
+    setDb(data);
+    return data;
+  }, []);
+
+  const refreshPortal = useCallback(async (clientId?: string) => {
+    const id =
+      clientId ??
+      (typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("client") ??
+          window.localStorage.getItem(STORAGE.currentClient)
+        : null);
+    const data = await request<WebDatabase>(
+      `/api/portal/state${id ? `?client=${encodeURIComponent(id)}` : ""}`,
+    );
+    setDb(data);
+    return data;
+  }, []);
 
   useEffect(() => {
-    const loaded = readDatabase();
-    const next = loaded ?? cloneSeed();
-    dbRef.current = next;
-    setDb(next);
-    if (!loaded) persistDatabase(next);
-    const session = window.localStorage.getItem(STORAGE.adminSession);
-    setAdminSignedIn(Boolean(session));
-    setCurrentClientId(window.localStorage.getItem(STORAGE.currentClient));
-    setReady(true);
-    setAuthReady(true);
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        const session = await request<{ signedIn: boolean }>(
+          "/api/admin/session",
+        );
+        if (cancelled) return;
+        setAdminSignedIn(session.signedIn);
+        if (session.signedIn) await refresh();
+        else {
+          try {
+            await refreshPortal();
+          } catch {
+            if (!cancelled) setDb(EMPTY_DB);
+          }
+        }
+      } catch {
+        if (!cancelled) setDb(EMPTY_DB);
+      } finally {
+        if (!cancelled) {
+          setCurrentClientIdState(
+            window.localStorage.getItem(STORAGE.currentClient),
+          );
+          setReady(true);
+          setAuthReady(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh, refreshPortal]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -161,702 +207,320 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    function onStorage(event: StorageEvent) {
-      if (event.key === STORAGE.database && event.newValue) {
-        try {
-          const next = JSON.parse(event.newValue) as WebDatabase;
-          dbRef.current = next;
-          setDb(next);
-        } catch {
-          return;
-        }
-      }
-      if (event.key === STORAGE.currentClient) {
-        setCurrentClientId(event.newValue);
-      }
-      if (event.key === STORAGE.adminSession) {
-        setAdminSignedIn(Boolean(event.newValue));
-      }
-    }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+    if (!ready) return;
+    const timer = window.setInterval(() => {
+      if (adminSignedIn) void refresh().catch(() => null);
+      else void refreshPortal().catch(() => null);
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [ready, adminSignedIn, refresh, refreshPortal]);
 
-  const commit = useCallback((next: WebDatabase) => {
-    dbRef.current = next;
-    setDb(next);
-    persistDatabase(next);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadLive() {
-      try {
-        const response = await fetch("/api/live", { cache: "no-store" });
-        if (!response.ok) return;
-        const payload = (await response.json()) as {
-          live?: boolean;
-          data?: LiveSnapshot;
-        };
-        if (cancelled || !payload.live || !payload.data) return;
-        setLive(true);
-        commit(liveDatabase(payload.data, dbRef.current));
-      } catch {
-        return;
-      }
-    }
-
-    void loadLive();
-    const timer = window.setInterval(() => void loadLive(), 10_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [commit]);
-
-  const signIn = useCallback(
-    (email: string, password: string): ActionResult<null> => {
-      const current = dbRef.current;
-      const emailMatches =
-        email.trim().toLowerCase() === DEMO_ADMIN.email.toLowerCase() ||
-        email.trim().toLowerCase() === current.admin.email.toLowerCase();
-      if (!emailMatches || password !== DEMO_ADMIN.password) {
-        return { ok: false, error: TEXT.login.error };
-      }
-      window.localStorage.setItem(STORAGE.adminSession, current.admin.email);
-      setAdminSignedIn(true);
-      return { ok: true, data: null };
+  const mutate = useCallback(
+    async (type: string, payload: Record<string, unknown> = {}) => {
+      return request<Record<string, unknown>>("/api/admin/mutate", {
+        method: "POST",
+        body: JSON.stringify({ type, payload }),
+      });
     },
     [],
   );
 
+  const signIn = useCallback(
+    async (email: string, password: string): Promise<ActionResult<null>> => {
+      try {
+        await request("/api/admin/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        });
+        setAdminSignedIn(true);
+        await refresh();
+        return { ok: true, data: null };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not sign in.",
+        };
+      }
+    },
+    [refresh],
+  );
+
   const signOut = useCallback(() => {
-    window.localStorage.removeItem(STORAGE.adminSession);
     setAdminSignedIn(false);
+    setDb(EMPTY_DB);
+    void fetch("/api/admin/logout", { method: "POST" }).catch(() => null);
   }, []);
 
   const setCurrentClient = useCallback((clientId: string | null) => {
-    if (clientId) {
-      window.localStorage.setItem(STORAGE.currentClient, clientId);
-    } else {
-      window.localStorage.removeItem(STORAGE.currentClient);
-    }
-    setCurrentClientId(clientId);
+    setCurrentClientIdState(clientId);
+    if (clientId) window.localStorage.setItem(STORAGE.currentClient, clientId);
+    else window.localStorage.removeItem(STORAGE.currentClient);
   }, []);
 
   const registerClient = useCallback(
-    (input: ClientInput): ActionResult<Client> => {
-      const current = dbRef.current;
-      const duplicate = current.clients.find(
-        (client) => client.email.toLowerCase() === input.email.trim().toLowerCase(),
-      );
-      if (duplicate) {
-        return { ok: false, error: TEXT.register.duplicate };
+    async (input: ClientInput): Promise<ActionResult<Client>> => {
+      try {
+        const result = await request<{ client: Client }>(
+          "/api/portal/register",
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        );
+        const data = await refreshPortal(result.client.id);
+        const client = data.clients.find((item) => item.id === result.client.id) ?? result.client;
+        setCurrentClient(client.id);
+        return { ok: true, data: client };
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof Error ? error.message : "Could not register.",
+        };
       }
-      const timestamp = new Date().toISOString();
-      const trialEndsAt = addDays(Date.now(), current.pricing.trialDays).toISOString();
-      const client: Client = {
-        id: newId("c"),
-        shopName: input.shopName.trim(),
-        ownerName: input.ownerName.trim(),
-        email: input.email.trim(),
-        phone: input.phone.trim(),
-        city: input.city.trim(),
-        deviceId: `DVC-WEB-${generateLicenseKey().slice(4, 12)}`,
-        registeredAt: timestamp,
-        lastSeenAt: timestamp,
-        plan: "trial",
-        monthlyPricePkr: current.pricing.defaultMonthlyPricePkr,
-        durationDays: current.pricing.durationDays,
-        trialEndsAt,
-        paidUntil: null,
-        blocked: false,
-        notes: "",
-      };
-      const next: WebDatabase = {
-        ...current,
-        clients: [client, ...current.clients],
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "register",
-            `${client.shopName} started a ${current.pricing.trialDays} day free trial.`,
-            client.id,
-            client.ownerName,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
-      window.localStorage.setItem(STORAGE.currentClient, client.id);
-      setCurrentClientId(client.id);
-      return { ok: true, data: client };
     },
-    [commit],
+    [refreshPortal, setCurrentClient],
   );
 
   const createClient = useCallback(
-    (input: CreateClientInput): ActionResult<Client> => {
-      const current = dbRef.current;
-      const email = input.email.trim().toLowerCase();
-      const username = input.username.trim().toUpperCase();
-      if (current.clients.some((client) => client.email.toLowerCase() === email)) {
-        return { ok: false, error: TEXT.register.duplicate };
+    async (input: CreateClientInput): Promise<ActionResult<Client>> => {
+      try {
+        const result = (await mutate("createClient", {
+          ...input,
+        })) as { client: Client };
+        await refresh();
+        return { ok: true, data: result.client };
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof Error ? error.message : "Could not create client.",
+        };
       }
-      if (
-        current.clients.some(
-          (client) => client.username?.toUpperCase() === username,
-        )
-      ) {
-        return { ok: false, error: TEXT.clients.usernameTaken };
-      }
-      const minutes =
-        Number.isFinite(input.trialMinutes) && input.trialMinutes > 0
-          ? Math.round(input.trialMinutes)
-          : current.pricing.trialDays * 24 * 60;
-      const timestamp = new Date().toISOString();
-      const trialEndsAt = new Date(
-        Date.now() + minutes * 60 * 1000,
-      ).toISOString();
-      const client: Client = {
-        id: newId("c"),
-        shopName: input.shopName.trim(),
-        ownerName: input.ownerName.trim(),
-        email: input.email.trim(),
-        phone: input.phone.trim(),
-        city: input.city.trim(),
-        username,
-        password: input.password,
-        source: "admin",
-        deviceId: `DVC-WEB-${generateLicenseKey().slice(4, 12)}`,
-        registeredAt: timestamp,
-        lastSeenAt: timestamp,
-        plan: "trial",
-        monthlyPricePkr: current.pricing.defaultMonthlyPricePkr,
-        durationDays: current.pricing.durationDays,
-        trialEndsAt,
-        paidUntil: null,
-        blocked: false,
-        notes: "Added from the owner console.",
-      };
-      const next: WebDatabase = {
-        ...current,
-        clients: [client, ...current.clients],
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "register",
-            `${client.shopName} was added by ${current.admin.name} with a ${minutes} minute trial.`,
-            client.id,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
-      return { ok: true, data: client };
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const setClientPlan = useCallback(
-    (clientId: string, monthlyPricePkr: number, durationDays: number) => {
-      const current = dbRef.current;
-      const client = current.clients.find((item) => item.id === clientId);
-      if (!client) return;
-      const timestamp = new Date().toISOString();
-      const next: WebDatabase = {
-        ...current,
-        clients: current.clients.map((item) =>
-          item.id === clientId
-            ? {
-                ...item,
-                monthlyPricePkr,
-                durationDays,
-              }
-            : item,
-        ),
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "plan",
-            `${client.shopName} updated to Rs ${monthlyPricePkr.toLocaleString(
-              "en-PK",
-            )} per ${durationDays} days.`,
-            clientId,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
+    async (clientId: string, monthlyPricePkr: number, durationDays: number) => {
+      await mutate("setClientPlan", { id: clientId, monthlyPricePkr, durationDays });
+      await refresh();
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const setClientBlocked = useCallback(
-    (clientId: string, blocked: boolean) => {
-      const current = dbRef.current;
-      const client = current.clients.find((item) => item.id === clientId);
-      if (!client) return;
-      const timestamp = new Date().toISOString();
-      const next: WebDatabase = {
-        ...current,
-        clients: current.clients.map((item) =>
-          item.id === clientId ? { ...item, blocked } : item,
-        ),
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            blocked ? "block" : "unblock",
-            `${client.shopName} was ${blocked ? "blocked" : "unblocked"}.`,
-            clientId,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
+    async (clientId: string, blocked: boolean) => {
+      await mutate("setClientBlocked", { id: clientId, blocked });
+      await refresh();
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const setClientTrial = useCallback(
-    (clientId: string, minutes: number) => {
-      const current = dbRef.current;
-      const client = current.clients.find((item) => item.id === clientId);
-      if (!client) return;
-      const timestamp = new Date().toISOString();
-      const trialEndsAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-      const next: WebDatabase = {
-        ...current,
-        clients: current.clients.map((item) =>
-          item.id === clientId
-            ? {
-                ...item,
-                plan: "trial",
-                trialEndsAt,
-                paidUntil: null,
-                lifetime: false,
-                blocked: false,
-              }
-            : item,
-        ),
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "register",
-            `${client.shopName} started a ${minutes === 1 ? "1 minute" : `${minutes} minute`} test trial.`,
-            clientId,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
+    async (clientId: string, minutes: number) => {
+      await mutate("setClientTrial", { id: clientId, minutes });
+      await refresh();
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const setClientAccess = useCallback(
-    (clientId: string, minutes: number) => {
-      const current = dbRef.current;
-      const client = current.clients.find((item) => item.id === clientId);
-      if (!client) return;
-      const timestamp = new Date().toISOString();
-      const paidUntil = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-      const next: WebDatabase = {
-        ...current,
-        clients: current.clients.map((item) =>
-          item.id === clientId
-            ? {
-                ...item,
-                plan: "monthly",
-                paidUntil,
-                lifetime: false,
-                blocked: false,
-              }
-            : item,
-        ),
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "plan",
-            `${client.shopName} access was set to ${minutes === 1 ? "1 minute" : `${minutes} minutes`}.`,
-            clientId,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
+    async (clientId: string, minutes: number) => {
+      await mutate("setClientAccess", { id: clientId, minutes });
+      await refresh();
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const setClientFree = useCallback(
-    (clientId: string) => {
-      const current = dbRef.current;
-      const client = current.clients.find((item) => item.id === clientId);
-      if (!client) return;
-      const timestamp = new Date().toISOString();
-      const next: WebDatabase = {
-        ...current,
-        clients: current.clients.map((item) =>
-          item.id === clientId
-            ? {
-                ...item,
-                plan: "monthly",
-                paidUntil: null,
-                lifetime: true,
-                blocked: false,
-              }
-            : item,
-        ),
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "plan",
-            `${client.shopName} was set as a Free User. No expiry and no monthly payment.`,
-            clientId,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
+    async (clientId: string) => {
+      await mutate("setClientFree", { id: clientId });
+      await refresh();
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const submitPayment = useCallback(
-    (input: SubmitPaymentInput): ActionResult<PaymentRequest> => {
-      const current = dbRef.current;
-      const client = current.clients.find((item) => item.id === input.clientId);
-      if (!client) return { ok: false, error: TEXT.errors.notFound };
-      if (client.blocked) return { ok: false, error: TEXT.paywall.blockedBody };
-      if (pendingFor(current, client.id)) {
-        return { ok: false, error: TEXT.portal.pendingBody };
+    async (
+      input: SubmitPaymentInput,
+    ): Promise<ActionResult<PaymentRequest>> => {
+      try {
+        const result = await request<{ payment: PaymentRequest }>(
+          "/api/portal/payment",
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        );
+        await refreshPortal(input.clientId);
+        return { ok: true, data: result.payment };
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof Error ? error.message : "Could not submit payment.",
+        };
       }
-      const timestamp = new Date().toISOString();
-      const payment: PaymentRequest = {
-        id: newId("p"),
-        clientId: client.id,
-        amountPkr: input.amountPkr,
-        method: input.method,
-        txnId: input.txnId.trim(),
-        note: input.note.trim(),
-        submittedAt: timestamp,
-        status: "pending",
-        reviewedAt: null,
-        reviewedBy: null,
-        rejectionReason: "",
-        licenseKeyId: null,
-      };
-      const methodLabel =
-        input.method === "jazzcash"
-          ? "JazzCash"
-          : input.method === "easypaisa"
-            ? "Easypaisa"
-            : input.method === "bank"
-              ? "bank transfer"
-              : "payment";
-      const next: WebDatabase = {
-        ...current,
-        clients: current.clients.map((item) =>
-          item.id === client.id ? { ...item, lastSeenAt: timestamp } : item,
-        ),
-        payments: [payment, ...current.payments],
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "payment",
-            `${client.shopName} submitted a Rs ${input.amountPkr.toLocaleString(
-              "en-PK",
-            )} ${methodLabel} payment.`,
-            client.id,
-            client.ownerName,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
-      return { ok: true, data: payment };
     },
-    [commit],
+    [refreshPortal],
   );
 
   const approvePayment = useCallback(
-    (paymentId: string): ActionResult<LicenseKey> => {
-      const current = dbRef.current;
-      const payment = current.payments.find((item) => item.id === paymentId);
-      if (!payment || payment.status !== "pending") {
-        return { ok: false, error: TEXT.errors.generic };
+    async (paymentId: string): Promise<ActionResult<LicenseKey>> => {
+      try {
+        const result = (await mutate("approvePayment", {
+          id: paymentId,
+        })) as { key: LicenseKey };
+        await refresh();
+        return { ok: true, data: result.key };
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof Error ? error.message : "Could not approve payment.",
+        };
       }
-      const client = current.clients.find((item) => item.id === payment.clientId);
-      if (!client) return { ok: false, error: TEXT.errors.notFound };
-      const timestamp = new Date().toISOString();
-      const duration =
-        client.durationDays > 0 ? client.durationDays : current.pricing.durationDays;
-      const expiresAt = stackExpiry(client, duration, Date.now());
-      const license: LicenseKey = {
-        id: newId("k"),
-        clientId: client.id,
-        key: generateLicenseKey(),
-        issuedAt: timestamp,
-        expiresAt,
-        durationDays: duration,
-        status: "active",
-        paymentRequestId: payment.id,
-      };
-      const next: WebDatabase = {
-        ...current,
-        clients: current.clients.map((item) =>
-          item.id === client.id
-            ? {
-                ...item,
-                plan: "monthly",
-                paidUntil: expiresAt,
-                lastSeenAt: timestamp,
-              }
-            : item,
-        ),
-        payments: current.payments.map((item) =>
-          item.id === paymentId
-            ? {
-                ...item,
-                status: "approved",
-                reviewedAt: timestamp,
-                reviewedBy: current.admin.name,
-                licenseKeyId: license.id,
-              }
-            : item,
-        ),
-        keys: [license, ...current.keys],
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "approve",
-            `Approved Rs ${payment.amountPkr.toLocaleString(
-              "en-PK",
-            )} for ${client.shopName}. License extended ${duration} days.`,
-            client.id,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
-      return { ok: true, data: license };
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const rejectPayment = useCallback(
-    (paymentId: string, reason: string): ActionResult<null> => {
-      const current = dbRef.current;
-      const payment = current.payments.find((item) => item.id === paymentId);
-      if (!payment || payment.status !== "pending") {
-        return { ok: false, error: TEXT.errors.generic };
+    async (paymentId: string, reason: string): Promise<ActionResult<null>> => {
+      try {
+        await mutate("rejectPayment", { id: paymentId, reason });
+        await refresh();
+        return { ok: true, data: null };
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof Error ? error.message : "Could not reject payment.",
+        };
       }
-      const client = current.clients.find((item) => item.id === payment.clientId);
-      const timestamp = new Date().toISOString();
-      const next: WebDatabase = {
-        ...current,
-        payments: current.payments.map((item) =>
-          item.id === paymentId
-            ? {
-                ...item,
-                status: "rejected",
-                reviewedAt: timestamp,
-                reviewedBy: current.admin.name,
-                rejectionReason: reason.trim(),
-              }
-            : item,
-        ),
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "reject",
-            `Rejected ${client?.shopName ?? "a shop"} payment${
-              reason.trim() ? `: ${reason.trim()}` : "."
-            }`,
-            payment.clientId,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
-      return { ok: true, data: null };
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const issueKey = useCallback(
-    (clientId: string, durationDays: number): ActionResult<LicenseKey> => {
-      const current = dbRef.current;
-      const client = current.clients.find((item) => item.id === clientId);
-      if (!client) return { ok: false, error: TEXT.errors.notFound };
-      const timestamp = new Date().toISOString();
-      const expiresAt = stackExpiry(client, durationDays, Date.now());
-      const license: LicenseKey = {
-        id: newId("k"),
-        clientId,
-        key: generateLicenseKey(),
-        issuedAt: timestamp,
-        expiresAt,
-        durationDays,
-        status: "active",
-        paymentRequestId: null,
-      };
-      const next: WebDatabase = {
-        ...current,
-        clients: current.clients.map((item) =>
-          item.id === clientId
-            ? { ...item, plan: "monthly", paidUntil: expiresAt, lastSeenAt: timestamp }
-            : item,
-        ),
-        keys: [license, ...current.keys],
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "key",
-            `Issued a ${durationDays} day key to ${client.shopName}.`,
-            clientId,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
-      return { ok: true, data: license };
+    async (
+      clientId: string,
+      durationDays: number,
+    ): Promise<ActionResult<LicenseKey>> => {
+      try {
+        const result = (await mutate("issueKey", {
+          id: clientId,
+          durationDays,
+        })) as { key: LicenseKey };
+        await refresh();
+        return { ok: true, data: result.key };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "Could not issue key.",
+        };
+      }
     },
-    [commit],
+    [mutate, refresh],
+  );
+
+  const mintCode = useCallback(
+    async (input: {
+      customerName: string;
+      maxDevices: number;
+      pricePkr: number;
+      expiresAt?: number;
+    }): Promise<
+      ActionResult<{
+        code: string;
+        customerName: string;
+        maxDevices: number;
+        pricePkr: number;
+        expiresAt: number | null;
+      }>
+    > => {
+      try {
+        const result = (await mutate("mintCode", input)) as {
+          code: string;
+          key: LicenseKey;
+        };
+        await refresh();
+        return {
+          ok: true,
+          data: {
+            code: result.code,
+            customerName: input.customerName,
+            maxDevices: input.maxDevices,
+            pricePkr: input.pricePkr,
+            expiresAt: input.expiresAt ?? null,
+          },
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof Error ? error.message : "Could not create code.",
+        };
+      }
+    },
+    [mutate, refresh],
   );
 
   const revokeKey = useCallback(
-    (keyId: string) => {
-      const current = dbRef.current;
-      const license = current.keys.find((item) => item.id === keyId);
-      if (!license) return;
-      const client = current.clients.find((item) => item.id === license.clientId);
-      const timestamp = new Date().toISOString();
-      const next: WebDatabase = {
-        ...current,
-        keys: current.keys.map((item) =>
-          item.id === keyId ? { ...item, status: "revoked" } : item,
-        ),
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "revoke",
-            `Revoked key ${license.key} for ${client?.shopName ?? "a shop"}.`,
-            license.clientId,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
+    async (keyId: string) => {
+      await mutate("revokeKey", { id: keyId });
+      await refresh();
     },
-    [commit],
+    [mutate, refresh],
+  );
+
+  const resolveCrashReport = useCallback(
+    async (reportId: string) => {
+      await mutate("resolveCrashReport", { id: reportId });
+      await refresh();
+    },
+    [mutate, refresh],
+  );
+
+  const reviveKey = useCallback(
+    async (keyId: string) => {
+      await mutate("reviveKey", { id: keyId });
+      await refresh();
+    },
+    [mutate, refresh],
+  );
+
+  const revokeDevice = useCallback(
+    async (activationId: string) => {
+      await mutate("revokeDevice", { activationId });
+      await refresh();
+    },
+    [mutate, refresh],
   );
 
   const updatePricing = useCallback(
-    (pricing: Pricing) => {
-      const current = dbRef.current;
-      const timestamp = new Date().toISOString();
-      const next: WebDatabase = {
-        ...current,
-        pricing,
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "pricing",
-            `Pricing updated to Rs ${pricing.defaultMonthlyPricePkr.toLocaleString(
-              "en-PK",
-            )} per ${pricing.durationDays} days.`,
-            null,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
+    async (pricing: Pricing) => {
+      await mutate("savePricing", { pricing });
+      await refresh();
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const updateAdmin = useCallback(
-    (name: string, email: string) => {
-      const current = dbRef.current;
-      const next: WebDatabase = {
-        ...current,
-        admin: { name: name.trim(), email: email.trim() },
-      };
-      commit(next);
+    async (name: string, email: string) => {
+      await mutate("saveAdmin", { name, email });
+      await refresh();
     },
-    [commit],
+    [mutate, refresh],
   );
 
   const expireClient = useCallback(
-    (clientId: string) => {
-      const current = dbRef.current;
-      const client = current.clients.find((item) => item.id === clientId);
-      if (!client) return;
-      const timestamp = new Date().toISOString();
-      const endedAt = new Date(Date.now() - 60 * 1000).toISOString();
-      const next: WebDatabase = {
-        ...current,
-        clients: current.clients.map((item) =>
-          item.id === clientId
-            ? {
-                ...item,
-                trialEndsAt: endedAt,
-                paidUntil: null,
-                blocked: false,
-                plan: "trial",
-              }
-            : item,
-        ),
-        activity: withActivity(
-          current,
-          activityEvent(
-            current,
-            "plan",
-            `Ended access for ${client.shopName} to preview the renewal flow.`,
-            clientId,
-            current.admin.name,
-            timestamp,
-          ),
-        ),
-      };
-      commit(next);
+    async (clientId: string) => {
+      await mutate("expireClient", { id: clientId });
+      await refresh();
     },
-    [commit],
+    [mutate, refresh],
   );
-
-  const resetDemo = useCallback(() => {
-    const next = cloneSeed();
-    commit(next);
-    window.localStorage.removeItem(STORAGE.currentClient);
-    setCurrentClientId(null);
-  }, [commit]);
 
   const currentClient = useMemo(
     () => db.clients.find((client) => client.id === currentClientId) ?? null,
@@ -866,7 +530,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<StoreValue>(
     () => ({
       ready,
-      live,
+      live: true,
       now,
       db,
       adminSignedIn,
@@ -887,15 +551,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       approvePayment,
       rejectPayment,
       issueKey,
+      mintCode,
       revokeKey,
+      reviveKey,
+      revokeDevice,
+      resolveCrashReport,
       updatePricing,
       updateAdmin,
       expireClient,
-      resetDemo,
     }),
     [
       ready,
-      live,
       now,
       db,
       adminSignedIn,
@@ -916,11 +582,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       approvePayment,
       rejectPayment,
       issueKey,
+      mintCode,
       revokeKey,
+      reviveKey,
+      revokeDevice,
+      resolveCrashReport,
       updatePricing,
       updateAdmin,
       expireClient,
-      resetDemo,
     ],
   );
 
@@ -928,9 +597,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 }
 
 export function useStore(): StoreValue {
-  const context = useContext(StoreContext);
-  if (!context) {
+  const value = useContext(StoreContext);
+  if (!value) {
     throw new Error("useStore must be used inside StoreProvider");
   }
-  return context;
+  return value;
 }

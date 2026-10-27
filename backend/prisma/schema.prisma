@@ -592,6 +592,8 @@ model License {
   purchasedAt DateTime?
   lastPaymentAt DateTime?
   paymentRef  String?
+  portalUrl   String?
+  clientId    String?
   payments    LicensePayment[]
 
   @@map("licenses")

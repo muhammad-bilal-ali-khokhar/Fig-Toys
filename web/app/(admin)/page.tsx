@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   Ban,
+  Bug,
   Building2,
   CalendarClock,
   CheckCircle2,
@@ -49,6 +50,7 @@ const activityIcons: Record<ActivityKind, typeof Wallet> = {
   key: KeyRound,
   revoke: Trash2,
   pricing: Tags,
+  crash: Bug,
 };
 
 export default function OverviewPage() {
@@ -125,7 +127,7 @@ export default function OverviewPage() {
             <Link
               key={kpi.label}
               href={kpi.href}
-              className="stat-card group transition hover:-translate-y-0.5 hover:shadow-lg"
+              className="stat-card group"
             >
               <div className="flex items-center justify-between">
                 <span className="stat-label">{kpi.label}</span>

@@ -3,54 +3,28 @@
 import {
   CreditCard,
   PlugZap,
-  RotateCcw,
   Timer,
   UserRound,
 } from "lucide-react";
+import { LogoMark } from "@/components/ui";
+import { APP } from "@/lib/constants";
+import { useStore } from "@/lib/store";
 
 export type AdminSettingsTab =
   | "profile"
   | "pricing"
   | "trials"
-  | "integration"
-  | "data";
+  | "integration";
 
 const tabs: {
   id: AdminSettingsTab;
   label: string;
-  hint: string;
   icon: typeof UserRound;
 }[] = [
-  {
-    id: "profile",
-    label: "Profile",
-    hint: "Your account",
-    icon: UserRound,
-  },
-  {
-    id: "pricing",
-    label: "Pricing & payments",
-    hint: "Price and accounts",
-    icon: CreditCard,
-  },
-  {
-    id: "trials",
-    label: "Trials & access",
-    hint: "Minutes and expiry",
-    icon: Timer,
-  },
-  {
-    id: "integration",
-    label: "Integration",
-    hint: "What is connected",
-    icon: PlugZap,
-  },
-  {
-    id: "data",
-    label: "Data & reset",
-    hint: "Demo storage",
-    icon: RotateCcw,
-  },
+  { id: "profile", label: "Profile", icon: UserRound },
+  { id: "pricing", label: "Pricing & payments", icon: CreditCard },
+  { id: "trials", label: "Trials & access", icon: Timer },
+  { id: "integration", label: "Integration", icon: PlugZap },
 ];
 
 export function AdminSettingsSidebar({
@@ -60,46 +34,45 @@ export function AdminSettingsSidebar({
   active: AdminSettingsTab;
   onChange: (tab: AdminSettingsTab) => void;
 }) {
+  const { db } = useStore();
+
   return (
-    <aside className="shrink-0 lg:w-56">
-      <div className="rounded-2xl border border-ink-200 bg-white p-2 shadow-sm">
-        <p className="px-2 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-ink-400">
-          Settings
-        </p>
-        <div className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const selected = active === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => onChange(tab.id)}
-                className={`flex min-w-max items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition lg:w-full ${
-                  selected
-                    ? "bg-brand-600 text-white shadow-sm"
-                    : "text-ink-700 hover:bg-ink-50"
-                }`}
-              >
-                <Icon
-                  className={`h-4 w-4 shrink-0 ${
-                    selected ? "text-white" : "text-ink-400"
-                  }`}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold">{tab.label}</span>
-                  <span
-                    className={`block text-[10px] ${
-                      selected ? "text-brand-100" : "text-ink-400"
-                    }`}
-                  >
-                    {tab.hint}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
+    <aside className="w-full shrink-0 overflow-y-auto overscroll-none pb-4 lg:w-56">
+      <div className="flex items-center gap-2.5 px-4 py-4">
+        <LogoMark className="h-[34px] w-[34px]" />
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-sm font-bold text-ink-900">{APP.name}</p>
+          <p className="truncate text-[10px] text-ink-500">{db.admin.name}</p>
         </div>
+      </div>
+
+      <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-ink-400">
+        Settings
+      </p>
+      <div className="flex gap-1 overflow-x-auto px-3 py-3 lg:flex-col lg:overflow-visible">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const selected = active === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onChange(tab.id)}
+              className={`sidebar-link group min-w-max lg:w-full ${
+                selected ? "sidebar-link-active" : ""
+              }`}
+            >
+              <Icon
+                className={`h-4 w-4 shrink-0 ${
+                  selected
+                    ? "text-brand-600"
+                    : "text-ink-400 group-hover:text-ink-600"
+                }`}
+              />
+              <span className="flex-1 text-left">{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
     </aside>
   );

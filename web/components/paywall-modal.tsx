@@ -89,7 +89,7 @@ export function PaywallModal({
             label: METHOD_META.bank.label,
           };
 
-  function submit() {
+  async function submit() {
     const numeric = Number(amount.replace(/[^0-9.]/g, ""));
     if (!numeric || numeric <= 0) {
       setError(TEXT.paywall.errorAmount);
@@ -100,7 +100,7 @@ export function PaywallModal({
       return;
     }
     setBusy(true);
-    const result = submitPayment({
+    const result = await submitPayment({
       clientId: client.id,
       amountPkr: numeric,
       method,
@@ -224,24 +224,46 @@ export function PaywallModal({
             </div>
           </div>
 
-          <div className="rounded-xl border border-ink-200 bg-ink-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-              {TEXT.paywall.sendTo}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-ink-900">{account.title}</p>
-                <p className="mt-0.5 font-mono text-sm text-ink-700">{account.number}</p>
+          <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
+            <div className="rounded-xl border border-ink-200 bg-ink-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+                {TEXT.paywall.sendTo}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">{account.title}</p>
+                  <p className="mt-0.5 break-all font-mono text-sm text-ink-700">
+                    {account.number}
+                  </p>
+                </div>
+                <CopyButton
+                  value={account.number}
+                  label={TEXT.common.copy}
+                  copiedLabel={TEXT.common.copied}
+                />
               </div>
-              <CopyButton
-                value={account.number}
-                label={TEXT.common.copy}
-                copiedLabel={TEXT.common.copied}
-              />
+              <p className="mt-3 text-xs text-ink-500">
+                {TEXT.paywall.accountTitle}: {pricing.accountTitle}
+              </p>
             </div>
-            <p className="mt-3 text-xs text-ink-500">
-              {TEXT.paywall.accountTitle}: {pricing.accountTitle}
-            </p>
+            <div className="flex flex-col items-center justify-center rounded-xl border border-ink-200 bg-white p-3">
+              {pricing.qrUrl ? (
+                <>
+                  <img
+                    src={pricing.qrUrl}
+                    alt={TEXT.paywall.scanQr}
+                    className="h-32 w-32 rounded-xl object-contain"
+                  />
+                  <p className="mt-2 text-center text-[10px] font-medium text-ink-400">
+                    {TEXT.paywall.scanQr}
+                  </p>
+                </>
+              ) : (
+                <p className="px-2 text-center text-xs text-ink-500">
+                  {TEXT.paywall.qrMissing}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

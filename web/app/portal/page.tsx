@@ -9,7 +9,6 @@ import {
   BadgeCheck,
   CalendarClock,
   CheckCircle2,
-  ChevronDown,
   Clock3,
   Headphones,
   KeyRound,
@@ -41,6 +40,7 @@ import { accessEndsAt, clientStatus, maskDeviceId, monthlyPrice } from "@/lib/li
 import { useStore } from "@/lib/store";
 import { useToast } from "@/lib/toast";
 import type { Client, PaymentRequest } from "@/lib/types";
+import { Dropdown } from "@/components/dropdown";
 import { Button, LogoMark, Progress, StatusBadge } from "@/components/ui";
 import { CopyButton } from "@/components/copy-button";
 import { CountdownTimer } from "@/components/countdown";
@@ -277,25 +277,21 @@ export default function PortalPage() {
           </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <select
-                value={currentClient.id}
-                onChange={(event) => {
-                  setCurrentClient(event.target.value);
-                  router.replace(ROUTES.portalFor(event.target.value));
-                  setPayOpen(false);
-                }}
-                className="appearance-none rounded-xl border border-ink-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-ink-700 focus:border-brand-400 focus:outline-none"
-                aria-label={TEXT.portal.demoSwitch}
-              >
-                {db.clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {TEXT.portal.switchLabel}: {client.shopName}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-400" />
-            </div>
+            <Dropdown
+              className="w-52"
+              value={currentClient.id}
+              options={db.clients.map((client) => ({
+                value: client.id,
+                label: `${TEXT.portal.switchLabel}: ${client.shopName}`,
+              }))}
+              onChange={(value) => {
+                setCurrentClient(value);
+                router.replace(ROUTES.portalFor(value));
+                setPayOpen(false);
+              }}
+              triggerClassName="font-semibold"
+              ariaLabel={TEXT.portal.demoSwitch}
+            />
             <Link href={ROUTES.login} className="btn-ghost btn-sm">
               {TEXT.portal.openAdmin}
             </Link>
@@ -491,7 +487,7 @@ export default function PortalPage() {
               {activeKey ? (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-200 bg-ink-50 p-4">
                   <div>
-                    <p className="font-mono text-base font-semibold tracking-wide text-ink-900">
+                    <p className="break-all font-mono text-base font-semibold tracking-wide text-ink-900">
                       {activeKey.key}
                     </p>
                     <p className="mt-1 text-xs text-ink-500">

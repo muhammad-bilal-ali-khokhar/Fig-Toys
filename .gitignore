@@ -48,3 +48,5 @@ convex/convex/_generated/
 .wrangler/
 PRODUCTS_BY_BRAND.md
 PROMPT
+
+desktop/cloud.json

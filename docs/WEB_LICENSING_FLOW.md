@@ -292,3 +292,16 @@ The current web app is a standalone Next.js app in `web/`. It keeps all state in
 - Real license signing
 - Email or SMS delivery
 - Multi-tenant hosting and deployment
+
+## 12. Implemented architecture
+
+- `web/` runs its own backend through Next.js route handlers. Admin login sets a signed httpOnly session cookie, and the license server token stays server side.
+- Admin data lives in Convex: clients, payments, activation codes, pricing, activity and admin settings. The browser calls `/api/admin/*`; those routes call Convex with `LICENSE_ADMIN_TOKEN`.
+- The client portal calls `/api/portal/*` for registration, public status and payment requests.
+- The POS backend calls Convex `/install/status` and caches the result locally for 15 seconds. Offline, it keeps using the last known license.
+- The POS only writes to Convex through `/license/redeem` when a 10 digit activation code is entered.
+- Each code has `maxDevices`. Every device that redeems it is stored in `activations`. The owner can remove one device to free a slot or revoke the whole key. Revoking a key does not change the client plan; block or expire the client to lock the shop.
+- Payment requests are submitted from the web portal. The POS paywall shows the amount, payment details and a link to the portal, then unlocks automatically when the admin approves.
+- `PORTAL_BASE_URL` is set on the Convex deployment and returned as part of the install status so the POS can open the right portal.
+- The old `/api/live/*` proxy, the browser demo store and the local POS admin and payment endpoints are removed.
+- Crash reports are stored in Convex `crashReports`, linked to the client and device, and shown under Crash reports in the owner console.

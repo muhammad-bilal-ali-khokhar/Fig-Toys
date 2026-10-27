@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Ban,
+  Bug,
   CalendarClock,
   Clock3,
   ExternalLink,
@@ -116,6 +117,14 @@ export default function ClientDetailPage() {
     [db.activity, client?.id],
   );
 
+  const crashes = useMemo(
+    () =>
+      db.crashReports
+        .filter((report) => report.clientId === client?.id)
+        .slice(0, 5),
+    [db.crashReports, client?.id],
+  );
+
   if (!client) {
     return (
       <div className="card mx-auto max-w-lg p-8 text-center">
@@ -167,21 +176,13 @@ export default function ClientDetailPage() {
       toast(TEXT.clients.trialMinutesHint, "error");
       return;
     }
-    setClientPlan(client!.id, Math.round(numericPrice), Math.round(numericDays));
+    await setClientPlan(
+      client!.id,
+      Math.round(numericPrice),
+      Math.round(numericDays),
+    );
     if (minutes > 0) {
-      if (live) {
-        const response = await fetch("/api/live/trial", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ minutes: Math.round(minutes) }),
-        }).catch(() => null);
-        if (!response?.ok) {
-          toast(TEXT.errors.generic, "error");
-          return;
-        }
-      } else {
-        setClientTrial(client!.id, Math.round(minutes));
-      }
+      await setClientTrial(client!.id, Math.round(minutes));
     }
     setPlanOpen(false);
     toast(TEXT.detail.planSaved, "success");
@@ -195,25 +196,10 @@ export default function ClientDetailPage() {
     }
     setAccessBusy(true);
     try {
-      if (live) {
-        const response = await fetch(
-          mode === "trial" ? "/api/live/trial" : "/api/live/access",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ minutes: Math.round(minutes) }),
-          },
-        );
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        if (!response.ok) {
-          throw new Error(payload?.error ?? TEXT.errors.generic);
-        }
-      } else if (mode === "trial") {
-        setClientTrial(client!.id, Math.round(minutes));
+      if (mode === "trial") {
+        await setClientTrial(client!.id, Math.round(minutes));
       } else {
-        setClientAccess(client!.id, Math.round(minutes));
+        await setClientAccess(client!.id, Math.round(minutes));
       }
       toast(TEXT.clients.accessUpdated, "success");
     } catch (err) {
@@ -223,13 +209,13 @@ export default function ClientDetailPage() {
     }
   }
 
-  function createKey() {
+  async function createKey() {
     const numericDays = Number(keyDays);
     if (!numericDays || numericDays <= 0) {
       toast(TEXT.pricing.invalid, "error");
       return;
     }
-    const result = issueKey(client!.id, Math.round(numericDays));
+    const result = await issueKey(client!.id, Math.round(numericDays));
     if (!result.ok) {
       toast(result.error, "error");
       return;
@@ -241,20 +227,9 @@ export default function ClientDetailPage() {
   async function makeFree() {
     setFreeBusy(true);
     try {
-      if (live) {
-        const response = await fetch("/api/live/free", { method: "POST" });
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        if (!response.ok) {
-          throw new Error(payload?.error ?? TEXT.errors.generic);
-        }
-      } else {
-        setClientFree(client!.id);
-      }
+      await setClientFree(client!.id);
       setFreeOpen(false);
       toast(TEXT.clients.freeUserDone, "success");
-      if (live) window.setTimeout(() => window.location.reload(), 600);
     } catch (err) {
       toast(err instanceof Error ? err.message : TEXT.errors.generic, "error");
     } finally {
@@ -469,7 +444,7 @@ export default function ClientDetailPage() {
                       <tr key={key.id}>
                         <td>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-semibold text-ink-900">
+                            <span className="break-all font-mono text-xs font-semibold text-ink-900">
                               {key.key}
                             </span>
                             {key.id === activeKey?.id ? (
@@ -603,6 +578,50 @@ export default function ClientDetailPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </section>
+
+          <section className="card p-0">
+            <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <Bug className="h-4 w-4 text-ink-500" />
+                <h2 className="section-title">{TEXT.crashes.title}</h2>
+              </div>
+              <Link
+                href={ROUTES.crashes}
+                className="text-xs font-semibold text-brand-700 hover:underline"
+              >
+                {TEXT.crashes.all}
+              </Link>
+            </div>
+            {crashes.length === 0 ? (
+              <p className="px-5 py-4 text-sm text-ink-500">
+                {TEXT.crashes.empty}
+              </p>
+            ) : (
+              <div className="divide-y divide-ink-100">
+                {crashes.map((report) => (
+                  <Link
+                    key={report.id}
+                    href={ROUTES.crashDetail(report.id)}
+                    className="flex items-start gap-3 px-5 py-3 transition hover:bg-ink-50"
+                  >
+                    <Bug className="mt-0.5 h-3.5 w-3.5 shrink-0 text-error" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-ink-800">
+                        {report.title}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-ink-400">
+                        {relativeTime(report.createdAt, now)} · {report.app}{" "}
+                        {report.version} ·{" "}
+                        {report.status === "new"
+                          ? TEXT.crashes.new
+                          : TEXT.crashes.resolved}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
               </div>
             )}
           </section>
@@ -964,7 +983,7 @@ export default function ClientDetailPage() {
         }
       >
         {revokeTarget ? (
-          <p className="rounded-xl border border-ink-200 bg-ink-50 px-3 py-2 font-mono text-xs text-ink-700">
+          <p className="break-all rounded-xl border border-ink-200 bg-ink-50 px-3 py-2 font-mono text-xs text-ink-700">
             {revokeTarget.key}
           </p>
         ) : null}

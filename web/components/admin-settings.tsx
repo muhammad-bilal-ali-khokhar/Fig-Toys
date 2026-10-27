@@ -1,14 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
-  ChevronDown,
   ExternalLink,
   LogOut,
-  RotateCcw,
   Save,
   ShieldCheck,
   Sparkles,
@@ -18,9 +15,9 @@ import {
   AdminSettingsSidebar,
   type AdminSettingsTab,
 } from "@/components/admin-settings-sidebar";
-import { LivePaymentSettings } from "@/components/live-payment-settings";
+import { Dropdown } from "@/components/dropdown";
 import { PricingSettings } from "@/components/pricing-settings";
-import { Button, Field, Modal, PageHeader } from "@/components/ui";
+import { Button, Field, Input, Modal } from "@/components/ui";
 import { APP, ROUTES, TEXT } from "@/lib/constants";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/lib/toast";
@@ -30,11 +27,10 @@ const tabs: AdminSettingsTab[] = [
   "pricing",
   "trials",
   "integration",
-  "data",
 ];
 
 export function AdminSettings() {
-  const { db, ready, live, updateAdmin, expireClient, setClientTrial, resetDemo, signOut } =
+  const { db, ready, live, updateAdmin, expireClient, setClientTrial, signOut } =
     useStore();
   const { toast } = useToast();
   const router = useRouter();
@@ -42,10 +38,10 @@ export function AdminSettings() {
   const [email, setEmail] = useState(db.admin.email);
   const [expireId, setExpireId] = useState(db.clients[0]?.id ?? "");
   const [expiredId, setExpiredId] = useState<string | null>(null);
-  const [resetOpen, setResetOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [trialBusy, setTrialBusy] = useState(false);
   const [tab, setTab] = useState<AdminSettingsTab>("profile");
+  const contentRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!ready || hydrated) return;
@@ -68,6 +64,7 @@ export function AdminSettings() {
   }, []);
 
   function changeTab(next: AdminSettingsTab) {
+    contentRef.current?.scrollTo(0, 0);
     setTab(next);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", next);
@@ -83,59 +80,36 @@ export function AdminSettings() {
     toast(TEXT.settings.profileSaved, "success");
   }
 
-  function endAccess() {
+  async function endAccess() {
     if (!expireId) return;
-    expireClient(expireId);
+    await expireClient(expireId);
     setExpiredId(expireId);
     toast(TEXT.settings.expireDone, "info");
   }
 
   async function setTrial(minutes: number) {
-    if (live) {
-      setTrialBusy(true);
-      try {
-        const response = await fetch("/api/live/trial", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ minutes }),
-        });
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        if (!response.ok) {
-          throw new Error(payload?.error ?? TEXT.errors.generic);
-        }
-        setExpiredId(null);
-        toast(TEXT.settings.trialUpdated, "success");
-      } catch (err) {
-        toast(err instanceof Error ? err.message : TEXT.errors.generic, "error");
-      } finally {
-        setTrialBusy(false);
-      }
-      return;
-    }
-
     if (!expireId) return;
-    setClientTrial(expireId, minutes);
-    setExpiredId(null);
-    toast(TEXT.settings.trialUpdated, "success");
-  }
-
-  function confirmReset() {
-    resetDemo();
-    setResetOpen(false);
-    setExpiredId(null);
-    toast(TEXT.settings.resetDone, "success");
+    setTrialBusy(true);
+    try {
+      await setClientTrial(expireId, minutes);
+      setExpiredId(null);
+      toast(TEXT.settings.trialUpdated, "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : TEXT.errors.generic, "error");
+    } finally {
+      setTrialBusy(false);
+    }
   }
 
   return (
-    <div>
-      <PageHeader title={TEXT.settings.title} subtitle={TEXT.settings.subtitle} />
-
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+    <div className="lg:h-full">
+      <div className="flex flex-col gap-6 lg:h-full lg:flex-row">
         <AdminSettingsSidebar active={tab} onChange={changeTab} />
 
-        <div className="min-w-0 flex-1 space-y-6">
+        <main
+          ref={contentRef}
+          className="min-w-0 flex-1 space-y-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-none lg:pb-4 lg:[scrollbar-gutter:stable]"
+        >
           {tab === "profile" ? (
             <>
               <section className="card p-6">
@@ -145,18 +119,16 @@ export function AdminSettings() {
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <Field label={TEXT.settings.name} htmlFor="admin-name">
-                    <input
+                    <Input
                       id="admin-name"
-                      className="input"
                       value={name}
                       onChange={(event) => setName(event.target.value)}
                     />
                   </Field>
                   <Field label={TEXT.settings.email} htmlFor="admin-email">
-                    <input
+                    <Input
                       id="admin-email"
                       type="email"
-                      className="input"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                     />
@@ -209,7 +181,6 @@ export function AdminSettings() {
 
           {tab === "pricing" ? (
             <>
-              <LivePaymentSettings />
               <section className="card p-6">
                 <h2 className="section-title">{TEXT.pricing.title}</h2>
                 <p className="mt-1 text-sm text-ink-500">{TEXT.pricing.subtitle}</p>
@@ -226,7 +197,7 @@ export function AdminSettings() {
               </div>
               <p className="mt-1 text-sm text-ink-500">{TEXT.settings.demoBody}</p>
 
-              <div className="mt-5 rounded-xl border border-ink-200 p-4">
+              <div className="mt-5 rounded-2xl bg-ink-50 p-4">
                 <p className="text-sm font-semibold text-ink-900">
                   {TEXT.settings.expireTitle}
                 </p>
@@ -236,38 +207,36 @@ export function AdminSettings() {
                     <label className="label" htmlFor="expire-client">
                       {TEXT.settings.expirePick}
                     </label>
-                    <div className="relative">
-                      <select
-                        id="expire-client"
-                        value={expireId}
-                        onChange={(event) => {
-                          setExpireId(event.target.value);
-                          setExpiredId(null);
-                        }}
-                        className="input appearance-none pr-9"
-                      >
-                        {db.clients.map((client) => (
-                          <option key={client.id} value={client.id}>
-                            {client.shopName} - {client.ownerName}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-                    </div>
+                    <Dropdown
+                      className="w-full"
+                      value={expireId}
+                      options={db.clients.map((client) => ({
+                        value: client.id,
+                        label: `${client.shopName} - ${client.ownerName}`,
+                      }))}
+                      onChange={(value) => {
+                        setExpireId(value);
+                        setExpiredId(null);
+                      }}
+                      ariaLabel={TEXT.settings.expirePick}
+                    />
                   </div>
                   <Button variant="secondary" onClick={endAccess}>
                     {TEXT.settings.expireButton}
                   </Button>
-                  {expiredId ? (
-                    <Link href={ROUTES.portalFor(expiredId)} className="btn-primary">
-                      {TEXT.settings.expireOpen}
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </Link>
-                  ) : null}
+                  <Link
+                    href={expiredId ? ROUTES.portalFor(expiredId) : ROUTES.portal}
+                    className={`btn-primary ${expiredId ? "" : "invisible"}`}
+                    aria-hidden={!expiredId}
+                    tabIndex={expiredId ? undefined : -1}
+                  >
+                    {TEXT.settings.expireOpen}
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl border border-ink-200 p-4">
+              <div className="mt-4 rounded-2xl bg-ink-50 p-4">
                 <p className="text-sm font-semibold text-ink-900">
                   {TEXT.settings.trialTitle}
                 </p>
@@ -324,59 +293,9 @@ export function AdminSettings() {
             </section>
           ) : null}
 
-          {tab === "data" ? (
-            <>
-              <section className="card p-5">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-gold-600" />
-                  <h2 className="section-title">{TEXT.common.demoData}</h2>
-                </div>
-                <p className="mt-2 text-xs text-ink-500">{TEXT.settings.storageNote}</p>
-                <div className="mt-3 rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-xs text-ink-600">
-                  {db.clients.length} {TEXT.clients.count} - {db.payments.length}{" "}
-                  {TEXT.payments.title.toLowerCase()} - {db.keys.length}{" "}
-                  {TEXT.licenses.title.toLowerCase()}
-                </div>
-              </section>
-
-              <section className="card border-red-200 bg-red-50/60 p-6">
-                <p className="flex items-center gap-2 text-sm font-semibold text-red-900">
-                  <RotateCcw className="h-4 w-4" />
-                  {TEXT.settings.resetTitle}
-                </p>
-                <p className="mt-1 text-xs text-red-800/80">{TEXT.settings.resetBody}</p>
-                <div className="mt-3">
-                  <Button variant="danger" size="sm" onClick={() => setResetOpen(true)}>
-                    {TEXT.settings.resetButton}
-                  </Button>
-                </div>
-              </section>
-            </>
-          ) : null}
-        </div>
+        </main>
       </div>
 
-      <Modal
-        open={resetOpen}
-        onClose={() => setResetOpen(false)}
-        title={TEXT.settings.resetConfirm}
-        description={TEXT.settings.resetBody}
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setResetOpen(false)}>
-              {TEXT.common.cancel}
-            </Button>
-            <Button variant="danger" onClick={confirmReset}>
-              {TEXT.settings.resetButton}
-            </Button>
-          </>
-        }
-      >
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {TEXT.settings.resetWarning}
-        </p>
-      </Modal>
     </div>
   );
 }

@@ -55,6 +55,14 @@ export type LicenseKey = {
   durationDays: number;
   status: LicenseKeyStatus;
   paymentRequestId: string | null;
+  maxDevices?: number;
+  activeDevices?: number;
+  activations?: {
+    id: string;
+    deviceId: string;
+    activatedAt: string;
+    revokedAt: string | null;
+  }[];
 };
 
 export type Pricing = {
@@ -66,6 +74,7 @@ export type Pricing = {
   bankName: string;
   accountTitle: string;
   accountNumber: string;
+  qrUrl: string;
   supportPhone: string;
   supportEmail: string;
 };
@@ -80,7 +89,8 @@ export type ActivityKind =
   | "unblock"
   | "key"
   | "revoke"
-  | "pricing";
+  | "pricing"
+  | "crash";
 
 export type ActivityEvent = {
   id: string;
@@ -89,6 +99,35 @@ export type ActivityEvent = {
   clientId: string | null;
   kind: ActivityKind;
   message: string;
+};
+
+export type AdminUserRole = "owner" | "admin" | "support";
+
+export type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: AdminUserRole;
+  disabled: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  createdBy: string | null;
+};
+
+export type CrashReport = {
+  id: string;
+  clientId: string | null;
+  deviceId: string;
+  licenseKey: string | null;
+  app: string;
+  version: string;
+  platform: string;
+  title: string;
+  message: string;
+  logTail: string;
+  status: "new" | "resolved";
+  createdAt: string;
+  resolvedAt: string | null;
 };
 
 export type AdminProfile = {
@@ -100,6 +139,7 @@ export type WebDatabase = {
   clients: Client[];
   payments: PaymentRequest[];
   keys: LicenseKey[];
+  crashReports: CrashReport[];
   pricing: Pricing;
   activity: ActivityEvent[];
   admin: AdminProfile;

@@ -4,3 +4,9 @@ out
 next-env.d.ts
 *.tsbuildinfo
 .env*.local
+
+# OpenNext
+.open-next
+.wrangler
+.dev.vars*
+!.dev.vars.example

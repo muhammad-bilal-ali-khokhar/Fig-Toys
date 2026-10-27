@@ -2,32 +2,7 @@ import { httpAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { isAdminRequest, json } from "./lib/auth";
-
-async function generateUniqueCode(ctx: {
-  db: {
-    query: (
-      table: "activationCodes",
-    ) => {
-      withIndex: (
-        index: "by_code",
-        filter: (q: { eq: (field: "code", value: string) => unknown }) => unknown,
-      ) => {
-        unique: () => Promise<{ _id: string } | null>;
-      };
-    };
-  };
-}): Promise<string> {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    let code = "";
-    for (let i = 0; i < 10; i++) code += Math.floor(Math.random() * 10);
-    const existing = await ctx.db
-      .query("activationCodes")
-      .withIndex("by_code", (q) => q.eq("code", code))
-      .unique();
-    if (!existing) return code;
-  }
-  throw new Error("Could not generate a unique activation code. Try again.");
-}
+import { generateUniqueCode } from "./lib/data";
 
 export const createCode = internalMutation({
   args: {

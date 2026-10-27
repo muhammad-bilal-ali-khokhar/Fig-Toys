@@ -10,9 +10,9 @@ export function useLicenseStatus() {
   const [license, setLicense] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (force = false) => {
     try {
-      setLicense(await getLicenseStatus());
+      setLicense(await getLicenseStatus(force));
     } catch {
       setLicense(null);
     } finally {

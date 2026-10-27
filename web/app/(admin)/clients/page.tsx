@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   ArrowUpRight,
   Ban,
-  ChevronDown,
   ExternalLink,
   Plus,
   Search,
@@ -29,6 +28,7 @@ import { clientRows, type ClientRow } from "@/lib/selectors";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/lib/toast";
 import type { ClientStatus } from "@/lib/types";
+import { Dropdown } from "@/components/dropdown";
 import { Button, EmptyState, Field, Modal, StatusBadge } from "@/components/ui";
 
 type StatusFilter = ClientStatus | "all";
@@ -148,7 +148,7 @@ export default function ClientsPage() {
     setNewOpen(true);
   }
 
-  function createNewClient() {
+  async function createNewClient() {
     if (!newForm.shopName.trim() || !newForm.ownerName.trim()) {
       setNewError(TEXT.validation.shopName);
       return;
@@ -175,7 +175,7 @@ export default function ClientsPage() {
       return;
     }
     setCreating(true);
-    const result = createClient({
+    const result = await createClient({
       shopName: newForm.shopName,
       ownerName: newForm.ownerName,
       email: newForm.email,
@@ -231,19 +231,18 @@ export default function ClientsPage() {
               aria-label={TEXT.clients.search}
             />
           </div>
-          <div className="relative">
-            <select
-              value={sort}
-              onChange={(event) => setSort(event.target.value as SortKey)}
-              className="appearance-none rounded-xl border border-ink-200 bg-white py-2.5 pl-3 pr-9 text-sm font-medium text-ink-700 focus:border-brand-400 focus:outline-none"
-              aria-label={TEXT.clients.sort}
-            >
-              <option value="expiry">{TEXT.clients.sortExpiry}</option>
-              <option value="recent">{TEXT.clients.sortRecent}</option>
-              <option value="name">{TEXT.clients.sortName}</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-          </div>
+          <Dropdown
+            className="w-44"
+            value={sort}
+            options={[
+              { value: "expiry", label: TEXT.clients.sortExpiry },
+              { value: "recent", label: TEXT.clients.sortRecent },
+              { value: "name", label: TEXT.clients.sortName },
+            ]}
+            onChange={(value) => setSort(value as SortKey)}
+            triggerClassName="text-sm font-medium"
+            ariaLabel={TEXT.clients.sort}
+          />
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">

@@ -29,10 +29,8 @@ const envSchema = z.object({
   BACKUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
   BACKUP_RETENTION: z.coerce.number().int().positive().default(14),
 
-  // Crash / error report forwarding. When set, the backend can forward reports
-  // received from the desktop app to GitHub Issues server-side.
-  FIG_GH_TOKEN: z.string().optional(),
-  FIG_GH_REPO: z.string().optional(),
+  // Crash / error report forwarding. Reports are stored locally and sent to
+  // the license server so the owner console can show them.
   FIG_FEEDBACK_SECRET: z.string().optional(),
 
   // License activation public key (PEM, Ed25519). Without it the app is locked

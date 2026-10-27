@@ -109,28 +109,7 @@ export default function PaymentsPage() {
 
   async function confirmApprove() {
     if (!approveTarget) return;
-    if (live) {
-      const response = await fetch(
-        `/api/live/payments/${encodeURIComponent(approveTarget.id)}/approve`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ txnId: approveTarget.txnId }),
-        },
-      ).catch(() => null);
-      const payload = (await response?.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-      if (!response?.ok) {
-        toast(payload?.error ?? TEXT.errors.generic, "error");
-        return;
-      }
-      setApproveTarget(null);
-      toast(TEXT.payments.approveDone, "success");
-      window.setTimeout(() => window.location.reload(), 600);
-      return;
-    }
-    const result = approvePayment(approveTarget.id);
+    const result = await approvePayment(approveTarget.id);
     if (!result.ok) {
       toast(result.error, "error");
       return;
@@ -142,29 +121,11 @@ export default function PaymentsPage() {
 
   async function confirmReject() {
     if (!rejectTarget) return;
-    if (live) {
-      const response = await fetch(
-        `/api/live/payments/${encodeURIComponent(rejectTarget.id)}/reject`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: rejectReason }),
-        },
-      ).catch(() => null);
-      const payload = (await response?.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-      if (!response?.ok) {
-        toast(payload?.error ?? TEXT.errors.generic, "error");
-        return;
-      }
-      setRejectTarget(null);
-      setRejectReason("");
-      toast(TEXT.payments.rejectDone, "info");
-      window.setTimeout(() => window.location.reload(), 600);
+    const result = await rejectPayment(rejectTarget.id, rejectReason);
+    if (!result.ok) {
+      toast(result.error, "error");
       return;
     }
-    rejectPayment(rejectTarget.id, rejectReason);
     setRejectTarget(null);
     setRejectReason("");
     toast(TEXT.payments.rejectDone, "info");
@@ -334,7 +295,7 @@ export default function PaymentsPage() {
                           </span>
                         ) : null}
                         {key ? (
-                          <span className="mt-1 flex items-center gap-1 font-mono text-[10px] text-teal-700">
+                          <span className="mt-1 flex items-center gap-1 break-all font-mono text-[10px] text-teal-700">
                             <KeyRound className="h-3 w-3" />
                             {key.key}
                           </span>
@@ -505,7 +466,7 @@ export default function PaymentsPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-teal-800">
               {TEXT.detail.key}
             </p>
-            <p className="mt-1 font-mono text-lg font-semibold tracking-wide text-teal-900">
+            <p className="mt-1 break-all font-mono text-lg font-semibold tracking-wide text-teal-900">
               {issuedKey.key}
             </p>
             <p className="mt-1 text-xs text-teal-800/80">

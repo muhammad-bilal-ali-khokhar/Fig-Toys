@@ -6,7 +6,7 @@ import { env } from "../../core/config/env";
 import type {
   ActivateInput,
   LicenseStatus,
-  PaymentInput,
+  PaymentRequestInput,
   RedeemInput,
 } from "./schemas";
 import {
@@ -76,13 +76,24 @@ const PAYMENT_KEYS = {
   number: "license.jazzcash.number",
   qr: "license.jazzcash.qr",
   whatsapp: "license.whatsapp",
+  easypaisa: "license.easypaisa.number",
+  bank: "license.bank.name",
+  accountNumber: "license.account.number",
 };
 
 async function getPaymentConfig() {
   const rows = await prisma.settings.findMany({
     where: {
       key: {
-        in: [PAYMENT_KEYS.name, PAYMENT_KEYS.number, PAYMENT_KEYS.qr, PAYMENT_KEYS.whatsapp],
+        in: [
+          PAYMENT_KEYS.name,
+          PAYMENT_KEYS.number,
+          PAYMENT_KEYS.qr,
+          PAYMENT_KEYS.whatsapp,
+          PAYMENT_KEYS.easypaisa,
+          PAYMENT_KEYS.bank,
+          PAYMENT_KEYS.accountNumber,
+        ],
       },
     },
   });
@@ -100,6 +111,9 @@ async function getPaymentConfig() {
     whatsapp: map.has(PAYMENT_KEYS.whatsapp)
       ? map.get(PAYMENT_KEYS.whatsapp)!
       : env.LICENSE_WHATSAPP,
+    easypaisa: map.get(PAYMENT_KEYS.easypaisa) ?? "",
+    bank: map.get(PAYMENT_KEYS.bank) ?? "",
+    accountNumber: map.get(PAYMENT_KEYS.accountNumber) ?? "",
   };
 }
 
@@ -159,9 +173,13 @@ async function serialize(license: LicenseRow): Promise<LicenseStatus> {
     periodDays: env.LICENSE_PERIOD_DAYS,
     jazzcashName: payment.name,
     jazzcashNumber: payment.number,
+    easypaisaNumber: payment.easypaisa,
+    bankName: payment.bank,
+    accountNumber: payment.accountNumber,
     qrUrl: payment.qrUrl,
     whatsapp: payment.whatsapp,
     paymentMode: env.LICENSE_PAYMENT_MODE,
+    portalUrl: license.portalUrl ?? null,
     payments: payments.map((payment) => ({
       id: payment.id,
       amountPkr: payment.amountPkr,
@@ -173,8 +191,154 @@ async function serialize(license: LicenseRow): Promise<LicenseStatus> {
   };
 }
 
-export async function getLicenseStatus(): Promise<LicenseStatus> {
-  return serialize(await ensureLicense());
+async function refreshLicenseFromServer(license: LicenseRow): Promise<LicenseRow> {
+  const redeemUrl = env.LICENSE_REDEEM_URL?.trim();
+  if (!redeemUrl) return license;
+
+  const deviceId = await getDeviceId();
+  try {
+    const response = await fetch(redeemUrl.replace(/\/redeem$/, "/install/status"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceId,
+        code: license.key || undefined,
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) return license;
+    const body = (await response.json().catch(() => null)) as
+      | {
+          status?: unknown;
+          customerName?: unknown;
+          lifetime?: unknown;
+          trialEndsAt?: unknown;
+          paidUntil?: unknown;
+          monthlyPricePkr?: unknown;
+          licenseKey?: unknown;
+          portalUrl?: unknown;
+          clientId?: unknown;
+          id?: unknown;
+          pricing?: {
+            accountTitle?: unknown;
+            jazzcash?: unknown;
+            easypaisa?: unknown;
+            bankName?: unknown;
+            accountNumber?: unknown;
+            supportPhone?: unknown;
+            qrUrl?: unknown;
+          };
+        }
+      | null;
+    if (!body || body.status === "unlicensed") return license;
+
+    const status =
+      body.status === "active"
+        ? "ACTIVE"
+        : body.status === "trial"
+          ? "TRIAL"
+          : "EXPIRED";
+    const parse = (value: unknown) =>
+      typeof value === "string" ? new Date(value) : null;
+    const expiresAt =
+      status === "ACTIVE"
+        ? body.lifetime
+          ? null
+          : parse(body.paidUntil)
+        : parse(body.trialEndsAt);
+
+    if (body.pricing) {
+      const values = [
+        [PAYMENT_KEYS.name, String(body.pricing.accountTitle ?? "")],
+        [PAYMENT_KEYS.number, String(body.pricing.jazzcash ?? "")],
+        [PAYMENT_KEYS.whatsapp, String(body.pricing.supportPhone ?? "")],
+        [PAYMENT_KEYS.qr, String(body.pricing.qrUrl ?? "")],
+        [PAYMENT_KEYS.easypaisa, String(body.pricing.easypaisa ?? "")],
+        [PAYMENT_KEYS.bank, String(body.pricing.bankName ?? "")],
+        [PAYMENT_KEYS.accountNumber, String(body.pricing.accountNumber ?? "")],
+      ] as const;
+      for (const [key, value] of values.filter(
+        ([, entry]) => entry.trim().length > 0,
+      )) {
+        await prisma.settings.upsert({
+          where: { key },
+          update: { value },
+          create: { key, value },
+        });
+      }
+    }
+
+    return await prisma.license.update({
+      where: { id: LICENSE_ID },
+      data: {
+        key: typeof body.licenseKey === "string" ? body.licenseKey : license.key,
+        customerName:
+          typeof body.customerName === "string"
+            ? body.customerName
+            : license.customerName,
+        status,
+        expiresAt,
+        pricePkr:
+          typeof body.monthlyPricePkr === "number"
+            ? body.monthlyPricePkr
+            : license.pricePkr,
+        lastVerifiedAt: new Date(),
+        portalUrl:
+          typeof body.portalUrl === "string" ? body.portalUrl : license.portalUrl,
+        clientId:
+          typeof body.clientId === "string"
+            ? body.clientId
+            : typeof body.id === "string"
+              ? body.id
+              : license.clientId,
+      },
+    });
+  } catch {
+    return license;
+  }
+}
+
+async function claimLegacyLicense(license: LicenseRow): Promise<LicenseRow> {
+  if (license.clientId || !license.key?.startsWith("FIG-")) return license;
+  const redeemUrl = env.LICENSE_REDEEM_URL?.trim();
+  if (!redeemUrl) return license;
+  try {
+    const deviceId = await getDeviceId();
+    const response = await fetch(redeemUrl.replace(/\/redeem$/, "/install/claim"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceId,
+        licenseToken: license.key,
+        localExpiresAt: license.expiresAt ? license.expiresAt.toISOString() : null,
+        localCustomerName: license.customerName || undefined,
+        localPricePkr: license.pricePkr || undefined,
+      }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) return license;
+    const body = (await response.json().catch(() => null)) as
+      | { clientId?: unknown }
+      | null;
+    if (typeof body?.clientId !== "string") return license;
+    return await prisma.license.update({
+      where: { id: LICENSE_ID },
+      data: { clientId: body.clientId },
+    });
+  } catch {
+    return license;
+  }
+}
+
+export async function getLicenseStatus(force = false): Promise<LicenseStatus> {
+  let local = await ensureLicense();
+  if (!local.clientId && local.key?.startsWith("FIG-")) {
+    local = await claimLegacyLicense(local);
+  }
+  if (!local.key && local.status === "UNLICENSED") return serialize(local);
+  const lastCheck = local.lastVerifiedAt?.getTime() ?? 0;
+  if (!force && Date.now() - lastCheck < 15_000) return serialize(local);
+  return serialize(await refreshLicenseFromServer(local));
 }
 
 export async function activateLicense(input: ActivateInput) {
@@ -212,7 +376,12 @@ export async function redeemLicense(input: RedeemInput) {
     throw new ApiError(502, "license.redeem_unreachable", "Could not reach the license server. Check your internet connection and try again.");
   }
 
-  let body: { licenseToken?: string; deviceId?: string; message?: string } | null = null;
+  let body: {
+    licenseToken?: string;
+    deviceId?: string;
+    message?: string;
+    clientId?: string;
+  } | null = null;
   try {
     body = await res.json();
   } catch {
@@ -239,7 +408,14 @@ export async function redeemLicense(input: RedeemInput) {
     throw new ApiError(409, "license.used_elsewhere", "This code is already activated on another device.");
   }
 
-  return persistLicense(token, result.payload, deviceId);
+  const status = await persistLicense(token, result.payload, deviceId);
+  if (body?.clientId) {
+    await prisma.license.update({
+      where: { id: LICENSE_ID },
+      data: { clientId: body.clientId },
+    });
+  }
+  return status;
 }
 
 export async function getAdminLicenseSnapshot() {
@@ -284,44 +460,109 @@ export async function getAdminLicenseSnapshot() {
   };
 }
 
-export async function submitLicensePayment(input: PaymentInput) {
-  if (env.LICENSE_PAYMENT_MODE !== "manual") {
-    throw new ApiError(403, "license.payment_disabled", "Manual payment unlock is disabled.");
+function installStatusUrl(): string {
+  const redeemUrl = env.LICENSE_REDEEM_URL?.trim();
+  return redeemUrl ? redeemUrl.replace(/\/redeem$/, "/install/status") : "";
+}
+
+async function fetchInstallStatus(license: {
+  key: string;
+}): Promise<Record<string, unknown> | null> {
+  const url = installStatusUrl();
+  if (!url) return null;
+  try {
+    const deviceId = await getDeviceId();
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId, code: license.key || undefined }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) return null;
+    return (await response.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null;
+  } catch {
+    return null;
   }
+}
+
+export async function submitLicensePayment(input: PaymentRequestInput) {
+  const redeemUrl = env.LICENSE_REDEEM_URL?.trim();
+  if (!redeemUrl) {
+    throw new ApiError(
+      503,
+      "license.payment_not_configured",
+      "Online payments are not configured.",
+    );
+  }
+
   const license = await ensureLicense();
-  const now = new Date();
-  const base =
-    license.expiresAt && license.expiresAt.getTime() > now.getTime()
-      ? license.expiresAt
-      : now;
-  const expiresAt = addDays(base, env.LICENSE_PERIOD_DAYS);
-  const amountPkr = license.pricePkr || env.LICENSE_TRIAL_PRICE_PKR;
+  let clientId = license.clientId;
+  if (!clientId) {
+    const remote = await fetchInstallStatus(license);
+    if (remote && typeof remote.clientId === "string") {
+      clientId = remote.clientId;
+      await prisma.license.update({
+        where: { id: LICENSE_ID },
+        data: { clientId },
+      });
+    }
+  }
+  if (!clientId) {
+    throw new ApiError(
+      400,
+      "license.not_linked",
+      "This device is not linked to a shop yet.",
+    );
+  }
 
-  await prisma.$transaction([
-    prisma.licensePayment.create({
-      data: {
-        licenseId: license.id,
-        amountPkr,
-        method: "JAZZCASH",
+  let response: Response;
+  try {
+    response = await fetch(redeemUrl.replace(/\/redeem$/, "/portal/payment"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId,
+        amountPkr: input.amountPkr,
+        method: input.method,
         txnId: input.txnId,
-        note: input.note || null,
-        paidAt: now,
-      },
-    }),
-    prisma.license.update({
-      where: { id: license.id },
-      data: {
-        status: "ACTIVE",
-        expiresAt,
-        purchasedAt: license.purchasedAt ?? now,
-        lastPaymentAt: now,
-        paymentRef: input.txnId,
-        lastVerifiedAt: now,
-      },
-    }),
-  ]);
+        note: input.note ?? "",
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new ApiError(
+      502,
+      "license.payment_unreachable",
+      "Could not reach the license server. Check your internet connection and try again.",
+    );
+  }
 
-  return getLicenseStatus();
+  const body = (await response.json().catch(() => null)) as
+    | { payment?: unknown; message?: unknown }
+    | null;
+  if (!response.ok) {
+    throw new ApiError(
+      400,
+      "license.payment_rejected",
+      typeof body?.message === "string"
+        ? body.message
+        : "Could not submit the payment.",
+    );
+  }
+
+  return { payment: body?.payment ?? null };
+}
+
+export async function getLicensePaymentStatus() {
+  const license = await ensureLicense();
+  const remote = await fetchInstallStatus(license);
+  return {
+    payment: remote?.latestPayment ?? null,
+    licenseStatus: typeof remote?.status === "string" ? remote.status : null,
+  };
 }
 
 export async function setTestTrial(minutes: number) {

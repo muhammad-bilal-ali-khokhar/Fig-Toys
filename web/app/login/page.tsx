@@ -4,15 +4,15 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, BadgeCheck, Lock, ShieldCheck, Timer } from "lucide-react";
-import { APP, DEMO_ADMIN, ROUTES, TEXT } from "@/lib/constants";
+import { APP, ROUTES, TEXT } from "@/lib/constants";
 import { useStore } from "@/lib/store";
 import { Button, Field, LogoMark } from "@/components/ui";
 
 export default function LoginPage() {
   const { authReady, adminSignedIn, signIn } = useStore();
   const router = useRouter();
-  const [email, setEmail] = useState(DEMO_ADMIN.email);
-  const [password, setPassword] = useState(DEMO_ADMIN.password);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [next, setNext] = useState(ROUTES.overview);
 
@@ -26,9 +26,9 @@ export default function LoginPage() {
     if (authReady && adminSignedIn) router.replace(next);
   }, [authReady, adminSignedIn, next, router]);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const result = signIn(email, password);
+    const result = await signIn(email, password);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -161,24 +161,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-6 rounded-xl border border-dashed border-ink-300 bg-ink-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-                {TEXT.login.demoTitle}
-              </p>
-              <p className="mt-1 text-xs text-ink-500">{TEXT.login.demoHint}</p>
-              <div className="mt-3 grid gap-2 text-xs">
-                <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2">
-                  <span className="text-ink-500">{TEXT.login.email}</span>
-                  <span className="font-mono font-medium text-ink-900">{DEMO_ADMIN.email}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2">
-                  <span className="text-ink-500">{TEXT.login.password}</span>
-                  <span className="font-mono font-medium text-ink-900">
-                    {DEMO_ADMIN.password}
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-200 bg-white/70 px-4 py-3">

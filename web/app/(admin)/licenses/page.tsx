@@ -4,9 +4,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
-  ChevronDown,
   Hash,
   KeyRound,
+  MonitorSmartphone,
+  RotateCcw,
   Plus,
   Search,
   Trash2,
@@ -16,6 +17,7 @@ import { formatDateTime, formatPKR } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/lib/toast";
 import type { LicenseKey, LicenseKeyStatus } from "@/lib/types";
+import { Dropdown } from "@/components/dropdown";
 import { Button, EmptyState, Field, Modal, PageHeader } from "@/components/ui";
 import { CopyButton } from "@/components/copy-button";
 
@@ -24,7 +26,7 @@ type Filter = LicenseKeyStatus | "all";
 const filters: Filter[] = ["all", "active", "revoked"];
 
 export default function LicensesPage() {
-  const { db, issueKey, revokeKey } = useStore();
+  const { db, issueKey, mintCode, reviveKey, revokeDevice, revokeKey } = useStore();
   const { toast } = useToast();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -33,6 +35,7 @@ export default function LicensesPage() {
   const [issueDays, setIssueDays] = useState(String(db.pricing.durationDays));
   const [issuedKey, setIssuedKey] = useState<LicenseKey | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<LicenseKey | null>(null);
+  const [deviceKeyId, setDeviceKeyId] = useState<string | null>(null);
   const [codeOpen, setCodeOpen] = useState(false);
   const [codeName, setCodeName] = useState("");
   const [codeDevices, setCodeDevices] = useState("1");
@@ -106,39 +109,17 @@ export default function LicensesPage() {
     }
     setCodeBusy(true);
     try {
-      const response = await fetch("/api/activation-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: name,
-          maxDevices: Math.round(devices),
-          pricePkr: Math.round(price),
-          expiresAt: codeExpiry
-            ? new Date(`${codeExpiry}T23:59:59`).getTime()
-            : undefined,
-        }),
+      const result = await mintCode({
+        customerName: name,
+        maxDevices: Math.round(devices),
+        pricePkr: Math.round(price),
+        expiresAt: codeExpiry
+          ? new Date(`${codeExpiry}T23:59:59`).getTime()
+          : undefined,
       });
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            code?: string;
-            customerName?: string;
-            maxDevices?: number;
-            pricePkr?: number | null;
-            expiresAt?: number | null;
-            error?: string;
-          }
-        | null;
-      if (!response.ok || !payload?.code) {
-        throw new Error(payload?.error ?? TEXT.licenses.activationError);
-      }
+      if (!result.ok) throw new Error(result.error);
       setCodeOpen(false);
-      setGeneratedCode({
-        code: payload.code,
-        customerName: payload.customerName ?? name,
-        maxDevices: payload.maxDevices ?? Math.round(devices),
-        pricePkr: payload.pricePkr ?? Math.round(price),
-        expiresAt: payload.expiresAt ?? null,
-      });
+      setGeneratedCode(result.data);
       toast(TEXT.licenses.activationCreated, "success");
     } catch (err) {
       toast(err instanceof Error ? err.message : TEXT.licenses.activationError, "error");
@@ -147,7 +128,21 @@ export default function LicensesPage() {
     }
   }
 
-  function createKey() {
+  const deviceKey = deviceKeyId
+    ? db.keys.find((key) => key.id === deviceKeyId) ?? null
+    : null;
+
+  async function revive(keyId: string) {
+    await reviveKey(keyId);
+    toast(TEXT.licenses.revivedToast, "success");
+  }
+
+  async function removeDevice(activationId: string) {
+    await revokeDevice(activationId);
+    toast(TEXT.licenses.deviceRemoved, "success");
+  }
+
+  async function createKey() {
     const days = Number(issueDays);
     if (!issueClientId) {
       toast(TEXT.errors.notFound, "error");
@@ -157,7 +152,7 @@ export default function LicensesPage() {
       toast(TEXT.pricing.invalid, "error");
       return;
     }
-    const result = issueKey(issueClientId, Math.round(days));
+    const result = await issueKey(issueClientId, Math.round(days));
     if (!result.ok) {
       toast(result.error, "error");
       return;
@@ -258,6 +253,7 @@ export default function LicensesPage() {
                   <th>{TEXT.licenses.issued}</th>
                   <th>{TEXT.licenses.expires}</th>
                   <th>{TEXT.licenses.duration}</th>
+                  <th>{TEXT.licenses.devices}</th>
                   <th>{TEXT.licenses.status}</th>
                   <th className="text-right">{TEXT.detail.actions}</th>
                 </tr>
@@ -268,7 +264,7 @@ export default function LicensesPage() {
                   return (
                     <tr key={key.id}>
                       <td>
-                        <span className="font-mono text-xs font-semibold text-ink-900">
+                        <span className="break-all font-mono text-xs font-semibold text-ink-900">
                           {key.key}
                         </span>
                       </td>
@@ -303,6 +299,16 @@ export default function LicensesPage() {
                         </span>
                       </td>
                       <td>
+                        <button
+                          type="button"
+                          onClick={() => setDeviceKeyId(key.id)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-ink-100 px-2.5 py-1 text-xs font-semibold text-ink-700 transition hover:bg-ink-200"
+                        >
+                          <MonitorSmartphone className="h-3.5 w-3.5" />
+                          {key.activeDevices ?? 0}/{key.maxDevices ?? 1}
+                        </button>
+                      </td>
+                      <td>
                         <span
                           className={
                             key.status === "active" ? "badge badge-active" : "badge badge-blocked"
@@ -327,7 +333,16 @@ export default function LicensesPage() {
                               <Trash2 className="h-3.5 w-3.5" />
                               {TEXT.licenses.revoke}
                             </Button>
-                          ) : null}
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => void revive(key.id)}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              {TEXT.licenses.revive}
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -363,21 +378,17 @@ export default function LicensesPage() {
       >
         <div className="space-y-4">
           <Field label={TEXT.payments.shop} htmlFor="key-client">
-            <div className="relative">
-              <select
-                id="key-client"
-                value={issueClientId}
-                onChange={(event) => setIssueClientId(event.target.value)}
-                className="input appearance-none pr-9"
-              >
-                {db.clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.shopName} · {client.ownerName}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-            </div>
+            <Dropdown
+              className="w-full"
+              value={issueClientId}
+              options={db.clients.map((client) => ({
+                value: client.id,
+                label: `${client.shopName} · ${client.ownerName}`,
+              }))}
+              onChange={setIssueClientId}
+              searchable
+              ariaLabel={TEXT.payments.shop}
+            />
           </Field>
           <Field label={TEXT.detail.generateDuration} htmlFor="key-days-input">
             <input
@@ -407,7 +418,7 @@ export default function LicensesPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-teal-800">
               {TEXT.detail.key}
             </p>
-            <p className="mt-1 font-mono text-lg font-semibold tracking-wide text-teal-900">
+            <p className="mt-1 break-all font-mono text-lg font-semibold tracking-wide text-teal-900">
               {issuedKey.key}
             </p>
             <p className="mt-1 text-xs text-teal-800/80">
@@ -559,13 +570,79 @@ export default function LicensesPage() {
       >
         {revokeTarget ? (
           <div className="rounded-xl border border-ink-200 bg-ink-50 px-4 py-3">
-            <p className="font-mono text-xs font-semibold text-ink-900">
+            <p className="break-all font-mono text-xs font-semibold text-ink-900">
               {revokeTarget.key}
             </p>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
               <CheckCircle2 className="h-3.5 w-3.5" />
               {clientOf(revokeTarget)?.shopName ?? TEXT.errors.notFound}
             </p>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(deviceKey)}
+        onClose={() => setDeviceKeyId(null)}
+        title={TEXT.licenses.devicesTitle}
+        description={TEXT.licenses.devicesBody}
+        size="sm"
+        footer={
+          <Button variant="secondary" onClick={() => setDeviceKeyId(null)}>
+            {TEXT.common.close}
+          </Button>
+        }
+      >
+        {deviceKey ? (
+          <div className="space-y-3">
+            <div className="rounded-xl bg-ink-50 px-3 py-2 text-xs text-ink-600">
+              <p>
+                {TEXT.licenses.key}:{" "}
+                <span className="font-mono font-semibold text-ink-900">
+                  {deviceKey.key}
+                </span>
+              </p>
+              <p className="mt-1">
+                {deviceKey.activeDevices ?? 0} / {deviceKey.maxDevices ?? 1}{" "}
+                {TEXT.licenses.devicesUsed}
+              </p>
+            </div>
+            {deviceKey.activations && deviceKey.activations.length > 0 ? (
+              deviceKey.activations.map((device) => (
+                <div
+                  key={device.deviceId}
+                  className="rounded-xl bg-ink-50 px-3 py-2"
+                >
+                  <p className="break-all font-mono text-xs font-semibold text-ink-900">
+                    {device.deviceId}
+                  </p>
+                  <p className="mt-1 text-[11px] text-ink-500">
+                    {TEXT.licenses.activatedAt}:{" "}
+                    {formatDateTime(device.activatedAt)}
+                  </p>
+                  {device.revokedAt ? (
+                    <p className="text-[11px] text-ink-500">
+                      {TEXT.licenses.revokedAt}:{" "}
+                      {formatDateTime(device.revokedAt)}
+                    </p>
+                  ) : (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => void removeDevice(device.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {TEXT.licenses.removeDevice}
+                    </Button>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="rounded-xl bg-ink-50 px-3 py-2 text-sm text-ink-500">
+                {TEXT.licenses.noDevices}
+              </p>
+            )}
           </div>
         ) : null}
       </Modal>

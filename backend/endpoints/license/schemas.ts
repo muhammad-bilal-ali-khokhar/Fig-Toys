@@ -29,9 +29,13 @@ export const licenseStatusSchema = z.object({
   periodDays: z.number(),
   jazzcashName: z.string(),
   jazzcashNumber: z.string(),
+  easypaisaNumber: z.string(),
+  bankName: z.string(),
+  accountNumber: z.string(),
   qrUrl: z.string(),
   whatsapp: z.string(),
   paymentMode: z.enum(["sandbox", "live", "manual"]),
+  portalUrl: z.string().nullable(),
   payments: z.array(
     z.object({
       id: z.string(),
@@ -46,9 +50,11 @@ export const licenseStatusSchema = z.object({
 
 export type LicenseStatus = z.infer<typeof licenseStatusSchema>;
 
-export const paymentSchema = z.object({
+export const paymentRequestSchema = z.object({
+  amountPkr: z.coerce.number().int().positive(),
+  method: z.enum(["jazzcash", "easypaisa", "bank"]),
   txnId: z.string().trim().min(4, "Enter the payment transaction ID").max(80),
   note: z.string().trim().max(200).optional(),
 });
 
-export type PaymentInput = z.infer<typeof paymentSchema>;
+export type PaymentRequestInput = z.infer<typeof paymentRequestSchema>;
