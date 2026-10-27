@@ -330,6 +330,123 @@ async function claimLegacyLicense(license: LicenseRow): Promise<LicenseRow> {
   }
 }
 
+export async function startTrialRegistration(): Promise<LicenseStatus> {
+  const redeemUrl = env.LICENSE_REDEEM_URL?.trim();
+  if (!redeemUrl) {
+    throw new ApiError(
+      503,
+      "license.trial_not_configured",
+      "Online activation is not configured.",
+    );
+  }
+
+  const license = await ensureLicense();
+  if (license.status === "ACTIVE" || license.status === "TRIAL") {
+    return serialize(license);
+  }
+
+  const company = await prisma.companyProfile.findUnique({
+    where: { id: "store" },
+  });
+  if (!company) {
+    throw new ApiError(
+      400,
+      "license.setup_required",
+      "Complete shop setup before starting the trial.",
+    );
+  }
+
+  const admin = await prisma.user.findFirst({
+    orderBy: { createdAt: "asc" },
+    select: { name: true },
+  });
+  const deviceId = await getDeviceId();
+
+  let response: Response;
+  try {
+    response = await fetch(redeemUrl.replace(/\/redeem$/, "/install/trial"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceId,
+        shopName: company.name,
+        ownerName: admin?.name || company.name,
+        email: company.email || undefined,
+        phone: company.phone || undefined,
+        city: company.address || undefined,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new ApiError(
+      502,
+      "license.trial_offline",
+      "Connect to the internet to start your free trial, then try again.",
+    );
+  }
+
+  const body = (await response.json().catch(() => null)) as
+    | {
+        message?: unknown;
+        clientId?: unknown;
+        status?: unknown;
+        trialEndsAt?: unknown;
+        paidUntil?: unknown;
+        lifetime?: unknown;
+        monthlyPricePkr?: unknown;
+      }
+    | null;
+  if (!response.ok) {
+    throw new ApiError(
+      502,
+      "license.trial_failed",
+      typeof body?.message === "string"
+        ? body.message
+        : "Could not start the trial. Try again.",
+    );
+  }
+  if (typeof body?.clientId !== "string") {
+    throw new ApiError(502, "license.trial_failed", "Could not start the trial.");
+  }
+
+  const remoteStatus = typeof body.status === "string" ? body.status : "trial";
+  const status =
+    remoteStatus === "active"
+      ? "ACTIVE"
+      : remoteStatus === "trial"
+        ? "TRIAL"
+        : "EXPIRED";
+  const parse = (value: unknown) =>
+    typeof value === "string" ? new Date(value) : null;
+  const trialEndsAt = parse(body.trialEndsAt);
+  const expiresAt =
+    status === "ACTIVE"
+      ? body.lifetime
+        ? null
+        : parse(body.paidUntil)
+      : trialEndsAt;
+  const now = new Date();
+
+  const updated = await prisma.license.update({
+    where: { id: LICENSE_ID },
+    data: {
+      clientId: body.clientId,
+      customerName: company.name,
+      status,
+      expiresAt,
+      trialStartedAt: license.trialStartedAt ?? now,
+      trialEndsAt,
+      deviceId,
+      pricePkr:
+        typeof body.monthlyPricePkr === "number"
+          ? body.monthlyPricePkr
+          : license.pricePkr,
+      lastVerifiedAt: now,
+    },
+  });
+  return serialize(updated);
+}
+
 export async function getLicenseStatus(force = false): Promise<LicenseStatus> {
   let local = await ensureLicense();
   if (!local.clientId && local.key?.startsWith("FIG-")) {

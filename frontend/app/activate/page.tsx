@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import { useSetupStatus } from "@/lib/use-setup";
 import { useLicenseStatus } from "@/lib/use-license";
 import { APP, LICENSE } from "@/lib/constants";
+import { startTrial as startTrialRequest } from "@/lib/services/onboarding";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,9 @@ export default function ActivatePage() {
   const [key, setKey] = useState("");
   const [activating, setActivating] = useState(false);
   const [error, setError] = useState("");
+  const [trialStarting, setTrialStarting] = useState(false);
+  const [trialError, setTrialError] = useState("");
+  const autoTrial = useRef(false);
   const { reading: readingClipboard, paste: pasteClipboard } = useClipboardPaste();
 
   useEffect(() => {
@@ -33,6 +37,31 @@ export default function ActivatePage() {
       router.replace(user ? "/dashboard" : "/login");
     }
   }, [status, license, needsSetup, loading, user, router]);
+
+  const beginTrial = useCallback(async () => {
+    setTrialStarting(true);
+    setTrialError("");
+    try {
+      await startTrialRequest();
+      await refetch();
+    } catch (err) {
+      setTrialError(
+        err instanceof Error
+          ? err.message
+          : "Connect to the internet to start your trial, then try again.",
+      );
+    } finally {
+      setTrialStarting(false);
+    }
+  }, [refetch]);
+
+  useEffect(() => {
+    if (status !== "ready" || loading || setupLoading || needsSetup) return;
+    if (!license || license.status !== "UNLICENSED") return;
+    if (autoTrial.current) return;
+    autoTrial.current = true;
+    void beginTrial();
+  }, [status, loading, setupLoading, needsSetup, license, beginTrial]);
 
   if (status === "loading" || setupLoading || loading) {
     return <Shell>Loading…</Shell>;
@@ -75,10 +104,35 @@ export default function ActivatePage() {
           <Logo size={28} />
           <h2 className="text-sm font-bold tracking-tight text-ink-900">{APP.nameFull}</h2>
         </div>
-        <h1 className="mt-6 text-lg font-bold text-ink-900">{LICENSE.title}</h1>
-        <p className="mt-1 text-xs text-ink-500">{LICENSE.subtitle}</p>
+        <h1 className="mt-6 text-lg font-bold text-ink-900">{LICENSE.trialTitle}</h1>
+        <p className="mt-1 text-xs text-ink-500">{LICENSE.trialBody}</p>
 
-        <div className="mt-6 text-left">
+        <div className="mt-6 rounded-2xl bg-brand-50 p-4 text-left">
+          <p className="text-xs font-semibold text-ink-700">{LICENSE.trialNote}</p>
+          <p className="mt-1 text-[11px] text-ink-500">{LICENSE.trialInternet}</p>
+          {trialError ? (
+            <p className="mt-2 rounded-xl bg-error/10 px-3 py-2 text-xs font-medium text-error">
+              {trialError}
+            </p>
+          ) : null}
+          <Button
+            className="mt-3 w-full"
+            loading={trialStarting}
+            disabled={trialStarting}
+            onClick={() => void beginTrial()}
+          >
+            {trialStarting
+              ? LICENSE.trialStarting
+              : trialError
+                ? LICENSE.trialRetry
+                : LICENSE.trialButton}
+          </Button>
+        </div>
+
+        <div className="mt-6 border-t border-ink-100 pt-5 text-left">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-500">
+            {LICENSE.orCode}
+          </p>
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-500">
             {LICENSE.keyLabel}
           </label>

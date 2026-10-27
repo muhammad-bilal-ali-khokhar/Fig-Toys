@@ -7,6 +7,7 @@ import {
   paymentStatusHandler,
   redeemHandler,
   statusHandler,
+  trialHandler,
 } from "./handlers";
 import {
   activateSchema,
@@ -25,5 +26,6 @@ router.post(
   asyncHandler(paymentHandler),
 );
 router.get("/payment-status", asyncHandler(paymentStatusHandler));
+router.post("/trial", asyncHandler(trialHandler));
 
 export default router;

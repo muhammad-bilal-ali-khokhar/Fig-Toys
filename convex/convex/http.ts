@@ -8,6 +8,7 @@ import {
   portalPayment,
   portalRegister,
   portalState,
+  registerTrialHttp,
 } from "./portal";
 import { reportCrash } from "./crashes";
 
@@ -59,6 +60,12 @@ http.route({
   path: "/install/claim",
   method: "POST",
   handler: claimInstallationHttp,
+});
+
+http.route({
+  path: "/install/trial",
+  method: "POST",
+  handler: registerTrialHttp,
 });
 
 http.route({

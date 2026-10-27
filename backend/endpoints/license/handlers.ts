@@ -9,6 +9,7 @@ import {
   getJazzcashRequest,
   getLicensePaymentStatus,
   getLicenseStatus,
+  startTrialRegistration,
   redeemLicense,
   rejectJazzcashRequest,
   requestJazzcashPayment,
@@ -42,6 +43,10 @@ export async function redeemHandler(req: Request, res: Response) {
 
 export async function paymentHandler(req: Request, res: Response) {
   res.status(200).json({ data: await submitLicensePayment(req.body as PaymentRequestInput) });
+}
+
+export async function trialHandler(_req: Request, res: Response) {
+  res.json({ data: await startTrialRegistration() });
 }
 
 export async function paymentStatusHandler(_req: Request, res: Response) {

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **Start your free trial in one click.** New installs no longer need an activation code. Complete setup, connect to the internet once, and Fig POS registers your shop and starts the 14 day trial automatically.
 ## v0.2.36
 
 - **Pay right inside Fig POS.** The renewal window is now a complete payment screen with your QR, account, payment methods and transaction form. Submit once and the window unlocks as soon as your payment is approved.

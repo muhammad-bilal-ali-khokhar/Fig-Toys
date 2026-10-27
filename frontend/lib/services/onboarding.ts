@@ -64,6 +64,13 @@ export function getSetupStatus() {
   return apiRequest<{ needsSetup: boolean }>("/setup/status");
 }
 
+export function startTrial() {
+  return apiRequest<LicenseStatus>("/license/trial", {
+    method: "POST",
+    body: {},
+  });
+}
+
 export function getLicenseStatus(force = false) {
   return apiRequest<LicenseStatus>(
     `/license/status${force ? "?force=1" : ""}`,

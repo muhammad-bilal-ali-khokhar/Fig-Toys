@@ -35,7 +35,7 @@ export function useOnboarding({ refetchLicense }: { refetchLicense: () => Promis
   }
 
   function canNext(licenseActive: boolean) {
-    if (step === 0) return licenseActive;
+    if (step === 0) return true;
     if (step === 1) return company.name.trim().length > 0;
     if (step === 2) return true;
     if (step === 3) {
