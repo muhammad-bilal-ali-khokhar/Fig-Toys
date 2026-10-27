@@ -28,6 +28,7 @@ export const ROUTES = {
   licenses: "/licenses",
   crashes: "/crashes",
   users: "/users",
+  releases: "/releases",
   pricing: "/pricing",
   settings: "/settings",
   clientDetail: (id: string) => `/clients/${id}`,
@@ -69,6 +70,7 @@ export const NAV_ITEMS = [
   { href: ROUTES.licenses, label: "License keys", icon: "licenses" },
   { href: ROUTES.crashes, label: "Crash reports", icon: "crashes" },
   { href: ROUTES.users, label: "Users", icon: "users" },
+  { href: ROUTES.releases, label: "Releases", icon: "releases" },
   { href: ROUTES.settings, label: "Settings", icon: "settings" },
 ] as const;
 
@@ -572,6 +574,37 @@ export const TEXT = {
     selfDisable: "You cannot disable or delete your own account.",
     lastOwner: "You cannot remove the last owner.",
     loadError: "Could not load users.",
+  },
+  releases: {
+    title: "Releases",
+    subtitle: "Desktop builds published to the auto-update channel.",
+    latest: "Latest release",
+    history: "Release history",
+    size: "Size",
+    published: "Published",
+    download: "Download installer",
+    blockmap: "Blockmap",
+    notes: "What is new",
+    start: "Start a release",
+    startHint:
+      "Leave the version blank to bump the patch version automatically. The GitHub Release workflow builds the Windows installer, publishes it and updates the auto-update feed.",
+    version: "Version",
+    versionPlaceholder: "Leave blank to auto bump",
+    trigger: "Build and publish",
+    triggering: "Starting...",
+    started: "Release started. Follow it in GitHub Actions.",
+    viewRuns: "View Actions runs",
+    notConfigured:
+      "One-click releases are not configured yet. Add GITHUB_RELEASE_TOKEN to the Worker secrets.",
+    ownerOnly: "Only Owners and Admins can start a release.",
+    invalidVersion: "Use a version like 0.2.37, or leave it blank.",
+    error: "Could not start the release.",
+    empty: "No published releases yet.",
+    confirmTitle: "Start a new release?",
+    confirmBody:
+      "This triggers the GitHub Release workflow on main. It will build, publish and update the auto-update feed.",
+    cancel: "Cancel",
+    close: "Close",
   },
   crashes: {
     title: "Crash reports",

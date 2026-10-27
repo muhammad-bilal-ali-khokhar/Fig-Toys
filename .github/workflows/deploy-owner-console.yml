@@ -44,9 +44,13 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.OWNER_ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.OWNER_ADMIN_PASSWORD }}
           ADMIN_SESSION_SECRET: ${{ secrets.OWNER_ADMIN_SESSION_SECRET }}
+          GITHUB_RELEASE_TOKEN: ${{ secrets.GITHUB_RELEASE_TOKEN }}
         run: |
           printf '%s' "$CONVEX_SITE_URL" | npx wrangler secret put CONVEX_SITE_URL
           printf '%s' "$LICENSE_ADMIN_TOKEN" | npx wrangler secret put LICENSE_ADMIN_TOKEN
           printf '%s' "$ADMIN_EMAIL" | npx wrangler secret put ADMIN_EMAIL
           printf '%s' "$ADMIN_PASSWORD" | npx wrangler secret put ADMIN_PASSWORD
           printf '%s' "$ADMIN_SESSION_SECRET" | npx wrangler secret put ADMIN_SESSION_SECRET
+          if [ -n "$GITHUB_RELEASE_TOKEN" ]; then
+            printf '%s' "$GITHUB_RELEASE_TOKEN" | npx wrangler secret put GITHUB_RELEASE_TOKEN
+          fi

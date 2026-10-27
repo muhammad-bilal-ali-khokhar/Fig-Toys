@@ -29,6 +29,10 @@ Required GitHub secrets:
 - Secret: `CONVEX_DEPLOY_KEY` for the production deployment
 - Set the production Convex env values in the Convex dashboard before deploying: `LICENSE_ADMIN_TOKEN`, `LICENSE_PRIVATE_KEY`, `PORTAL_BASE_URL`.
 
+## Release management
+
+The console reads the published release list from `https://download.myko.pk/versions.json`. One-click releases are optional: create a fine-grained GitHub token for `myko-pakistan-bwp/Fig-POS` with **Actions: Read and write**, then set it as `GITHUB_RELEASE_TOKEN` on the Worker (or as the GitHub secret used by the deploy workflow). The Releases page will then be able to start the `Release` workflow on `main`.
+
 ## First login and users
 
 The first successful login creates the first Owner account from `ADMIN_EMAIL` and `ADMIN_PASSWORD`. After that, logins use the Users table in Convex. Manage accounts at `/users`:

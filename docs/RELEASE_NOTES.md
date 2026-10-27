@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **Releases in the console.** See every published version, download the installer and, when the release token is configured, start a new build from the owner console.
 ## v0.2.36
 
 - **Bring your team in.** The owner console now has Users. Add an Owner, Admin or Support account, reset passwords, disable access and see the last login. Only Owners can manage other Owners.

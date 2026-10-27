@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Rocket,
   Settings,
   Tags,
   Users,
@@ -28,6 +29,7 @@ const navIcons = {
   licenses: KeyRound,
   crashes: Bug,
   users: Users,
+  releases: Rocket,
   pricing: Tags,
   settings: Settings,
 } as const;

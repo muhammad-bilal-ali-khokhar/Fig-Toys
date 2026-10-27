@@ -114,6 +114,17 @@ export type AdminUser = {
   createdBy: string | null;
 };
 
+export type ReleaseInfo = {
+  version: string;
+  size: string;
+  publishedAt: string | null;
+  description: string;
+  url: {
+    setup: string;
+    blockmap: string | null;
+  };
+};
+
 export type CrashReport = {
   id: string;
   clientId: string | null;
