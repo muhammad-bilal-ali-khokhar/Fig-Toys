@@ -93,6 +93,32 @@ export function LicensePaywall() {
   }, [available, method]);
 
   useEffect(() => {
+    if (!expired || !license) return;
+    let active = true;
+    getLicensePaymentStatus()
+      .then((result) => {
+        if (!active) return;
+        const payment = result.payment;
+        if (!payment) return;
+        if (result.licenseStatus === "active") {
+          setUnlocked(true);
+          void refetch(true);
+          return;
+        }
+        if (payment.status === "pending") {
+          setPending(payment);
+        } else if (payment.status === "rejected") {
+          setRejected(payment);
+          setTxnId(payment.txnId || "");
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [expired, license?.expiresAt, refetch]);
+
+  useEffect(() => {
     if (!pending) return;
     let active = true;
 

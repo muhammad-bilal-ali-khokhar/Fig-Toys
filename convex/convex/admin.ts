@@ -328,6 +328,15 @@ export const applyAction = internalMutation({
       case "submitPayment": {
         const client = await findClientById(ctx, String(payload.clientId ?? ""));
         if (!client) throw new ConvexError("Client not found.");
+        const pending = (
+          await ctx.db
+            .query("payments")
+            .withIndex("by_client", (q) => q.eq("clientId", client.id))
+            .collect()
+        ).find((item: any) => item.status === "pending");
+        if (pending) {
+          return { payment: mapPayment(pending), existing: true };
+        }
         const payment = {
           id: newId("p"),
           clientId: client.id,
