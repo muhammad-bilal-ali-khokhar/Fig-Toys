@@ -221,7 +221,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           </div>
         )}
-        <main className="mx-auto w-full max-w-[1440px] flex-1 overflow-y-auto overscroll-none px-6 py-6 print:max-w-none print:px-0 print:py-0">{children}</main>
+        <main className="mx-auto w-full max-w-none flex-1 overflow-y-auto overscroll-none px-6 py-6 print:max-w-none print:px-0 print:py-0">{children}</main>
       </div>
 
       <Dialog

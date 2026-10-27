@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **More room to work.** On large screens Fig POS now uses the full width, so tables, dashboards and settings have more space.
+
 ## v0.2.39
 
 - **Crashes are reported automatically.** If Fig POS hits an unexpected error, it now sends a crash report before closing so the team can fix it faster.

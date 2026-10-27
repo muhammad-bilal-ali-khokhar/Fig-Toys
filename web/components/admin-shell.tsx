@@ -199,7 +199,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </span>
         </div>
 
-        <main className="mx-auto w-full max-w-[1440px] flex-1 overflow-y-auto overscroll-none px-6 py-6">
+        <main className="mx-auto w-full max-w-none flex-1 overflow-y-auto overscroll-none px-6 py-6">
           {children}
         </main>
       </div>
