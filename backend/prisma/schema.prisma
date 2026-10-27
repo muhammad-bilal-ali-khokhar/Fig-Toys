@@ -585,8 +585,40 @@ model License {
   activatedAt DateTime?
   status      String   @default("UNLICENSED")
   lastVerifiedAt DateTime?
+  pricePkr    Int      @default(5000)
+  trialStartedAt DateTime?
+  trialEndsAt DateTime?
+  trialUsedAt DateTime?
+  purchasedAt DateTime?
+  lastPaymentAt DateTime?
+  paymentRef  String?
+  portalUrl   String?
+  clientId    String?
+  payments    LicensePayment[]
 
   @@map("licenses")
+}
+
+model LicensePayment {
+  id          String   @id @default(cuid())
+  licenseId   String   @default("store")
+  license     License  @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  amountPkr   Int
+  method      String   @default("JAZZCASH")
+  txnId       String
+  note        String?
+  status      String   @default("PAID")
+  provider    String   @default("MANUAL")
+  providerRef String?
+  checkoutUrl String?
+  rawState    String?
+  verifiedAt  DateTime?
+  paidAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([licenseId, paidAt])
+  @@index([providerRef])
+  @@map("license_payments")
 }
 
 model CrashReport {

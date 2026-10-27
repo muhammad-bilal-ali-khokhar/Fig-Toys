@@ -19,7 +19,7 @@ export default function HomePage() {
       router.replace("/dashboard");
     } else if (needsSetup) {
       router.replace("/onboarding");
-    } else if (!license || license.status !== "ACTIVE") {
+    } else if (!license || license.status === "UNLICENSED") {
       router.replace("/activate");
     } else {
       router.replace("/login");

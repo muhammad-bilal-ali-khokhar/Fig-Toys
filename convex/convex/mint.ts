@@ -2,38 +2,14 @@ import { httpAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { isAdminRequest, json } from "./lib/auth";
-
-async function generateUniqueCode(ctx: {
-  db: {
-    query: (
-      table: "activationCodes",
-    ) => {
-      withIndex: (
-        index: "by_code",
-        filter: (q: { eq: (field: "code", value: string) => unknown }) => unknown,
-      ) => {
-        unique: () => Promise<{ _id: string } | null>;
-      };
-    };
-  };
-}): Promise<string> {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    let code = "";
-    for (let i = 0; i < 10; i++) code += Math.floor(Math.random() * 10);
-    const existing = await ctx.db
-      .query("activationCodes")
-      .withIndex("by_code", (q) => q.eq("code", code))
-      .unique();
-    if (!existing) return code;
-  }
-  throw new Error("Could not generate a unique activation code. Try again.");
-}
+import { generateUniqueCode } from "./lib/data";
 
 export const createCode = internalMutation({
   args: {
     customerName: v.string(),
     edition: v.string(),
     maxDevices: v.number(),
+    pricePkr: v.optional(v.number()),
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -44,6 +20,7 @@ export const createCode = internalMutation({
       customerName: args.customerName,
       edition: args.edition,
       maxDevices: args.maxDevices,
+      pricePkr: args.pricePkr,
       expiresAt: args.expiresAt,
       createdAt: Date.now(),
     });
@@ -56,7 +33,7 @@ export const mintActivationCode = httpAction(async (ctx, request) => {
     return json({ message: "Unauthorized." }, 401);
   }
 
-  let body: { customerName?: unknown; edition?: unknown; maxDevices?: unknown; expiresAt?: unknown } | null = null;
+  let body: { customerName?: unknown; edition?: unknown; maxDevices?: unknown; pricePkr?: unknown; expiresAt?: unknown } | null = null;
   try {
     body = await request.json();
   } catch {
@@ -66,6 +43,10 @@ export const mintActivationCode = httpAction(async (ctx, request) => {
   const customerName = typeof body?.customerName === "string" ? body.customerName.trim() : "";
   const edition = typeof body?.edition === "string" ? body.edition.trim() : "PRO";
   const maxDevices = typeof body?.maxDevices === "number" ? body.maxDevices : 1;
+  const pricePkr =
+    typeof body?.pricePkr === "number" && body.pricePkr > 0
+      ? Math.round(body.pricePkr)
+      : undefined;
   const expiresAt = typeof body?.expiresAt === "number" ? body.expiresAt : undefined;
 
   if (!customerName) {
@@ -76,6 +57,7 @@ export const mintActivationCode = httpAction(async (ctx, request) => {
     customerName,
     edition,
     maxDevices,
+    pricePkr,
     expiresAt,
   });
 

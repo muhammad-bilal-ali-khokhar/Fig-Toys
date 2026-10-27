@@ -20,6 +20,7 @@ files:
   - spalsh_2.png
   - error.html
   - runtime.json
+  - cloud.json
   - package.json
 
 # Bundle the production builds (no source, no node_modules except the native

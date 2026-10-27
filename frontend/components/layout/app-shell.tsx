@@ -20,6 +20,7 @@ import { queueCount, isOnline } from "@/lib/offline-queue";
 import { flushOfflineQueue } from "@/lib/offline-sync";
 import { useDashboardLayout } from "@/lib/dashboard-layout-context";
 import { UpdateBanner } from "@/components/update-banner";
+import { LicenseTrialBar } from "@/components/license/license-trial-bar";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
@@ -205,6 +206,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <UpdateBanner />
+        <LicenseTrialBar />
         {(!online || pending > 0) && (
           <div className="flex shrink-0 items-center justify-center gap-2 bg-warning px-4 py-1.5 text-xs font-semibold text-white">
             <span>{online ? `${pending} change(s) pending sync` : "You're offline. Changes are saved locally and will sync when you reconnect"}</span>

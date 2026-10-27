@@ -1,0 +1,5 @@
+CONVEX_SITE_URL="https://your-deployment.convex.site"
+LICENSE_ADMIN_TOKEN=""
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+ADMIN_SESSION_SECRET=""

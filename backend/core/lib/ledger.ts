@@ -253,8 +253,12 @@ export async function splitCashByDrawer(
     accounted += unassignedAmount;
   }
 
+  if (splitAmounts.length === 0) {
+    return;
+  }
+
   const diff = Math.round((totalCash - accounted) * 100) / 100;
-  if (diff !== 0 && splitAmounts.length > 0) {
+  if (diff !== 0) {
     splitAmounts[0].amount = Math.round((splitAmounts[0].amount + diff) * 100) / 100;
   }
 

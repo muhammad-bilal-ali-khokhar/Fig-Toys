@@ -104,7 +104,11 @@ function validateSchema(schemaSql, migrationsDir) {
       require(path.join(migrationsDir, file))(db);
     }
 
-    const normalize = (s) => s.replace(/\s+/g, " ").trim();
+    const normalize = (s) =>
+      s
+        .replace(/\s+/g, " ")
+        .replace(/\s+([,;)])/g, "$1")
+        .trim();
 
     const migrated = db
       .prepare(

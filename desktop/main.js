@@ -563,8 +563,8 @@ function buildManualReport() {
   );
 }
 
-// Send a crash report to the backend, which forwards it to GitHub Issues
-// server-side (the GitHub token never ships with the app). Opt-in via Settings.
+// Send a crash report to the backend, which forwards it to the license server
+// so the owner console can show it. Opt-in via Settings.
 // Fire-and-forget and fully silent — the user is never told an Issue was opened.
 function sendReport(title, err) {
   const cfg = loadRuntime();
@@ -709,30 +709,6 @@ function getSecret() {
   return s;
 }
 
-// GitHub token for crash reporting. Provided via the FIG_GH_TOKEN env var// (development/CI) or the gitignored backend/.env file, and passed to the
-// backend so reports can be opened as Issues server-side. Never shipped with
-// the app and never exposed in the UI.
-function getGhToken() {
-  if (process.env.FIG_GH_TOKEN && process.env.FIG_GH_TOKEN.trim()) {
-    return process.env.FIG_GH_TOKEN.trim();
-  }
-  const envFile = path.join(__dirname, "..", "backend", ".env");
-  try {
-    if (fs.existsSync(envFile)) {
-      const line = fs
-        .readFileSync(envFile, "utf8")
-        .split("\n")
-        .find((l) => l.trim().startsWith("FIG_GH_TOKEN="));
-      if (line) {
-        const value = line.split("=").slice(1).join("=").trim().replace(/^["']|["']$/g, "");
-        if (value) return value;
-      }
-    }
-  } catch {
-    // ignore unreadable .env
-  }
-  return "";
-}
 
 // License verification public key (Ed25519 PEM). Public — safe to ship with the
 // app; it is passed to the backend so signed license keys can be verified.
@@ -773,9 +749,24 @@ function getRedeemUrl() {
   } catch {
     // ignore unreadable .env
   }
-  // Public Convex HTTP endpoint — not a secret, safe to ship with the app. This
-  // fallback keeps online activation working in packaged builds where neither
-  // the env var nor the gitignored backend/.env file is present.
+  // Build-time cloud config. The release workflow writes this from the
+  // production license server URL so packaged builds never fall back to dev.
+  try {
+    const cloudFile = path.join(__dirname, "cloud.json");
+    if (fs.existsSync(cloudFile)) {
+      const cloud = JSON.parse(fs.readFileSync(cloudFile, "utf8"));
+      const url =
+        typeof cloud.licenseRedeemUrl === "string"
+          ? cloud.licenseRedeemUrl.trim()
+          : typeof cloud.licenseRedeem === "string"
+            ? cloud.licenseRedeem.trim()
+            : "";
+      if (url) return url;
+    }
+  } catch {
+    // ignore unreadable cloud config
+  }
+  // Public Convex HTTP endpoint — not a secret, safe to ship with the app.
   return URLS.licenseRedeem;
 }
 
@@ -856,7 +847,65 @@ function ensureBackendData() {
   }
 }
 
+function getSafepayConfig() {
+  const keys = [
+    "SAFEPAY_ENV",
+    "SAFEPAY_API_KEY",
+    "SAFEPAY_SECRET_KEY",
+    "SAFEPAY_REDIRECT_URL",
+    "SAFEPAY_CANCEL_URL",
+    "SAFEPAY_WEBHOOK_SECRET",
+    "LICENSE_PAYMENT_MODE",
+    "LICENSE_JAZZCASH_NAME",
+    "LICENSE_JAZZCASH_NUMBER",
+    "LICENSE_JAZZCASH_QR_URL",
+    "LICENSE_PERIOD_DAYS",
+  ];
+  const config = {};
+
+  try {
+    const file = path.join(userDataDir(), "safepay.json");
+    if (fs.existsSync(file)) {
+      const data = JSON.parse(fs.readFileSync(file, "utf8"));
+      for (const key of keys) {
+        if (typeof data[key] === "string" && data[key].trim()) {
+          config[key] = data[key].trim();
+        }
+      }
+      return config;
+    }
+  } catch {}
+
+  try {
+    const file = path.join(process.resourcesPath, "safepay.json");
+    if (fs.existsSync(file)) {
+      const data = JSON.parse(fs.readFileSync(file, "utf8"));
+      for (const key of keys) {
+        if (typeof data[key] === "string" && data[key].trim()) {
+          config[key] = data[key].trim();
+        }
+      }
+      return config;
+    }
+  } catch {}
+
+  try {
+    const file = path.join(__dirname, "..", "backend", ".env");
+    if (fs.existsSync(file)) {
+      for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+        const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+        if (!match || !keys.includes(match[1])) continue;
+        const value = match[2].trim().replace(/^["']|["']$/g, "");
+        if (value) config[match[1]] = value;
+      }
+    }
+  } catch {}
+
+  return config;
+}
+
 function spawnBackend() {
+  const safepayEnv = getSafepayConfig();
   const baseEnv = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: "1",
@@ -870,12 +919,11 @@ function spawnBackend() {
     AUTO_BACKUP_ON_START: process.env.FIG_AUTO_BACKUP || "true",
     BACKUP_INTERVAL_HOURS: process.env.FIG_BACKUP_INTERVAL_HOURS || "24",
     BACKUP_RETENTION: process.env.FIG_BACKUP_RETENTION || "14",
-    FIG_GH_TOKEN: getGhToken(),
-    FIG_GH_REPO: process.env.FIG_GH_REPO || "arsalanwahab/Fig-POS",
     FIG_FEEDBACK_SECRET: process.env.FIG_FEEDBACK_SECRET || "",
     LICENSE_PUBLIC_KEY: getLicensePublicKey(),
     LICENSE_REDEEM_URL: getRedeemUrl(),
     FIG_DESKTOP: "1",
+    ...safepayEnv,
   };
 
   // Prefer the compiled backend bundle; fall back to tsx for development.

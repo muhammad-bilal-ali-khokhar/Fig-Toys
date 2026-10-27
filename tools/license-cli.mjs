@@ -102,10 +102,22 @@ function verifyKeyCmd(args) {
 const CONVEX_SITE_URL =
   (process.env.CONVEX_SITE_URL || "").replace(/\/+$/, "") || "https://fiery-panda-147.convex.site";
 
-const ADMIN_TOKEN = "8b1b2259ed15f548ffa2dea265a8330272a6092138802e4a";
-
 function adminToken() {
-  return (process.env.LICENSE_ADMIN_TOKEN || ADMIN_TOKEN).trim();
+  const direct = (process.env.LICENSE_ADMIN_TOKEN || process.env.CONVEX_ADMIN_KEY || "").trim();
+  if (direct) return direct;
+
+  try {
+    const file = path.join(process.cwd(), "convex", ".env.local");
+    const line = readFileSync(file, "utf8")
+      .split("\n")
+      .find((entry) => entry.trim().startsWith("CONVEX_ADMIN_KEY="));
+    if (line) {
+      const value = line.split("=").slice(1).join("=").trim().replace(/^["']|["']$/g, "");
+      if (value) return value;
+    }
+  } catch {}
+
+  throw new Error("Set LICENSE_ADMIN_TOKEN before minting, issuing or checking codes.");
 }
 
 async function apiPost(endpoint, body, { token } = {}) {
@@ -128,6 +140,7 @@ async function mint(ask) {
   const name = (await ask("Customer name")).trim();
   if (!name) throw new Error("Customer name is required");
   const devices = Number((await ask("Device limit", "1")) || "1");
+  const price = Number((await ask("Monthly price (PKR)", "5000")) || "5000");
   const expRaw = await ask("Expiry (YYYY-MM-DD, blank = never)", "");
   const expSec = parseExp(expRaw);
   const data = await apiPost(
@@ -136,6 +149,7 @@ async function mint(ask) {
       customerName: name,
       edition: "PRO",
       maxDevices: Number.isFinite(devices) && devices > 0 ? devices : 1,
+      pricePkr: Number.isFinite(price) && price > 0 ? Math.round(price) : 5000,
       expiresAt: expSec ? expSec * 1000 : undefined,
     },
     { token: adminToken() },
@@ -148,6 +162,7 @@ async function issue(ask) {
   const name = (await ask("Customer name")).trim();
   if (!name) throw new Error("Customer name is required");
   const devices = Number((await ask("Device limit", "1")) || "1");
+  const price = Number((await ask("Monthly price (PKR)", "5000")) || "5000");
   const expRaw = await ask("Expiry (YYYY-MM-DD, blank = never)", "");
   const expSec = parseExp(expRaw);
 
@@ -157,6 +172,7 @@ async function issue(ask) {
       customerName: name,
       edition: "PRO",
       maxDevices: Number.isFinite(devices) && devices > 0 ? devices : 1,
+      pricePkr: Number.isFinite(price) && price > 0 ? Math.round(price) : 5000,
       expiresAt: expSec ? expSec * 1000 : undefined,
     },
     { token: adminToken() },
@@ -179,6 +195,7 @@ async function issue(ask) {
   console.log(`\n  customer:     ${redeemed.customerName}`);
   console.log(`  edition:      ${redeemed.edition}`);
   console.log(`  max devices:  ${redeemed.maxDevices}`);
+  console.log(`  price:        Rs ${redeemed.pricePkr ?? 5000}`);
   console.log(`  expires:      ${redeemed.expiresAt || "never"}`);
   console.log(`  device:       ${redeemed.deviceId}`);
 }
@@ -193,6 +210,7 @@ async function details(args) {
   console.log(`  customer:     ${data.customerName}`);
   console.log(`  edition:      ${data.edition}`);
   console.log(`  max devices:  ${data.maxDevices}`);
+  console.log(`  price:        ${data.pricePkr ? `Rs ${data.pricePkr}` : "default"}`);
   console.log(`  active:       ${data.activeDevices}`);
   console.log(
     `  expires:      ${data.expiresAt ? new Date(data.expiresAt).toISOString() : "never"}`,

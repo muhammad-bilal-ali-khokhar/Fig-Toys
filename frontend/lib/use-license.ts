@@ -10,9 +10,9 @@ export function useLicenseStatus() {
   const [license, setLicense] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (force = false) => {
     try {
-      setLicense(await getLicenseStatus());
+      setLicense(await getLicenseStatus(force));
     } catch {
       setLicense(null);
     } finally {
@@ -22,6 +22,13 @@ export function useLicenseStatus() {
 
   useEffect(() => {
     void refetch();
+    const timer = window.setInterval(() => void refetch(), 30_000);
+    const onFocus = () => void refetch();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [refetch]);
 
   return { license, loading, refetch };

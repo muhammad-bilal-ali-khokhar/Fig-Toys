@@ -44,7 +44,7 @@ export default function LoginPage() {
       router.replace("/dashboard");
     } else if (status === "ready" && setupLoading === false && needsSetup) {
       router.replace("/onboarding");
-    } else if (status === "ready" && licenseLoading === false && license && license.status !== "ACTIVE") {
+    } else if (status === "ready" && licenseLoading === false && license && license.status === "UNLICENSED") {
       router.replace("/activate");
     }
   }, [status, user, needsSetup, setupLoading, license, licenseLoading, router]);

@@ -22,13 +22,14 @@ export default function ActivatePage() {
   const router = useRouter();
   const [key, setKey] = useState("");
   const [activating, setActivating] = useState(false);
+  const [error, setError] = useState("");
   const { reading: readingClipboard, paste: pasteClipboard } = useClipboardPaste();
 
   useEffect(() => {
     if (status !== "ready" || loading) return;
     if (needsSetup) {
       router.replace("/onboarding");
-    } else if (license?.status === "ACTIVE") {
+    } else if (license?.status === "ACTIVE" || license?.status === "TRIAL") {
       router.replace(user ? "/dashboard" : "/login");
     }
   }, [status, license, needsSetup, loading, user, router]);
@@ -44,10 +45,11 @@ export default function ActivatePage() {
   async function activate() {
     const trimmed = key.trim();
     if (!trimmed) {
-      toast("Enter your activation code", "error");
+      setError("Enter your activation code");
       return;
     }
     setActivating(true);
+    setError("");
     try {
       const updated = await apiRequest<typeof license>("/license/redeem", {
         method: "POST",
@@ -58,7 +60,9 @@ export default function ActivatePage() {
       setKey("");
       router.replace(user ? "/dashboard" : "/login");
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Could not activate the license", "error");
+      setError(
+        err instanceof Error ? err.message : "Could not activate the license",
+      );
     } finally {
       setActivating(false);
     }
@@ -86,6 +90,11 @@ export default function ActivatePage() {
             spellCheck={false}
             autoFocus
           />
+          {error ? (
+            <p className="mt-3 rounded-xl bg-error/10 px-3 py-2 text-xs font-medium text-error">
+              {error}
+            </p>
+          ) : null}
           <div className="mt-3 flex gap-2">
             <Button
               variant="grey"

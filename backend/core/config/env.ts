@@ -29,10 +29,8 @@ const envSchema = z.object({
   BACKUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
   BACKUP_RETENTION: z.coerce.number().int().positive().default(14),
 
-  // Crash / error report forwarding. When set, the backend can forward reports
-  // received from the desktop app to GitHub Issues server-side.
-  FIG_GH_TOKEN: z.string().optional(),
-  FIG_GH_REPO: z.string().optional(),
+  // Crash / error report forwarding. Reports are stored locally and sent to
+  // the license server so the owner console can show them.
   FIG_FEEDBACK_SECRET: z.string().optional(),
 
   // License activation public key (PEM, Ed25519). Without it the app is locked
@@ -43,6 +41,28 @@ const envSchema = z.object({
   // exchanges a 10-digit code for a signed license token at activation.
   LICENSE_REDEEM_URL: z.string().optional(),
   LICENSE_REDEEM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  LICENSE_TRIAL_DAYS: z.coerce.number().int().positive().default(14),
+  LICENSE_TRIAL_PRICE_PKR: z.coerce.number().int().positive().default(5000),
+  LICENSE_PERIOD_DAYS: z.coerce.number().int().positive().default(30),
+  LICENSE_JAZZCASH_NAME: z.string().default("Fig POS"),
+  LICENSE_JAZZCASH_NUMBER: z.string().default(""),
+  LICENSE_JAZZCASH_QR_URL: z.string().default("/license-qr.png"),
+  LICENSE_WHATSAPP: z.string().default(""),
+  LICENSE_PAYMENT_MODE: z.enum(["sandbox", "live", "manual"]).default("sandbox"),
+  SAFEPAY_ENV: z.enum(["sandbox", "live"]).default("sandbox"),
+  SAFEPAY_API_KEY: z.string().optional(),
+  SAFEPAY_SECRET_KEY: z.string().optional(),
+  SAFEPAY_REDIRECT_URL: z
+    .string()
+    .default("http://localhost:47620/api/license/safepay/callback"),
+  SAFEPAY_CANCEL_URL: z
+    .string()
+    .default("http://localhost:47620/api/license/safepay/cancel"),
+  SAFEPAY_WEBHOOK_SECRET: z.string().optional(),
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:fig@dev.com"),
+  LICENSE_LOCAL_ADMIN_TOKEN: z.string().optional(),
 
   // Developer portal (database editor). Available in every build, protected
   // by its own independent password.

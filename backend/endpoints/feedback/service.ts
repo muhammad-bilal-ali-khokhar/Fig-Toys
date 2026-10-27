@@ -1,55 +1,44 @@
 import { env } from "../../core/config/env";
 import { prisma } from "../../core/lib/prisma";
-import { COMPANY_ID } from "../../core/lib/company";
+import { getDeviceId } from "../../core/lib/device";
 import type { CrashReportInput } from "./schemas";
 
-const DEFAULT_REPO = "arsalanwahab/Fig-POS";
-
-function repo(): string {
-  const custom = (env.FIG_GH_REPO || "").trim();
-  if (custom) return custom.replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
-  return DEFAULT_REPO;
-}
-
-function hasToken(): boolean {
-  return Boolean((env.FIG_GH_TOKEN || "").trim());
-}
-
-async function context() {
-  const [company, users] = await Promise.all([
-    prisma.companyProfile.findUnique({
-      where: { id: COMPANY_ID },
-      select: { name: true, tagline: true, address: true, phone: true, email: true, website: true, currency: true },
-    }),
-    prisma.user.findMany({
-      select: { username: true, name: true, email: true, role: true, active: true },
-      orderBy: { createdAt: "asc" },
-    }),
-  ]);
-
-  const companyLines = company
-    ? [
-        `**Company:** ${company.name || "?"}`,
-        company.tagline ? `**Tagline:** ${company.tagline}` : "",
-        company.address ? `**Address:** ${company.address}` : "",
-        company.phone ? `**Phone:** ${company.phone}` : "",
-        company.email ? `**Email:** ${company.email}` : "",
-        company.website ? `**Website:** ${company.website}` : "",
-        company.currency ? `**Currency:** ${company.currency}` : "",
-      ]
-    : ["**Company:** not set"];
-
-  const userLines = users.map(
-    (u) =>
-      `- ${u.name} (@${u.username}) · ${u.role} · ${u.email} · ${u.active ? "active" : "inactive"}`,
-  );
-
-  return [...companyLines, "", "**Users on this machine:**", ...(userLines.length ? userLines : ["- none"])];
+async function forwardToConvex(
+  input: CrashReportInput,
+  deviceId: string,
+  clientId: string | undefined,
+  licenseKey: string | undefined,
+): Promise<string> {
+  const redeemUrl = env.LICENSE_REDEEM_URL?.trim();
+  if (!redeemUrl) return "";
+  try {
+    const response = await fetch(redeemUrl.replace(/\/redeem$/, "/crash/report"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId,
+        deviceId,
+        licenseKey,
+        app: input.app,
+        version: input.version,
+        platform: input.platform,
+        title: input.title,
+        message: input.body,
+        logTail: input.logTail,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) return "";
+    const body = (await response.json().catch(() => null)) as
+      | { id?: unknown }
+      | null;
+    return typeof body?.id === "string" ? body.id : "";
+  } catch {
+    return "";
+  }
 }
 
 export async function submitCrashReport(input: CrashReportInput) {
-  const token = (env.FIG_GH_TOKEN || "").trim();
-
   const stored = await prisma.crashReport.create({
     data: {
       app: input.app,
@@ -60,49 +49,20 @@ export async function submitCrashReport(input: CrashReportInput) {
     },
   });
 
-  let url = "";
+  const [deviceId, license] = await Promise.all([
+    getDeviceId(),
+    prisma.license.findUnique({
+      where: { id: "store" },
+      select: { clientId: true, key: true },
+    }),
+  ]);
 
-  if (token) {
-    const ctx = await context();
+  await forwardToConvex(
+    input,
+    deviceId,
+    license?.clientId ?? undefined,
+    license?.key ?? undefined,
+  );
 
-    const detail = [
-      `**App:** ${input.app}`,
-      input.version ? `**Version:** ${input.version}` : "",
-      input.platform ? `**Platform:** ${input.platform}` : "",
-      "",
-      "## Account / company",
-      ...ctx,
-      "",
-      "---",
-      input.body,
-      "",
-      input.logTail ? `--- log tail ---\n${input.logTail}` : "",
-    ]
-      .filter((s) => s !== "")
-      .join("\n");
-
-    const githubRes = await fetch(`https://api.github.com/repos/${repo()}/issues`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "User-Agent": "Fig-Mobile-POS",
-      },
-      body: JSON.stringify({ title: input.title, body: detail }),
-    });
-
-    if (githubRes.ok) {
-      const json = (await githubRes.json()) as { html_url?: string };
-      url = json.html_url || "";
-      await prisma.crashReport.update({
-        where: { id: stored.id },
-        data: { githubIssueUrl: url || null },
-      });
-    }
-  }
-
-  return { stored: true, id: stored.id, url };
+  return { stored: true, id: stored.id, url: "" };
 }
-
-export { hasToken, repo };
