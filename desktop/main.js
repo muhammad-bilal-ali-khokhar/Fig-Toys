@@ -254,8 +254,8 @@ let autoUpdaterReady = false;
 try {
   const upd = require("electron-updater");
   autoUpdater = upd.autoUpdater;
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowDowngrade = false;
   autoUpdater.requestHeaders = { "Cache-Control": "no-cache" };
   const auLogger = {
@@ -348,6 +348,9 @@ try {
     pushUpdateState();
   });
   autoUpdaterReady = true;
+  setInterval(() => {
+    if (!updateState.checking) checkForUpdates({ auto: true });
+  }, 6 * 60 * 60 * 1000);
 } catch (e) {
   logging.write(`OTA: electron-updater not available (${e.message}) — falling back to full download`);
 }

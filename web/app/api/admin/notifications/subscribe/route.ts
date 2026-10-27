@@ -11,10 +11,21 @@ export async function POST(request: Request) {
     endpoint?: unknown;
     p256dh?: unknown;
     auth?: unknown;
+    keys?: { p256dh?: unknown; auth?: unknown };
   } | null;
   const endpoint = typeof body?.endpoint === "string" ? body.endpoint : "";
-  const p256dh = typeof body?.p256dh === "string" ? body.p256dh : "";
-  const auth = typeof body?.auth === "string" ? body.auth : "";
+  const p256dh =
+    typeof body?.p256dh === "string"
+      ? body.p256dh
+      : typeof body?.keys?.p256dh === "string"
+        ? body.keys.p256dh
+        : "";
+  const auth =
+    typeof body?.auth === "string"
+      ? body.auth
+      : typeof body?.keys?.auth === "string"
+        ? body.keys.auth
+        : "";
   if (!endpoint.startsWith("https://") || !p256dh || !auth) {
     return NextResponse.json({ error: "Invalid subscription." }, { status: 400 });
   }
