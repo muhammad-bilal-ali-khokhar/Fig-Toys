@@ -568,6 +568,19 @@ export const applyAction = internalMutation({
         return { ok: true };
       }
 
+      case "createReleaseNotification": {
+        const version = String(payload.version ?? "").trim();
+        await createAdminNotification(ctx, {
+          type: "release",
+          title: "Release started",
+          body: version
+            ? `Fig POS v${version} is building.`
+            : "A new Fig POS release is building.",
+          url: "/releases",
+        });
+        return { ok: true };
+      }
+
       case "sendTestNotification": {
         const id = await createAdminNotification(ctx, {
           type: "test",

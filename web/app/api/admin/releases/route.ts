@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { convexAdmin } from "@/lib/server/convex";
 import { readAdminSession } from "@/lib/server/session";
 import type { ReleaseInfo, ReleaseRun } from "@/lib/types";
 
@@ -162,6 +163,15 @@ export async function POST(request: Request) {
           ? data.message
           : "GitHub rejected the release request.",
       );
+    }
+    try {
+      await convexAdmin("/admin/mutate", {
+        type: "createReleaseNotification",
+        payload: { version },
+        actor: session.email,
+      });
+    } catch {
+      // the release is already running; a notification failure is not fatal
     }
     return NextResponse.json({
       ok: true,
