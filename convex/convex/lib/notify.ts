@@ -5,7 +5,7 @@ import { newId } from "./data";
 export async function createAdminNotification(
   ctx: MutationCtx,
   input: {
-    type: "payment" | "client" | "crash" | "release" | "test";
+    type: "payment" | "client" | "crash" | "release" | "expiry" | "test";
     title: string;
     body: string;
     url: string;

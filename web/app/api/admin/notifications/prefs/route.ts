@@ -21,6 +21,7 @@ export async function POST(request: Request) {
           clients: Boolean(prefs.clients),
           crashes: Boolean(prefs.crashes),
           releases: Boolean(prefs.releases),
+          expiry: prefs.expiry !== false,
         },
       },
       actor: session.email,

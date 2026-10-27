@@ -597,6 +597,7 @@ export const TEXT = {
     clients: "New shops",
     crashes: "Crash reports",
     releases: "Releases",
+    expiry: "Expiring licenses",
     prefsSaved: "Notification preferences saved.",
     subscriptions: "Subscribed browsers",
     noSubscriptions: "No browser is subscribed yet.",

@@ -96,6 +96,18 @@ jobs:
           git tag "v${{ steps.version.outputs.version }}"
           git push origin main --tags
 
+      - name: Notify owner console of release failure
+        if: failure()
+        env:
+          CONVEX_SITE_URL: ${{ vars.CONVEX_SITE_URL }}
+          LICENSE_ADMIN_TOKEN: ${{ secrets.LICENSE_ADMIN_TOKEN }}
+        run: |
+          if [ -z "$CONVEX_SITE_URL" ] || [ -z "$LICENSE_ADMIN_TOKEN" ]; then exit 0; fi
+          curl -sS -X POST "${CONVEX_SITE_URL%/}/admin/mutate" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LICENSE_ADMIN_TOKEN" \
+            --data '{"type":"createReleaseNotification","actor":"GitHub Actions","payload":{"status":"failed"}}'
+
   # Build the Windows installer from the newly-created tag and publish the
   # GitHub Release (installer + latest.yml + blockmap for OTA self-updates).
   build:
@@ -221,3 +233,15 @@ jobs:
           R2_VERSION: ${{ needs.release.outputs.version }}
           R2_SOURCE_DIR: desktop/release
         run: node scripts/publish-to-r2.mjs
+
+      - name: Notify owner console of build failure
+        if: failure()
+        env:
+          CONVEX_SITE_URL: ${{ vars.CONVEX_SITE_URL }}
+          LICENSE_ADMIN_TOKEN: ${{ secrets.LICENSE_ADMIN_TOKEN }}
+        run: |
+          if [ -z "$CONVEX_SITE_URL" ] || [ -z "$LICENSE_ADMIN_TOKEN" ]; then exit 0; fi
+          curl -sS -X POST "${CONVEX_SITE_URL%/}/admin/mutate" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LICENSE_ADMIN_TOKEN" \
+            --data '{"type":"createReleaseNotification","actor":"GitHub Actions","payload":{"version":"${{ needs.release.outputs.version }}","status":"failed"}}'

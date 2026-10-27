@@ -48,11 +48,15 @@ export const deleteSubscription = internalMutation({
   },
 });
 
-const prefKeys: Record<string, "payments" | "clients" | "crashes" | "releases"> = {
+const prefKeys: Record<
+  string,
+  "payments" | "clients" | "crashes" | "releases" | "expiry"
+> = {
   payment: "payments",
   client: "clients",
   crash: "crashes",
   release: "releases",
+  expiry: "expiry",
 };
 
 export const sendNotification = internalAction({

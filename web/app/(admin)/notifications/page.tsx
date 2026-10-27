@@ -7,6 +7,7 @@ import {
   BellRing,
   Bug,
   CheckCheck,
+  Clock,
   CreditCard,
   Rocket,
   Trash2,
@@ -32,6 +33,7 @@ type Prefs = {
   clients: boolean;
   crashes: boolean;
   releases: boolean;
+  expiry: boolean;
 };
 
 type SubscriptionInfo = {
@@ -45,6 +47,7 @@ const defaultPrefs: Prefs = {
   clients: true,
   crashes: true,
   releases: true,
+  expiry: true,
 };
 
 const icons = {
@@ -52,6 +55,7 @@ const icons = {
   client: Users,
   crash: Bug,
   release: Rocket,
+  expiry: Clock,
   test: Bell,
 };
 
@@ -295,6 +299,7 @@ export default function NotificationsPage() {
                 ["clients", TEXT.notifications.clients],
                 ["crashes", TEXT.notifications.crashes],
                 ["releases", TEXT.notifications.releases],
+                ["expiry", TEXT.notifications.expiry],
               ] as const
             ).map(([key, label]) => (
               <label key={key} className="flex items-center justify-between gap-3 text-sm text-ink-800">

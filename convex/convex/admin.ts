@@ -186,6 +186,13 @@ export const applyAction = internalMutation({
           kind: "register",
           message: `Registered ${client.shopName}.`,
         });
+        await createAdminNotification(ctx, {
+          type: "client",
+          title: "New shop registered",
+          body: `${client.shopName} is now in the owner console.`,
+          url: `/clients/${client.id}`,
+          clientId: client.id,
+        });
         return { client: mapClient({ _id: id, ...client }) };
       }
 
@@ -404,6 +411,13 @@ export const applyAction = internalMutation({
           kind: "approve",
           message: `Approved payment for ${client.shopName}.`,
         });
+        await createAdminNotification(ctx, {
+          type: "payment",
+          title: "Payment approved",
+          body: `${client.shopName} paid Rs ${payment.amountPkr}.`,
+          url: "/payments",
+          clientId: client.id,
+        });
         return {
           key: minted.key,
           payment: mapPayment({
@@ -435,6 +449,14 @@ export const applyAction = internalMutation({
           clientId: payment.clientId,
           kind: "reject",
           message: `Rejected payment for ${payment.clientId}.`,
+        });
+        const rejectedClient = await findClientById(ctx, payment.clientId);
+        await createAdminNotification(ctx, {
+          type: "payment",
+          title: "Payment rejected",
+          body: `${rejectedClient?.shopName ?? payment.clientId} payment of Rs ${payment.amountPkr} was rejected.`,
+          url: "/payments",
+          clientId: payment.clientId,
         });
         return { ok: true };
       }
@@ -483,6 +505,7 @@ export const applyAction = internalMutation({
             clients: true,
             crashes: true,
             releases: true,
+            expiry: true,
           },
           subscriptions: subscriptions.map((sub) => ({
             id: sub.id,
@@ -532,6 +555,7 @@ export const applyAction = internalMutation({
             clients: Boolean(prefs.clients),
             crashes: Boolean(prefs.crashes),
             releases: Boolean(prefs.releases),
+            expiry: prefs.expiry !== false,
           },
         });
         return { ok: true };
@@ -579,12 +603,17 @@ export const applyAction = internalMutation({
 
       case "createReleaseNotification": {
         const version = String(payload.version ?? "").trim();
+        const failed = String(payload.status ?? "") === "failed";
         await createAdminNotification(ctx, {
           type: "release",
-          title: "Release started",
-          body: version
-            ? `Fig POS v${version} is building.`
-            : "A new Fig POS release is building.",
+          title: failed ? "Release failed" : "Release started",
+          body: failed
+            ? version
+              ? `Fig POS v${version} failed to build. Check GitHub Actions.`
+              : "A Fig POS build failed. Check GitHub Actions."
+            : version
+              ? `Fig POS v${version} is building.`
+              : "A new Fig POS release is building.",
           url: "/releases",
         });
         return { ok: true };

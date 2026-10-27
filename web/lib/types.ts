@@ -117,7 +117,7 @@ export type AdminUser = {
 
 export type AdminNotification = {
   id: string;
-  type: "payment" | "client" | "crash" | "release" | "test";
+  type: "payment" | "client" | "crash" | "release" | "expiry" | "test";
   title: string;
   body: string;
   url: string;
