@@ -414,9 +414,11 @@ export const applyAction = internalMutation({
         await createAdminNotification(ctx, {
           type: "payment",
           title: "Payment approved",
-          body: `${client.shopName} paid Rs ${payment.amountPkr}.`,
+          body: `${reviewedBy} approved Rs ${payment.amountPkr} for ${client.shopName}.`,
           url: "/payments",
           clientId: client.id,
+          readBy: [reviewedBy.trim().toLowerCase()],
+          skipEmail: reviewedBy.trim().toLowerCase(),
         });
         return {
           key: minted.key,
@@ -454,9 +456,11 @@ export const applyAction = internalMutation({
         await createAdminNotification(ctx, {
           type: "payment",
           title: "Payment rejected",
-          body: `${rejectedClient?.shopName ?? payment.clientId} payment of Rs ${payment.amountPkr} was rejected.`,
+          body: `${reviewedBy} rejected Rs ${payment.amountPkr} for ${rejectedClient?.shopName ?? payment.clientId}.`,
           url: "/payments",
           clientId: payment.clientId,
+          readBy: [reviewedBy.trim().toLowerCase()],
+          skipEmail: reviewedBy.trim().toLowerCase(),
         });
         return { ok: true };
       }
@@ -617,6 +621,26 @@ export const applyAction = internalMutation({
           url: "/releases",
         });
         return { ok: true };
+      }
+
+      case "resetBusinessData": {
+        const tables = [
+          "clients",
+          "payments",
+          "notifications",
+          "pushSubscriptions",
+          "crashReports",
+          "activity",
+          "activationCodes",
+          "activations",
+        ] as const;
+        const deleted: Record<string, number> = {};
+        for (const table of tables) {
+          const rows = await ctx.db.query(table).collect();
+          for (const row of rows) await ctx.db.delete(row._id);
+          deleted[table] = rows.length;
+        }
+        return { deleted };
       }
 
       case "sendTestNotification": {

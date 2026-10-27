@@ -60,8 +60,8 @@ const prefKeys: Record<
 };
 
 export const sendNotification = internalAction({
-  args: { notificationId: v.string() },
-  handler: async (ctx, { notificationId }) => {
+  args: { notificationId: v.string(), skipEmail: v.optional(v.string()) },
+  handler: async (ctx, { notificationId, skipEmail }) => {
     const note = await ctx.runQuery(internal.push.getNotification, {
       id: notificationId,
     });
@@ -75,6 +75,7 @@ export const sendNotification = internalAction({
 
     const prefKey = prefKeys[note.type];
     for (const sub of targets.subscriptions) {
+      if (skipEmail && sub.email === skipEmail) continue;
       const admin = targets.admins.find((item: { email: string }) => item.email === sub.email);
       if (note.type !== "test" && prefKey && admin?.notify?.[prefKey] === false) {
         continue;

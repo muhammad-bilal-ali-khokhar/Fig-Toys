@@ -10,6 +10,8 @@ export async function createAdminNotification(
     body: string;
     url: string;
     clientId?: string;
+    readBy?: string[];
+    skipEmail?: string;
   },
 ): Promise<string> {
   const id = newId("n");
@@ -21,10 +23,11 @@ export async function createAdminNotification(
     url: input.url,
     clientId: input.clientId,
     createdAt: Date.now(),
-    readBy: [],
+    readBy: input.readBy ?? [],
   });
   await ctx.scheduler.runAfter(0, internal.push.sendNotification, {
     notificationId: id,
+    skipEmail: input.skipEmail,
   });
   return id;
 }
