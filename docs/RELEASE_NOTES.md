@@ -1,6 +1,9 @@
 ## Unreleased
 
+## v0.2.42
+
 - **Updates install automatically.** Fig POS now downloads a new version in the background and applies it when you quit, so every shop stays current without hunting for the installer.
+
 ## v0.2.41
 
 - **Cleaner restarts.** If a previous Fig POS process is still holding the local port, the app now clears it automatically and opens normally.
