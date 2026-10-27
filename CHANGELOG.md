@@ -4,7 +4,12 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.40
+## v0.2.41
+
+- Released on: 2026-10-27
+
+- fix: clear stale processes holding app ports
+- chore: refresh release feed for 0.2.40
 
 - Released on: 2026-10-27
 

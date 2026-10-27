@@ -1,6 +1,9 @@
 ## Unreleased
 
+## v0.2.41
+
 - **Cleaner restarts.** If a previous Fig POS process is still holding the local port, the app now clears it automatically and opens normally.
+
 ## v0.2.40
 
 - **More room to work.** On large screens Fig POS now uses the full width, so tables, dashboards and settings have more space.
