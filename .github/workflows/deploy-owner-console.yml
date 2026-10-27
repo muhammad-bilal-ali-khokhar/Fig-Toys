@@ -44,7 +44,7 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.OWNER_ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.OWNER_ADMIN_PASSWORD }}
           ADMIN_SESSION_SECRET: ${{ secrets.OWNER_ADMIN_SESSION_SECRET }}
-          GITHUB_RELEASE_TOKEN: ${{ secrets.GITHUB_RELEASE_TOKEN }}
+          GITHUB_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           printf '%s' "$CONVEX_SITE_URL" | npx wrangler secret put CONVEX_SITE_URL
           printf '%s' "$LICENSE_ADMIN_TOKEN" | npx wrangler secret put LICENSE_ADMIN_TOKEN

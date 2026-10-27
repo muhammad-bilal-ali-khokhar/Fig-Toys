@@ -31,7 +31,7 @@ Required GitHub secrets:
 
 ## Release management
 
-The console reads the published release list from `https://download.myko.pk/versions.json`. One-click releases are optional: create a fine-grained GitHub token for `myko-pakistan-bwp/Fig-POS` with **Actions: Read and write**, then set it as `GITHUB_RELEASE_TOKEN` on the Worker (or as the GitHub secret used by the deploy workflow). The Releases page will then be able to start the `Release` workflow on `main`.
+The console reads the published release list from `https://download.myko.pk/versions.json`. One-click releases are optional: create a fine-grained GitHub token for `myko-pakistan-bwp/Fig-POS` with **Actions: Read and write**, then set it as the GitHub secret `RELEASE_TOKEN`. The deploy workflow copies it to the Worker secret `GITHUB_RELEASE_TOKEN`. GitHub secret names cannot start with `GITHUB_`. The Releases page will then be able to start the `Release` workflow on `main`.
 
 ## First login and users
 
