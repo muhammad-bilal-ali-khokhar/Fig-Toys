@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.37
+## v0.2.38
+
+- Released on: 2026-10-27
+
+- feat: track client app version
 
 - Released on: 2026-10-27
 

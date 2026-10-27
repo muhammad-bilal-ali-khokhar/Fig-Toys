@@ -1,6 +1,9 @@
 ## Unreleased
 
+## v0.2.38
+
 - **A smoother Fig POS.** This update includes behind the scenes reliability and performance improvements.
+
 ## v0.2.37
 
 - **Start your free trial in one click.** New installs no longer need an activation code. Complete setup, connect to the internet once, and Fig POS registers your shop and starts the 14 day trial automatically.
