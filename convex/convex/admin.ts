@@ -234,6 +234,35 @@ export const applyAction = internalMutation({
         return { client: mapClient(updated) };
       }
 
+      case "deleteClient": {
+        const client = await requireClient();
+        const payments = await ctx.db
+          .query("payments")
+          .withIndex("by_client", (q) => q.eq("clientId", client.id))
+          .collect();
+        for (const payment of payments) await ctx.db.delete(payment._id);
+        const codes = await ctx.db
+          .query("activationCodes")
+          .withIndex("by_client", (q) => q.eq("clientId", client.id))
+          .collect();
+        for (const code of codes) await ctx.db.delete(code._id);
+        const crashes = await ctx.db
+          .query("crashReports")
+          .withIndex("by_client", (q) => q.eq("clientId", client.id))
+          .collect();
+        for (const crash of crashes) await ctx.db.delete(crash._id);
+        const notifications = await ctx.db.query("notifications").collect();
+        for (const note of notifications) {
+          if (note.clientId === client.id) await ctx.db.delete(note._id);
+        }
+        const activity = await ctx.db.query("activity").collect();
+        for (const row of activity) {
+          if (row.clientId === client.id) await ctx.db.delete(row._id);
+        }
+        await ctx.db.delete(client._id);
+        return { ok: true };
+      }
+
       case "setClientPlan": {
         const client = await requireClient();
         await ctx.db.patch(client._id, {
