@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **Crashes are reported automatically.** If Fig POS hits an unexpected error, it now sends a crash report before closing so the team can fix it faster.
 ## v0.2.38
 
 - **A smoother Fig POS.** This update includes behind the scenes reliability and performance improvements.

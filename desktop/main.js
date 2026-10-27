@@ -567,14 +567,29 @@ function buildManualReport() {
 // so the owner console can show it. Opt-in via Settings.
 // Fire-and-forget and fully silent — the user is never told an Issue was opened.
 function sendReport(title, err) {
-  const cfg = loadRuntime();
-  if (!cfg.report || !cfg.report.enabled) return;
-  sendReportNow(`[Crash] ${title}`, err).catch((e) => logging.write(`[report] failed (silent): ${e.message}`));
+  void reportCrash(title, err);
 }
 
 // Attempts a crash report regardless of the enabled flag and returns the result
 // so callers (e.g. the manual "Send crash report" button) can surface success or
 // failure. Resolves to { ok, url }.
+async function reportCrash(title, err) {
+  const cfg = loadRuntime();
+  if (!cfg.report || !cfg.report.enabled) return;
+  try {
+    await sendReportNow(`[Crash] ${title}`, err);
+  } catch (e) {
+    logging.write(`[report] failed (silent): ${e && e.message ? e.message : e}`);
+  }
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(resolve, ms)),
+  ]);
+}
+
 async function sendReportNow(title, err) {
   const cfg = loadRuntime();
   const backendUrl = (cfg.report && cfg.report.backendUrl) || `http://localhost:${BACKEND_PORT}`;
@@ -598,7 +613,6 @@ let lastErrorTitle = "Fig POS for Mobile Phones encountered an error";
 // Show a small window with the error, selectable text, and a Copy button — the
 // OS dialog's text is not copyable. A crash report is sent first (silently).
 function fatalDialog(title, err) {
-  sendReport(title, err);
   lastErrorTitle = title || "Fig POS for Mobile Phones encountered an error";
   const logPath = logging.getPath();
   lastErrorDetail =
@@ -626,8 +640,11 @@ function fatalDialog(title, err) {
 
 process.on("uncaughtException", (err) => {
   logging.error("Uncaught exception: " + (err && err.stack ? err.stack : err));
-  fatalDialog("Fig POS for Mobile Phones crashed", err);
-  app.exit(1);
+  void (async () => {
+    await withTimeout(reportCrash("Fig POS for Mobile Phones crashed", err), 4_000);
+    fatalDialog("Fig POS for Mobile Phones crashed", err);
+    app.exit(1);
+  })();
 });
 
 process.on("unhandledRejection", (reason) => {
@@ -1010,11 +1027,14 @@ function prepareStandalone(standDir) {
   }
 }
 
-function track(child) {
+function track(child, label = "Child") {
   children.add(child);
   child.on("exit", (code) => {
     children.delete(child);
-    if (code && code !== 0) logging.error(`child exited unexpectedly with code ${code}`);
+    if (code && code !== 0) {
+      logging.error(`child exited unexpectedly with code ${code}`);
+      void reportCrash(`${label} process exited`, new Error(`${label} process exited with code ${code}`));
+    }
   });
   child.on("error", (err) => logging.error(`child error: ${err.message}`));
 }
@@ -1213,6 +1233,13 @@ function createWindow(url) {
 
   mainWindow.webContents.on("did-finish-load", () => {
     logging.write(`[renderer] loaded ${mainWindow && mainWindow.webContents.getURL()}`);
+  });
+
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    const reason = details && details.reason ? details.reason : "unknown";
+    const code = details && details.exitCode ? details.exitCode : "unknown";
+    logging.error(`[renderer] process gone: ${reason} (exit ${code})`);
+    void reportCrash("Renderer process crashed", new Error(`Renderer process gone: ${reason} (exit ${code})`));
   });
 
   hardenWindow(mainWindow);
@@ -1683,9 +1710,9 @@ if (isUpdater) {
 
       setStatus("Starting backend server…");
       ensureBackendData();
-      track(spawnBackend());
+      track(spawnBackend(), "Backend");
       setStatus("Starting app server…");
-      track(spawnFrontend());
+      track(spawnFrontend(), "App server");
       url = `http://localhost:${FRONTEND_PORT}`;
       setStatus("Waiting for server — this can take a few seconds on first run…");
       try {
