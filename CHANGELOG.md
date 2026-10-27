@@ -4,7 +4,17 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.36
+## v0.2.37
+
+- Released on: 2026-10-27
+
+- feat: auto start free trial after setup
+- feat: show pending release builds in owner console
+- chore: refresh release notes cache
+- docs: keep release notes customer focused
+- fix: use allowed GitHub secret name for release token
+- feat: add release management to the owner console
+- fix: show valid release dates on download page
 
 - Released on: 2026-10-27
 
