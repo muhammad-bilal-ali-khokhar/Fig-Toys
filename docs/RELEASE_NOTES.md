@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.40
+
 - **More room to work.** On large screens Fig POS now uses the full width, so tables, dashboards and settings have more space.
 
 ## v0.2.39

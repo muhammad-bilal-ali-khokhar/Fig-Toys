@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.39
+## v0.2.40
+
+- Released on: 2026-10-27
+
+- fix: use full width on large screens
 
 - Released on: 2026-10-27
 
