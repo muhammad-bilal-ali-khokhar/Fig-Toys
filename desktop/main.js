@@ -88,9 +88,6 @@ function isPortFree(port) {
 // local ports is an orphan from a previous run — kill it before the port check.
 async function reapPortOrphans() {
   const { execFile } = require("node:child_process");
-  const markers = ["server.cjs", "tsx", "next-server", path.sep + "frontend" + path.sep, "standalone"];
-  const isOurs = (cmdline) => cmdline && markers.some((m) => cmdline.includes(m));
-
   for (const port of [BACKEND_PORT, FRONTEND_PORT]) {
     let pids = [];
     try {
@@ -105,7 +102,7 @@ async function reapPortOrphans() {
         }
       } else {
         const out = await new Promise((resolve, reject) =>
-          execFile("lsof", ["-ti", `tcp:${port}`], (err, stdout, stderr) =>
+          execFile("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], (err, stdout) =>
             err ? (err.code === 1 ? resolve("") : reject(err)) : resolve(stdout)));
         pids = out.split("\n").filter(Boolean);
       }
@@ -114,28 +111,21 @@ async function reapPortOrphans() {
     }
 
     for (const pid of pids) {
-      let cmdline = "";
+      if (Number(pid) === process.pid) continue;
       try {
         if (process.platform === "win32") {
-          cmdline = await new Promise((resolve) =>
-            execFile("wmic", ["process", "where", `processid=${pid}`, "get", "commandline", "/value"], (err, stdout) => resolve(stdout || "")));
+          await new Promise((resolve) =>
+            execFile("taskkill", ["/F", "/T", "/PID", pid], () => resolve()));
         } else {
-          cmdline = await new Promise((resolve) =>
-            execFile("ps", ["-p", pid, "-o", "command="], (err, stdout) => resolve(stdout || "")));
-        }
-      } catch {
-        continue;
-      }
-      if (isOurs(cmdline)) {
-        try {
           process.kill(Number(pid), "SIGKILL");
-          logging.write(`Reaped orphaned process on port ${port} (pid ${pid})`);
-        } catch {
-          /* already gone */
         }
+        logging.write(`Cleared process on port ${port} (pid ${pid})`);
+      } catch {
+        /* already gone */
       }
     }
   }
+  await new Promise((resolve) => setTimeout(resolve, 300));
 }
 
 const DEFAULT_RUNTIME = { mode: "local", hostedUrl: "", theme: "fig", report: { enabled: true, backendUrl: "", secret: "" } };
