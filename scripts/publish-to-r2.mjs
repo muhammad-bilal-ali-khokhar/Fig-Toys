@@ -162,7 +162,7 @@ async function main() {
   };
   if (latestYml) {
     const m = readFileSync(path.join(SOURCE, latestYml), "utf8").match(/releaseDate:\s*([^\s]+)/);
-    if (m) latest.publishedAt = m[1].replace(/\.\d{3}Z/, "Z");
+    if (m) latest.publishedAt = m[1].replace(/^['"]|['"]$/g, "").replace(/\.\d{3}Z/, "Z");
   }
 
   console.log(`Publishing Fig POS ${version} → ${BUCKET}/${prefix}`);
