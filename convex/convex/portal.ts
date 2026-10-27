@@ -16,6 +16,7 @@ import {
   newId,
 } from "./lib/data";
 import { verifyLicenseToken } from "./lib/sign";
+import { createAdminNotification } from "./lib/notify";
 
 function clientStatus(client: any, now: number) {
   if (client.blocked) return "blocked" as const;
@@ -84,6 +85,13 @@ export const registerTrial = internalMutation({
       clientId: id,
       kind: "register",
       message: `Started a ${trialDays} day trial for ${shopName}.`,
+    });
+    await createAdminNotification(ctx, {
+      type: "client",
+      title: "New shop started a trial",
+      body: `${shopName} started a ${trialDays} day trial.`,
+      url: `/clients/${id}`,
+      clientId: id,
     });
     return {
       clientId: id,
@@ -297,6 +305,13 @@ export const claimInstallation = internalMutation({
       clientId: id,
       kind: "register",
       message: `Linked existing installation ${input.sub}.`,
+    });
+    await createAdminNotification(ctx, {
+      type: "client",
+      title: "Existing shop linked",
+      body: `${name} is now linked to the owner console.`,
+      url: `/clients/${id}`,
+      clientId: id,
     });
     return { clientId: id, created: true };
   },

@@ -189,6 +189,19 @@ export function mapKey(key: any) {
   };
 }
 
+export function mapNotification(note: any) {
+  return {
+    id: note.id,
+    type: note.type,
+    title: note.title,
+    body: note.body,
+    url: note.url,
+    clientId: note.clientId ?? null,
+    createdAt: iso(note.createdAt) ?? new Date().toISOString(),
+    readBy: Array.isArray(note.readBy) ? note.readBy : [],
+  };
+}
+
 export function mapAdminUser(user: any) {
   return {
     id: user.id,

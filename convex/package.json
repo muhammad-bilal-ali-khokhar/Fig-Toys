@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Convex licensing backend for Fig Mobile POS — activation codes, device bindings, and signed license keys.",
   "dependencies": {
+    "@mmmike/web-push": "^1.5.0",
     "@noble/ed25519": "^2.1.0",
     "convex": "^1.18.0"
   },

@@ -39,6 +39,7 @@ type StoreValue = {
   now: number;
   db: WebDatabase;
   adminSignedIn: boolean;
+  adminEmail: string | null;
   authReady: boolean;
   currentClientId: string | null;
   currentClient: Client | null;
@@ -86,6 +87,9 @@ type StoreValue = {
   reviveKey: (keyId: string) => Promise<void>;
   revokeDevice: (activationId: string) => Promise<void>;
   resolveCrashReport: (reportId: string) => Promise<void>;
+  markNotificationRead: (notificationId: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  sendTestNotification: () => Promise<void>;
   updatePricing: (pricing: Pricing) => Promise<void>;
   updateAdmin: (name: string, email: string) => Promise<void>;
   expireClient: (clientId: string) => Promise<void>;
@@ -112,6 +116,7 @@ const EMPTY_DB: WebDatabase = {
   payments: [],
   keys: [],
   crashReports: [],
+  notifications: [],
   pricing: DEFAULT_PRICING,
   activity: [],
   admin: { name: "Fig Admin", email: "" },
@@ -142,6 +147,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [adminSignedIn, setAdminSignedIn] = useState(false);
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [currentClientId, setCurrentClientIdState] = useState<string | null>(
     null,
   );
@@ -171,11 +177,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const session = await request<{ signedIn: boolean }>(
-          "/api/admin/session",
-        );
+        const session = await request<{
+          signedIn: boolean;
+          email?: string | null;
+        }>("/api/admin/session");
         if (cancelled) return;
         setAdminSignedIn(session.signedIn);
+        setAdminEmail(session.email ?? null);
         if (session.signedIn) await refresh();
         else {
           try {
@@ -228,11 +236,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (email: string, password: string): Promise<ActionResult<null>> => {
       try {
-        await request("/api/admin/login", {
+        const data = await request<{ email: string }>("/api/admin/login", {
           method: "POST",
           body: JSON.stringify({ email, password }),
         });
         setAdminSignedIn(true);
+        setAdminEmail(data.email);
         await refresh();
         return { ok: true, data: null };
       } catch (error) {
@@ -247,6 +256,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     setAdminSignedIn(false);
+    setAdminEmail(null);
     setDb(EMPTY_DB);
     void fetch("/api/admin/logout", { method: "POST" }).catch(() => null);
   }, []);
@@ -482,6 +492,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [mutate, refresh],
   );
 
+  const markNotificationRead = useCallback(
+    async (notificationId: string) => {
+      if (!adminEmail) return;
+      await mutate("markNotificationRead", {
+        id: notificationId,
+        email: adminEmail,
+      });
+      await refresh();
+    },
+    [adminEmail, mutate, refresh],
+  );
+
+  const markAllNotificationsRead = useCallback(async () => {
+    if (!adminEmail) return;
+    await mutate("markAllNotificationsRead", { email: adminEmail });
+    await refresh();
+  }, [adminEmail, mutate, refresh]);
+
+  const sendTestNotification = useCallback(async () => {
+    await mutate("sendTestNotification", {});
+    await refresh();
+  }, [mutate, refresh]);
+
   const reviveKey = useCallback(
     async (keyId: string) => {
       await mutate("reviveKey", { id: keyId });
@@ -534,6 +567,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       now,
       db,
       adminSignedIn,
+      adminEmail,
       authReady,
       currentClientId,
       currentClient,
@@ -556,6 +590,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       reviveKey,
       revokeDevice,
       resolveCrashReport,
+      markNotificationRead,
+      markAllNotificationsRead,
+      sendTestNotification,
       updatePricing,
       updateAdmin,
       expireClient,
@@ -565,6 +602,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       now,
       db,
       adminSignedIn,
+      adminEmail,
       authReady,
       currentClientId,
       currentClient,
@@ -587,6 +625,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       reviveKey,
       revokeDevice,
       resolveCrashReport,
+      markNotificationRead,
+      markAllNotificationsRead,
+      sendTestNotification,
       updatePricing,
       updateAdmin,
       expireClient,

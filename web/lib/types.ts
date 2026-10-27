@@ -115,6 +115,17 @@ export type AdminUser = {
   createdBy: string | null;
 };
 
+export type AdminNotification = {
+  id: string;
+  type: "payment" | "client" | "crash" | "release" | "test";
+  title: string;
+  body: string;
+  url: string;
+  clientId: string | null;
+  createdAt: string;
+  readBy: string[];
+};
+
 export type ReleaseRun = {
   id: number;
   runNumber: number;
@@ -163,6 +174,7 @@ export type WebDatabase = {
   payments: PaymentRequest[];
   keys: LicenseKey[];
   crashReports: CrashReport[];
+  notifications: AdminNotification[];
   pricing: Pricing;
   activity: ActivityEvent[];
   admin: AdminProfile;

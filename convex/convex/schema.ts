@@ -92,12 +92,51 @@ export default defineSchema({
     role: v.union(v.literal("owner"), v.literal("admin"), v.literal("support")),
     passwordHash: v.string(),
     disabled: v.boolean(),
+    notify: v.optional(
+      v.object({
+        payments: v.boolean(),
+        clients: v.boolean(),
+        crashes: v.boolean(),
+        releases: v.boolean(),
+      }),
+    ),
     createdAt: v.number(),
     lastLoginAt: v.optional(v.number()),
     createdBy: v.optional(v.string()),
   })
     .index("by_email", ["email"])
     .index("by_admin_id", ["id"]),
+
+  notifications: defineTable({
+    id: v.string(),
+    type: v.union(
+      v.literal("payment"),
+      v.literal("client"),
+      v.literal("crash"),
+      v.literal("release"),
+      v.literal("test"),
+    ),
+    title: v.string(),
+    body: v.string(),
+    url: v.string(),
+    clientId: v.optional(v.string()),
+    createdAt: v.number(),
+    readBy: v.array(v.string()),
+  })
+    .index("by_notification_id", ["id"])
+    .index("by_created", ["createdAt"]),
+
+  pushSubscriptions: defineTable({
+    id: v.string(),
+    email: v.string(),
+    endpoint: v.string(),
+    p256dh: v.string(),
+    auth: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_endpoint", ["endpoint"])
+    .index("by_push_id", ["id"]),
 
   settings: defineTable({
     key: v.string(),

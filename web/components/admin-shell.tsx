@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowUpRight,
+  Bell,
   Bug,
   Building2,
   KeyRound,
@@ -30,12 +31,13 @@ const navIcons = {
   crashes: Bug,
   users: Users,
   releases: Rocket,
+  notifications: Bell,
   pricing: Tags,
   settings: Settings,
 } as const;
 
 export function AdminLayout({ children }: { children: ReactNode }) {
-  const { authReady, adminSignedIn, db, live, signOut } = useStore();
+  const { authReady, adminSignedIn, db, live, adminEmail, signOut } = useStore();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -58,6 +60,14 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const crashCount = useMemo(
     () => db.crashReports.filter((report) => report.status === "new").length,
     [db.crashReports],
+  );
+
+  const notificationCount = useMemo(
+    () =>
+      adminEmail
+        ? db.notifications.filter((note) => !note.readBy.includes(adminEmail)).length
+        : 0,
+    [db.notifications, adminEmail],
   );
 
   const activeItem = useMemo(() => {
@@ -127,6 +137,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               {item.icon === "crashes" && crashCount > 0 ? (
                 <span className="rounded-full bg-error/15 px-1.5 py-0.5 text-[10px] font-bold text-error">
                   {crashCount}
+                </span>
+              ) : null}
+              {item.icon === "notifications" && notificationCount > 0 ? (
+                <span className="rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold text-brand-700">
+                  {notificationCount}
                 </span>
               ) : null}
             </Link>

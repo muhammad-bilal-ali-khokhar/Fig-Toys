@@ -16,11 +16,13 @@ import {
   mapClient,
   mapCrash,
   mapKey,
+  mapNotification,
   mapPayment,
   newId,
   setSetting,
   stackExpiry,
 } from "./lib/data";
+import { createAdminNotification } from "./lib/notify";
 
 async function snapshot(ctx: any) {
   const clients = (await ctx.db.query("clients").collect())
@@ -63,11 +65,16 @@ async function snapshot(ctx: any) {
     .sort((a: any, b: any) => b.createdAt - a.createdAt)
     .slice(0, 100)
     .map(mapCrash);
+  const notifications = (await ctx.db.query("notifications").collect())
+    .sort((a: any, b: any) => b.createdAt - a.createdAt)
+    .slice(0, 100)
+    .map(mapNotification);
   return {
     clients,
     payments,
     keys,
     crashReports,
+    notifications,
     pricing: await getPricing(ctx),
     admin: await getAdmin(ctx),
     activity,
@@ -338,6 +345,13 @@ export const applyAction = internalMutation({
           kind: "payment",
           message: `${client.shopName} submitted a payment.`,
         });
+        await createAdminNotification(ctx, {
+          type: "payment",
+          title: "New payment submitted",
+          body: `${client.shopName} sent Rs ${payment.amountPkr} via ${payment.method}.`,
+          url: "/payments",
+          clientId: client.id,
+        });
         return { payment: mapPayment(payment) };
       }
 
@@ -437,6 +451,131 @@ export const applyAction = internalMutation({
           message: `Issued a ${days} day key to ${client.shopName}.`,
         });
         return { key: minted.key };
+      }
+
+      case "notificationsState": {
+        const email = String(payload.email ?? "").trim().toLowerCase();
+        const admin = await ctx.db
+          .query("adminUsers")
+          .withIndex("by_email", (q) => q.eq("email", email))
+          .unique();
+        const subscriptions = await ctx.db
+          .query("pushSubscriptions")
+          .withIndex("by_email", (q) => q.eq("email", email))
+          .collect();
+        const notifications = (await ctx.db.query("notifications").collect())
+          .sort((a: any, b: any) => b.createdAt - a.createdAt)
+          .slice(0, 100)
+          .map(mapNotification);
+        return {
+          notifications,
+          prefs: admin?.notify ?? {
+            payments: true,
+            clients: true,
+            crashes: true,
+            releases: true,
+          },
+          subscriptions: subscriptions.map((sub) => ({
+            id: sub.id,
+            endpoint: sub.endpoint,
+            createdAt: new Date(sub.createdAt).toISOString(),
+          })),
+        };
+      }
+
+      case "markNotificationRead": {
+        const email = String(payload.email ?? "").trim().toLowerCase();
+        const note = await ctx.db
+          .query("notifications")
+          .withIndex("by_notification_id", (q) =>
+            q.eq("id", String(payload.id ?? "")),
+          )
+          .unique();
+        if (note && email && !note.readBy.includes(email)) {
+          await ctx.db.patch(note._id, { readBy: [...note.readBy, email] });
+        }
+        return { ok: true };
+      }
+
+      case "markAllNotificationsRead": {
+        const email = String(payload.email ?? "").trim().toLowerCase();
+        if (!email) return { ok: true };
+        const notes = await ctx.db.query("notifications").collect();
+        for (const note of notes) {
+          if (!note.readBy.includes(email)) {
+            await ctx.db.patch(note._id, { readBy: [...note.readBy, email] });
+          }
+        }
+        return { ok: true };
+      }
+
+      case "saveNotificationPrefs": {
+        const email = String(payload.email ?? "").trim().toLowerCase();
+        const admin = await ctx.db
+          .query("adminUsers")
+          .withIndex("by_email", (q) => q.eq("email", email))
+          .unique();
+        if (!admin) throw new ConvexError("Admin not found.");
+        const prefs = payload.prefs ?? {};
+        await ctx.db.patch(admin._id, {
+          notify: {
+            payments: Boolean(prefs.payments),
+            clients: Boolean(prefs.clients),
+            crashes: Boolean(prefs.crashes),
+            releases: Boolean(prefs.releases),
+          },
+        });
+        return { ok: true };
+      }
+
+      case "savePushSubscription": {
+        const email = String(payload.email ?? "").trim().toLowerCase();
+        const endpoint = String(payload.endpoint ?? "");
+        const p256dh = String(payload.p256dh ?? "");
+        const auth = String(payload.auth ?? "");
+        if (!email || !endpoint || !p256dh || !auth) {
+          throw new ConvexError("Invalid push subscription.");
+        }
+        const existing = await ctx.db
+          .query("pushSubscriptions")
+          .withIndex("by_endpoint", (q) => q.eq("endpoint", endpoint))
+          .unique();
+        if (existing) {
+          await ctx.db.patch(existing._id, { email, p256dh, auth });
+        } else {
+          await ctx.db.insert("pushSubscriptions", {
+            id: newId("push"),
+            email,
+            endpoint,
+            p256dh,
+            auth,
+            createdAt: Date.now(),
+          });
+        }
+        return { ok: true };
+      }
+
+      case "removePushSubscription": {
+        const email = String(payload.email ?? "").trim().toLowerCase();
+        const endpoint = String(payload.endpoint ?? "");
+        const existing = await ctx.db
+          .query("pushSubscriptions")
+          .withIndex("by_endpoint", (q) => q.eq("endpoint", endpoint))
+          .unique();
+        if (existing && existing.email === email) {
+          await ctx.db.delete(existing._id);
+        }
+        return { ok: true };
+      }
+
+      case "sendTestNotification": {
+        const id = await createAdminNotification(ctx, {
+          type: "test",
+          title: "Push notifications are on",
+          body: "Fig POS admin alerts are working.",
+          url: "/notifications",
+        });
+        return { id };
       }
 
       case "listAdminUsers": {

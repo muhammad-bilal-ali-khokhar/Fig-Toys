@@ -2,6 +2,7 @@ import { httpAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
 import { json } from "./lib/auth";
+import { createAdminNotification } from "./lib/notify";
 import {
   findClientByCode,
   findClientByDevice,
@@ -65,6 +66,13 @@ export const createCrashReport = internalMutation({
         message: `Crash report received: ${input.title}`,
       });
     }
+    await createAdminNotification(ctx, {
+      type: "crash",
+      title: "New crash report",
+      body: `${input.title} from ${client?.shopName ?? "a shop"}.`,
+      url: `/crashes/${id}`,
+      clientId: client?.id,
+    });
     return { id, clientId: client?.id ?? null };
   },
 });
