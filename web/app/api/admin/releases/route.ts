@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readAdminSession } from "@/lib/server/session";
-import type { ReleaseInfo } from "@/lib/types";
+import type { ReleaseInfo, ReleaseRun } from "@/lib/types";
 
 const FEED =
   process.env.RELEASES_FEED_URL ?? "https://download.myko.pk/versions.json";
@@ -37,6 +37,50 @@ function cleanVersions(value: unknown): ReleaseInfo[] {
     .filter((entry) => entry.version);
 }
 
+async function fetchPendingRuns(token: string): Promise<ReleaseRun[]> {
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?per_page=10`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!response.ok) return [];
+    const data = (await response.json().catch(() => null)) as
+      | { workflow_runs?: unknown }
+      | null;
+    const runs = Array.isArray(data?.workflow_runs) ? data.workflow_runs : [];
+    return runs
+      .filter(
+        (run): run is Record<string, unknown> =>
+          Boolean(run) && typeof run === "object",
+      )
+      .filter((run) =>
+        ["queued", "in_progress", "requested", "waiting", "pending"].includes(
+          String(run.status ?? ""),
+        ),
+      )
+      .map((run) => ({
+        id: Number(run.id ?? 0),
+        runNumber: Number(run.run_number ?? 0),
+        status: String(run.status ?? ""),
+        conclusion: typeof run.conclusion === "string" ? run.conclusion : null,
+        title: String(run.display_title ?? run.name ?? "Release"),
+        createdAt: String(run.created_at ?? new Date().toISOString()),
+        updatedAt: String(run.updated_at ?? run.created_at ?? new Date().toISOString()),
+        url: String(run.html_url ?? ""),
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export async function GET() {
   const session = await readAdminSession();
   if (!session) {
@@ -49,10 +93,13 @@ export async function GET() {
     });
     if (!response.ok) throw new Error("Could not load the release feed.");
     const versions = cleanVersions(await response.json());
+    const token = process.env.GITHUB_RELEASE_TOKEN?.trim();
+    const runs = token ? await fetchPendingRuns(token) : [];
     return NextResponse.json({
       versions,
+      runs,
       canTrigger: session.role === "owner" || session.role === "admin",
-      configured: Boolean(process.env.GITHUB_RELEASE_TOKEN),
+      configured: Boolean(token),
     });
   } catch (error) {
     return NextResponse.json(

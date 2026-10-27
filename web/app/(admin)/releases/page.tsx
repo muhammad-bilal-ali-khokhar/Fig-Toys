@@ -5,11 +5,12 @@ import { Download, GitBranch, PackageOpen, Rocket } from "lucide-react";
 import { TEXT } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
 import { useToast } from "@/lib/toast";
-import type { ReleaseInfo } from "@/lib/types";
+import type { ReleaseInfo, ReleaseRun } from "@/lib/types";
 import { Button, EmptyState, Input, Modal, PageHeader } from "@/components/ui";
 
 type Feed = {
   versions: ReleaseInfo[];
+  runs?: ReleaseRun[];
   canTrigger: boolean;
   configured: boolean;
 };
@@ -54,6 +55,7 @@ function Notes({ text }: { text: string }) {
 export default function ReleasesPage() {
   const { toast } = useToast();
   const [versions, setVersions] = useState<ReleaseInfo[]>([]);
+  const [runs, setRuns] = useState<ReleaseRun[]>([]);
   const [canTrigger, setCanTrigger] = useState(false);
   const [configured, setConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -68,6 +70,7 @@ export default function ReleasesPage() {
     try {
       const data = await request<Feed>("/api/admin/releases");
       setVersions(data.versions);
+      setRuns(data.runs ?? []);
       setCanTrigger(data.canTrigger);
       setConfigured(data.configured);
       setError("");
@@ -80,6 +83,8 @@ export default function ReleasesPage() {
 
   useEffect(() => {
     void load();
+    const timer = window.setInterval(() => void load(), 10_000);
+    return () => window.clearInterval(timer);
   }, [load]);
 
   async function startRelease() {
@@ -94,6 +99,7 @@ export default function ReleasesPage() {
       setOpen(false);
       setVersion("");
       toast(TEXT.releases.started, "success");
+      window.setTimeout(() => void load(), 3000);
     } catch (err) {
       setTriggerError(
         err instanceof Error ? err.message : TEXT.releases.error,
@@ -138,6 +144,52 @@ export default function ReleasesPage() {
             {TEXT.releases.viewRuns}
           </a>
         </div>
+      ) : null}
+
+      {runs.length > 0 ? (
+        <section className="mb-6">
+          <h2 className="section-title">{TEXT.releases.pending}</h2>
+          <p className="mt-1 text-xs text-ink-500">
+            {TEXT.releases.pendingHint}
+          </p>
+          <div className="mt-3 space-y-2">
+            {runs.map((run) => (
+              <div
+                key={run.id}
+                className="card flex flex-wrap items-center justify-between gap-3 p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-gold-400" />
+                  <div>
+                    <p className="text-sm font-semibold text-ink-900">
+                      {run.title}{" "}
+                      <span className="text-xs font-normal text-ink-400">
+                        #{run.runNumber}
+                      </span>
+                    </p>
+                    <p className="text-xs text-ink-500">
+                      {run.status === "queued"
+                        ? TEXT.releases.queued
+                        : TEXT.releases.running}{" "}
+                      · {TEXT.releases.startedAt}{" "}
+                      {formatDateTime(run.createdAt)}
+                    </p>
+                  </div>
+                </div>
+                {run.url ? (
+                  <a
+                    href={run.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-secondary btn-sm"
+                  >
+                    {TEXT.releases.viewRun}
+                  </a>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       {error ? (

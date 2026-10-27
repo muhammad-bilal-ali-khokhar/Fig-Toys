@@ -600,6 +600,13 @@ export const TEXT = {
     invalidVersion: "Use a version like 0.2.37, or leave it blank.",
     error: "Could not start the release.",
     empty: "No published releases yet.",
+    pending: "Pending releases",
+    pendingHint: "Builds that are queued or running in GitHub Actions.",
+    pendingEmpty: "No release is building right now.",
+    viewRun: "View run",
+    startedAt: "Started",
+    queued: "Queued",
+    running: "Building",
     confirmTitle: "Start a new release?",
     confirmBody:
       "This triggers the GitHub Release workflow on main. It will build, publish and update the auto-update feed.",

@@ -114,6 +114,17 @@ export type AdminUser = {
   createdBy: string | null;
 };
 
+export type ReleaseRun = {
+  id: number;
+  runNumber: number;
+  status: string;
+  conclusion: string | null;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+};
+
 export type ReleaseInfo = {
   version: string;
   size: string;
