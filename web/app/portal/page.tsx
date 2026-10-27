@@ -77,6 +77,7 @@ export default function PortalPage() {
     ready,
     now,
     db,
+    adminSignedIn,
     currentClient,
     currentClientId,
     setCurrentClient,
@@ -195,43 +196,9 @@ export default function PortalPage() {
                 {TEXT.portal.startTrial}
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href={ROUTES.login} className="btn-secondary">
-                {TEXT.portal.openAdmin}
-              </Link>
             </div>
           </div>
 
-          <div className="mx-auto mt-8 max-w-2xl">
-            <p className="mb-3 text-center text-xs font-semibold uppercase tracking-widest text-ink-400">
-              {TEXT.portal.demoSwitch}
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {db.clients.slice(0, 6).map((client) => {
-                const clientStatuss = clientStatus(client, now);
-                return (
-                  <button
-                    key={client.id}
-                    type="button"
-                    onClick={() => {
-                      setCurrentClient(client.id);
-                      router.replace(ROUTES.portalFor(client.id));
-                    }}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3 text-left transition hover:border-brand-300 hover:bg-brand-50/40"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-ink-900">
-                        {client.shopName}
-                      </p>
-                      <p className="truncate text-xs text-ink-500">
-                        {client.ownerName} · {client.city}
-                      </p>
-                    </div>
-                    <StatusBadge status={clientStatuss} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </main>
       </div>
     );
@@ -276,26 +243,25 @@ export default function PortalPage() {
             </div>
           </div>
 
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Dropdown
-              className="w-52"
-              value={currentClient.id}
-              options={db.clients.map((client) => ({
-                value: client.id,
-                label: `${TEXT.portal.switchLabel}: ${client.shopName}`,
-              }))}
-              onChange={(value) => {
-                setCurrentClient(value);
-                router.replace(ROUTES.portalFor(value));
-                setPayOpen(false);
-              }}
-              triggerClassName="font-semibold"
-              ariaLabel={TEXT.portal.demoSwitch}
-            />
-            <Link href={ROUTES.login} className="btn-ghost btn-sm">
-              {TEXT.portal.openAdmin}
-            </Link>
-          </div>
+          {adminSignedIn ? (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Dropdown
+                className="w-52"
+                value={currentClient.id}
+                options={db.clients.map((client) => ({
+                  value: client.id,
+                  label: `${TEXT.portal.switchLabel}: ${client.shopName}`,
+                }))}
+                onChange={(value) => {
+                  setCurrentClient(value);
+                  router.replace(ROUTES.portalFor(value));
+                  setPayOpen(false);
+                }}
+                triggerClassName="font-semibold"
+                ariaLabel={TEXT.portal.switchLabel}
+              />
+            </div>
+          ) : null}
         </div>
       </header>
 
@@ -641,13 +607,6 @@ export default function PortalPage() {
               </div>
             </section>
 
-            <div className="rounded-2xl border border-dashed border-ink-300 bg-white/60 p-4 text-xs text-ink-500">
-              <p className="font-semibold text-ink-700">{TEXT.common.demoData}</p>
-              <p className="mt-1">{TEXT.portal.demoNote}</p>
-              <Link href={ROUTES.login} className="link mt-2 inline-block">
-                {TEXT.portal.openAdmin}
-              </Link>
-            </div>
           </aside>
         </div>
       </main>
@@ -657,7 +616,7 @@ export default function PortalPage() {
           <span>{APP.fullName}</span>
           <span className="flex items-center gap-1.5">
             <CheckCircle2 className="h-3.5 w-3.5 text-teal-600" />
-            {TEXT.common.demoData} · {TEXT.portal.timezone}
+            {TEXT.portal.timezone}
           </span>
         </div>
       </footer>
