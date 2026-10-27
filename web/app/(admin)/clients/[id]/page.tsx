@@ -694,6 +694,9 @@ export default function ClientDetailPage() {
                   {maskDeviceId(client.deviceId)}
                 </span>
               </InfoRow>
+              <InfoRow label={TEXT.detail.appVersion}>
+                {client.lastVersion ? `v${client.lastVersion}` : "—"}
+              </InfoRow>
               <InfoRow label={TEXT.detail.lastSeen}>
                 {relativeTime(client.lastSeenAt, now)}
               </InfoRow>

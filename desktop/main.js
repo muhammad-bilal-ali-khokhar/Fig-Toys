@@ -922,6 +922,7 @@ function spawnBackend() {
     FIG_FEEDBACK_SECRET: process.env.FIG_FEEDBACK_SECRET || "",
     LICENSE_PUBLIC_KEY: getLicensePublicKey(),
     LICENSE_REDEEM_URL: getRedeemUrl(),
+    FIG_APP_VERSION: app.getVersion(),
     FIG_DESKTOP: "1",
     ...safepayEnv,
   };

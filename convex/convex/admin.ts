@@ -761,8 +761,12 @@ export const purgeUnlinkedCodes = internalMutation({
 });
 
 export const installStatus = internalMutation({
-  args: { deviceId: v.string(), code: v.optional(v.string()) },
-  handler: async (ctx, { deviceId, code }) => {
+  args: {
+    deviceId: v.string(),
+    code: v.optional(v.string()),
+    appVersion: v.optional(v.string()),
+  },
+  handler: async (ctx, { deviceId, code, appVersion }) => {
     const now = Date.now();
     let client = deviceId ? await findClientByDevice(ctx, deviceId) : null;
     if (!client && code) {
@@ -778,6 +782,7 @@ export const installStatus = internalMutation({
     const patch: any = { lastSeenAt: now };
     if (deviceId && client.deviceId !== deviceId) patch.deviceId = deviceId;
     if (code && client.activationCode !== code) patch.activationCode = code;
+    if (appVersion && client.lastVersion !== appVersion) patch.lastVersion = appVersion;
     await ctx.db.patch(client._id, patch);
 
     const latestPayment = (
@@ -854,7 +859,7 @@ export const adminMutate = httpAction(async (ctx, request) => {
 });
 
 export const installStatusHttp = httpAction(async (ctx, request) => {
-  let body: { deviceId?: unknown; code?: unknown } | null = null;
+  let body: { deviceId?: unknown; code?: unknown; appVersion?: unknown } | null = null;
   try {
     body = await request.json();
   } catch {
@@ -862,12 +867,15 @@ export const installStatusHttp = httpAction(async (ctx, request) => {
   }
   const deviceId = typeof body?.deviceId === "string" ? body.deviceId : "";
   const code = typeof body?.code === "string" ? body.code : undefined;
+  const appVersion =
+    typeof body?.appVersion === "string" ? body.appVersion : undefined;
   if (!deviceId && !code) {
     return json({ message: "deviceId or code is required." }, 400);
   }
   const result = await ctx.runMutation(internal.admin.installStatus, {
     deviceId,
     code,
+    appVersion,
   });
   return json(result, 200);
 });

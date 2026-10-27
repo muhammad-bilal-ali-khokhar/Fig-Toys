@@ -18,6 +18,7 @@ export type Client = {
   deviceId: string;
   registeredAt: string;
   lastSeenAt: string;
+  lastVersion: string;
   plan: ClientPlan;
   monthlyPricePkr: number;
   durationDays: number;

@@ -310,6 +310,7 @@ async function claimLegacyLicense(license: LicenseRow): Promise<LicenseRow> {
       body: JSON.stringify({
         deviceId,
         licenseToken: license.key,
+        appVersion: getAppVersion() || undefined,
         localExpiresAt: license.expiresAt ? license.expiresAt.toISOString() : null,
         localCustomerName: license.customerName || undefined,
         localPricePkr: license.pricePkr || undefined,
@@ -374,6 +375,7 @@ export async function startTrialRegistration(): Promise<LicenseStatus> {
         email: company.email || undefined,
         phone: company.phone || undefined,
         city: company.address || undefined,
+        appVersion: getAppVersion() || undefined,
       }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -577,6 +579,10 @@ export async function getAdminLicenseSnapshot() {
   };
 }
 
+function getAppVersion(): string {
+  return (process.env.FIG_APP_VERSION || "").trim();
+}
+
 function installStatusUrl(): string {
   const redeemUrl = env.LICENSE_REDEEM_URL?.trim();
   return redeemUrl ? redeemUrl.replace(/\/redeem$/, "/install/status") : "";
@@ -592,7 +598,11 @@ async function fetchInstallStatus(license: {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deviceId, code: license.key || undefined }),
+      body: JSON.stringify({
+        deviceId,
+        code: license.key || undefined,
+        appVersion: getAppVersion() || undefined,
+      }),
       signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) return null;

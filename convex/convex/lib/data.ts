@@ -143,6 +143,7 @@ export function mapClient(client: any) {
     deviceId: client.deviceId ?? "",
     registeredAt: iso(client.registeredAt) ?? new Date().toISOString(),
     lastSeenAt: iso(client.lastSeenAt) ?? new Date().toISOString(),
+    lastVersion: client.lastVersion ?? "",
     plan: client.plan,
     monthlyPricePkr: client.monthlyPricePkr,
     durationDays: client.durationDays,

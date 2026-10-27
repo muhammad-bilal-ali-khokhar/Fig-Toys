@@ -32,6 +32,7 @@ export const registerTrial = internalMutation({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     city: v.optional(v.string()),
+    appVersion: v.optional(v.string()),
   },
   handler: async (ctx, input) => {
     const now = Date.now();
@@ -68,6 +69,7 @@ export const registerTrial = internalMutation({
       deviceId: input.deviceId,
       registeredAt: now,
       lastSeenAt: now,
+      lastVersion: input.appVersion,
       plan: "trial",
       monthlyPricePkr: pricing.defaultMonthlyPricePkr,
       durationDays: pricing.durationDays,
@@ -115,6 +117,7 @@ export const registerTrialHttp = httpAction(async (ctx, request) => {
     email: typeof body?.email === "string" ? body.email : undefined,
     phone: typeof body?.phone === "string" ? body.phone : undefined,
     city: typeof body?.city === "string" ? body.city : undefined,
+    appVersion: typeof body?.appVersion === "string" ? body.appVersion : undefined,
   });
   return json(result, 200);
 });
@@ -244,6 +247,7 @@ export const claimInstallation = internalMutation({
     exp: v.union(v.number(), v.null()),
     maxDevices: v.number(),
     pricePkr: v.optional(v.number()),
+    appVersion: v.optional(v.string()),
     localExpiresAt: v.optional(v.union(v.number(), v.null())),
     localCustomerName: v.optional(v.string()),
     localPricePkr: v.optional(v.number()),
@@ -271,6 +275,7 @@ export const claimInstallation = internalMutation({
       deviceId: input.deviceId,
       registeredAt: now,
       lastSeenAt: now,
+      lastVersion: input.appVersion,
       plan: "monthly",
       monthlyPricePkr:
         input.localPricePkr ??
@@ -323,6 +328,8 @@ export const claimInstallationHttp = httpAction(async (ctx, request) => {
     exp: payload.exp,
     maxDevices: payload.maxDevices,
     pricePkr: payload.pricePkr,
+    appVersion:
+      typeof body?.appVersion === "string" ? body.appVersion : undefined,
     localExpiresAt:
       typeof body?.localExpiresAt === "string"
         ? Date.parse(body.localExpiresAt) || null

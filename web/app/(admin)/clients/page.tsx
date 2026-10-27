@@ -292,6 +292,7 @@ export default function ClientsPage() {
                   <th>{TEXT.clients.plan}</th>
                   <th>{TEXT.clients.expires}</th>
                   <th>{TEXT.clients.daysLeft}</th>
+                  <th>{TEXT.clients.version}</th>
                   <th>{TEXT.clients.price}</th>
                   <th className="text-right">{TEXT.clients.action}</th>
                 </tr>
@@ -360,6 +361,13 @@ export default function ClientsPage() {
                             : row.status === "expired"
                               ? "0"
                               : endDiff}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="whitespace-nowrap font-mono text-xs text-ink-600">
+                          {row.client.lastVersion
+                            ? `v${row.client.lastVersion}`
+                            : "—"}
                         </span>
                       </td>
                       <td>

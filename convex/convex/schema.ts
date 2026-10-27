@@ -44,6 +44,7 @@ export default defineSchema({
     deviceId: v.optional(v.string()),
     registeredAt: v.number(),
     lastSeenAt: v.number(),
+    lastVersion: v.optional(v.string()),
     plan: v.union(v.literal("trial"), v.literal("monthly")),
     monthlyPricePkr: v.number(),
     durationDays: v.number(),
