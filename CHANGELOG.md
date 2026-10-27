@@ -4,7 +4,13 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.35
+## v0.2.36
+
+- Released on: 2026-10-27
+
+- feat: move licensing to convex, add owner console users and in-POS payments
+- fix: keep cash payments when no drawer exists and update card settlement test
+- feat: license paywall, manual payment approvals, admin PWA and push
 
 - Released on: 2026-10-19
 

@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.36
+
 - **Bring your team in.** The owner console now has Users. Add an Owner, Admin or Support account, reset passwords, disable access and see the last login. Only Owners can manage other Owners.
 - **A deployable owner console.** The owner console can now be shipped to Cloudflare Workers with one GitHub Action, and its secrets stay on the server.
 - **One logo everywhere.** The owner console now shows the same Fig icon as your shop app, so the login screen, dashboard and home screen icon all match.
