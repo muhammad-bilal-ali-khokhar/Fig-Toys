@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.43
+
 - **Your payment request is never lost.** If you send a renewal payment and the app closes or restarts, Fig POS remembers it. Reopen the payment window and you will see your request still waiting for approval, so you never have to send it twice.
 
 ## v0.2.42
