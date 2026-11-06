@@ -121,7 +121,7 @@ export function TransactionDetailModal({
                   <thead>
                     <tr className="bg-ink-50 text-left text-xs uppercase tracking-wide text-ink-500">
                       <th className="px-3 py-2 font-semibold">Item</th>
-                      <th className="px-3 py-2 font-semibold">IMEI</th>
+                       <th className="px-3 py-2 font-semibold">Barcode</th>
                       <th className="px-3 py-2 text-right font-semibold">Amount</th>
                     </tr>
                   </thead>
@@ -133,7 +133,7 @@ export function TransactionDetailModal({
                           {item.quantity > 1 ? ` × ${item.quantity}` : ""}
                         </td>
                         <td className="px-3 py-2 font-mono text-xs text-ink-700">
-                          {item.unit?.imei ?? "—"}
+                           {(item as any).unit?.imei ?? (item.product as any).barcode ?? "—"}
                         </td>
                         <td className="px-3 py-2 text-right text-ink-900">{formatPKR(item.total)}</td>
                       </tr>

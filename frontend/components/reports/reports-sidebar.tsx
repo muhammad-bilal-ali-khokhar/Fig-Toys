@@ -38,7 +38,6 @@ const REPORT_ICONS: Record<string, React.ReactNode> = {
   "/reports/purchase-returns": <ReturnsIcon className="h-4 w-4" />,
   "/reports/stock-movements": <InventoryIcon className="h-4 w-4" />,
   "/reports/inventory-list": <InventoryIcon className="h-4 w-4" />,
-  "/reports/device-lookup": <SmartphoneIcon className="h-4 w-4" />,
   "/reports/ledger": <HistoryIcon className="h-4 w-4" />,
   "/reports/contacts": <UsersIcon className="h-4 w-4" />,
   "/reports/receivables": <UserIcon className="h-4 w-4" />,

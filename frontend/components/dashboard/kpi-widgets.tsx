@@ -45,14 +45,14 @@ export function KpisWidget({ data, viewCosts, fmt }: KpiWidgetProps) {
           />
         )}
         <KpiCard
-          label="Units In Stock"
+          label="Toys In Stock"
           value={!data ? "…" : String(data.stock.total)}
           sub={
             !data
               ? undefined
               : (data.stock.accessories ?? 0) > 0
-                ? `${data.stock.phones ?? data.stock.NEW + data.stock.USED} phones · ${data.stock.accessories} accessories`
-                : `${data.stock.NEW} new · ${data.stock.USED} used`
+                ? `${data.stock.total} sellable items · ${data.stock.accessories ?? 0} gift items`
+                : `${data.stock.total} sellable items`
           }
           icon={InventoryIcon}
         />

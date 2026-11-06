@@ -39,6 +39,7 @@ import licenseRouter from "./endpoints/license/routes";
 import searchRouter from "./endpoints/search/routes";
 import eventsRouter from "./endpoints/events/routes";
 import devDbRouter from "./endpoints/dev-db/routes";
+import bundleRouter from "./endpoints/bundle/routes";
 import { requireLicense } from "./core/middleware/license";
 
 export function createApp() {
@@ -83,6 +84,7 @@ export function createApp() {
   app.use("/api/screen-size", screenSizeRouter);
   app.use("/api/contact", contactRouter);
   app.use("/api/product", productRouter);
+  app.use("/api/bundle", bundleRouter);
   app.use("/api/unit", unitRouter);
   app.use("/api/transaction", transactionRouter);
   app.use("/api/payment", paymentRouter);

@@ -8,7 +8,7 @@ import { DEVELOPER, HELP_SECTIONS, type HelpSectionId } from "@/lib/constants";
 const QUICK_LINKS: { id: HelpSectionId; label: string; icon: React.ComponentType<{ className?: string }>; tone: string }[] = [
   { id: "getting-started", label: "Get started", icon: HelpIcon, tone: "bg-brand-500 text-white" },
   { id: "sales", label: "Sell fast", icon: PosIcon, tone: "bg-ink-900 text-white" },
-  { id: "stock", label: "Stock by IMEI", icon: InventoryIcon, tone: "bg-teal-500 text-white" },
+  { id: "stock", label: "Toy stock", icon: InventoryIcon, tone: "bg-teal-500 text-white" },
   { id: "reports", label: "Reports", icon: ReportsIcon, tone: "bg-violet-500 text-white" },
   { id: "security", label: "Security", icon: VoucherIcon, tone: "bg-emerald-500 text-white" },
   { id: "contact-support", label: "Contact us", icon: PhoneIcon, tone: "bg-gold-500 text-white" },
@@ -89,7 +89,7 @@ export function NewHelp({ section, onSectionChange }: { section: HelpSectionId; 
           </div>
           <div className="w-full sm:w-80">
             <div className="[&>div]:!bg-white/10 [&_input]:!bg-transparent [&_input]:!text-white [&_input]:placeholder:!text-white/50 [&_svg]:!text-white/60">
-              <SearchInput value={query} onChange={setQuery} placeholder="Search help, e.g. IMEI, backup, PIN…" wrapperClassName="px-0" />
+                  <SearchInput value={query} onChange={setQuery} placeholder="Search help, e.g. barcode, backup, PIN…" wrapperClassName="px-0" />
             </div>
           </div>
         </div>
@@ -242,7 +242,7 @@ export function NewHelp({ section, onSectionChange }: { section: HelpSectionId; 
                   <Heading>Sale Invoice</Heading>
                   <Body>This is the counter screen where you make sales. Search for a phone by name or scan it by IMEI. New and used devices are shown separately so you always know what you are selling.</Body>
                   <Heading>Creating a sale</Heading>
-                  <Bullets items={["Start typing in the search box, or use a scanner to find a unit by IMEI.", "Tap the unit to add it to the invoice.", "Apply any discounts or switch to a credit sale for a customer.", "Choose how the customer pays: cash, card or bank transfer.", "Confirm the invoice to print a receipt and update your stock automatically."]} />
+                  <Bullets items={["Start typing in the search box, or scan a toy barcode.", "Tap the toy to add it to the invoice.", "Apply discounts or switch to a credit sale for a customer.", "Choose how the customer pays: cash, card or bank transfer.", "Confirm the invoice to print a receipt and update your stock automatically."]} />
                   <Heading>After you finalize</Heading>
                   <Body>Once the sale is saved, the unit leaves inventory and the sale appears in your reports. The receipt can be printed or re-printed later if needed.</Body>
                 </Inner>

@@ -122,14 +122,6 @@ export type Color = {
   _count?: { products: number };
 };
 
-export type ScreenSize = {
-  id: string;
-  name: string;
-  sortOrder: number;
-  active: boolean;
-  createdAt: string;
-};
-
 export type ProductSummary = {
   id: string;
   brandId: string;
@@ -153,6 +145,11 @@ export type ProductSummary = {
   sellPrice: string;
   costPrice?: string;
   retailPrice?: string | null;
+  ageRange?: string | null;
+  size?: string | null;
+  pieceCount?: number | null;
+  material?: string | null;
+  batteryRequired?: string | null;
   lowStockThreshold: number;
   inStock: number;
   newInStock: number;
@@ -179,8 +176,22 @@ export type Product = {
   sellPrice: string;
   costPrice: string;
   retailPrice?: string | null;
+  ageRange?: string | null;
+  size?: string | null;
+  pieceCount?: number | null;
+  material?: string | null;
+  batteryRequired?: string | null;
   lowStockThreshold: number;
   units: { id: string; imei: string; condition: "NEW" | "USED"; carrier: "NON_PTA" | "PTA" | "SIM_LOCKED" }[];
+};
+
+export type Bundle = {
+  id: string;
+  name: string;
+  sku?: string | null;
+  price: string;
+  active: boolean;
+  items: { id: string; productId: string; quantity: number; product: ProductSummary }[];
 };
 
 export type ProductPriceEntry = {
@@ -258,6 +269,7 @@ export type InventoryProduct = {
   retailPrice: string | null;
   costPrice?: string;
   qty: number;
+  damagedQty?: number;
   lastPurchasedAt: string | null;
   lastVendor: string | null;
 };

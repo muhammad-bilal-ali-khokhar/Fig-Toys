@@ -1,8 +1,8 @@
 import type { CategoryType } from "@/lib/api-types";
 
 export const CATEGORY_TYPE_LABELS: Record<CategoryType, string> = {
-  PHONE: "Phone",
-  ACCESSORY: "Accessory",
+  PHONE: "Toy",
+  ACCESSORY: "Toy",
 };
 
 export const STORAGE_OPTIONS = [
@@ -70,4 +70,3 @@ export const SCREEN_SIZE_OPTIONS = [
   '12.0"',
   '12.9"',
 ] as const;
-

@@ -270,10 +270,17 @@ model Product {
   barcode          String?
   image            String?
   specs            String?
+  ageRange         String?
+  size             String?
+  pieceCount       Int?
+  material         String?
+  batteryRequired  String?
   sellPrice        Decimal
   costPrice        Decimal
   retailPrice      Decimal?
   lowStockThreshold Int     @default(2)
+  stockAdjustment   Int     @default(0)
+  damagedStock      Int     @default(0)
   createdAt        DateTime @default(now())
 
   units        Unit[]
@@ -282,11 +289,35 @@ model Product {
   movements    StockMovement[]
   reservationItems ReservationItem[]
   purchaseOrderItems PurchaseOrderItem[]
+  bundleItems        BundleItem[]
 
   @@index([brandId])
   @@index([model])
   @@index([categoryId])
   @@index([colorId])
+}
+
+model Bundle {
+  id          String       @id @default(cuid())
+  name        String
+  sku         String?      @unique
+  price       Decimal
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  items       BundleItem[]
+}
+
+model BundleItem {
+  id        String  @id @default(cuid())
+  bundleId  String
+  bundle    Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+
+  @@unique([bundleId, productId])
+  @@index([productId])
 }
 
 model ProductPriceHistory {

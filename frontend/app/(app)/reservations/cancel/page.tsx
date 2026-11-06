@@ -179,7 +179,7 @@ export default function CancelReservationPage() {
             <div className="space-y-3">
               <p>
                 {cancelling.contact.name} paid an advance of {formatPKR(parseFloat(cancelling.advance))}.
-                The reserved units will return to stock.
+                The reserved toys will return to stock.
               </p>
               {cancelling.payments && cancelling.payments.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 rounded-xl bg-ink-50 p-2.5">

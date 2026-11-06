@@ -26,6 +26,7 @@ import type { BadgeVariant } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SearchInput } from "@/components/ui/search-input";
 import { Dropdown } from "@/components/ui/dropdown";
+import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { Sheet } from "@/components/ui/sheet";
 import { SortHeader } from "@/components/ui/sort-header";
@@ -110,6 +111,9 @@ export default function InventoryPage() {
   const [status, setStatus] = useState("");
   const [carrier, setCarrier] = useState("");
   const [condition, setCondition] = useState("");
+  const [adjustProduct, setAdjustProduct] = useState<InventoryProduct | null>(null);
+  const [adjustQty, setAdjustQty] = useState("0");
+  const [adjusting, setAdjusting] = useState(false);
   const [vendor, setVendor] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -130,9 +134,10 @@ export default function InventoryPage() {
   const viewCosts = canViewCosts(user);
   const canImport = hasPermission(user, PERMISSIONS.unitImport);
   const canDelete = hasPermission(user, PERMISSIONS.unitDelete);
-  const canManage = hasPermission(user, PERMISSIONS.unitUpdate);
+  const canManage = hasPermission(user, PERMISSIONS.inventoryAdjust);
   const canPurchase = hasPermission(user, PERMISSIONS.purchaseCreate);
   const canReturn = hasPermission(user, PERMISSIONS.purchaseReturn);
+  const canAdjustQuantity = hasPermission(user, PERMISSIONS.inventoryAdjust);
   const units = data?.units ?? [];
   const products = data?.products ?? [];
   const activeCategories = (categories ?? []).filter((c) => c.active);
@@ -577,11 +582,11 @@ export default function InventoryPage() {
             if (productIdFilter && v !== q) setProductIdFilter("");
           }}
           data-scanner-input="inventory-search"
-          placeholder="Search by IMEI, brand or model…"
+          placeholder="Search by barcode, brand or toy name…"
           variant="white"
           wrapperClassName="min-w-[220px] flex-1"
         />
-        <ScannerButton label="Scan IMEI" variant="ghost" />
+        <ScannerButton label="Scan barcode" variant="ghost" />
         <Button variant="grey" onClick={() => setFiltersOpen(true)}>
           <FilterIcon className="h-4 w-4" />
           Filters
@@ -642,7 +647,7 @@ export default function InventoryPage() {
         {loading ? (
           <p className="p-6 text-sm text-ink-400">Loading…</p>
         ) : (
-          view.mode === "quantity" ? (
+           view.mode === "quantity" ? (
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white">
                 <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
@@ -669,7 +674,7 @@ export default function InventoryPage() {
                         ? [g.accessory.color]
                         : [];
                   return (
-                    <tr key={g.product.id} onClick={() => setProductLedgerId(g.product.id)} className="cursor-pointer border-b border-ink-100 transition hover:bg-ink-50">
+                     <tr key={g.product.id} onClick={() => setProductLedgerId(g.product.id)} className="cursor-pointer border-b border-ink-100 transition hover:bg-ink-50">
                       <td className="px-5 py-3">
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-ink-900">
@@ -678,8 +683,8 @@ export default function InventoryPage() {
                               <Badge variant="warning" className="ml-2">Low stock</Badge>
                             )}
                           </p>
-                          <p className="truncate text-xs text-ink-500">
-                            {[g.product.storage, colors.join(", ")].filter(Boolean).join(" · ") || "—"}
+                           <p className="truncate text-xs text-ink-500">
+                             {[colors.join(", ")].filter(Boolean).join(" · ") || "—"}
                           </p>
                         </div>
                       </td>
@@ -847,7 +852,7 @@ export default function InventoryPage() {
                             </td>
                           )}
                           {visibleColumns.includes("cost") && (
-                            <td className="px-5 py-3 text-right text-ink-500">
+                      <td className="px-5 py-3 text-right text-ink-500">
                               <span
                                 title="Cost is locked. Hover to reveal"
                                 className={
@@ -858,7 +863,7 @@ export default function InventoryPage() {
                               >
                                 {formatPKR(u.costPrice)}
                               </span>
-                            </td>
+                      </td>
                           )}
                         </tr>
                       );
@@ -926,6 +931,13 @@ export default function InventoryPage() {
                             >
                               {formatPKR(g.accessory.costPrice)}
                             </span>
+                          </td>
+                        )}
+                        {canAdjustQuantity && (
+                          <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <Button size="sm" variant="grey" onClick={() => { setAdjustProduct(g.accessory ?? null); setAdjustQty("0"); }}>
+                              Adjust
+                            </Button>
                           </td>
                         )}
                       </tr>
@@ -1044,26 +1056,6 @@ export default function InventoryPage() {
                   onChange={setStatus}
                   options={STATUS_FILTER_OPTIONS}
                   placeholder="All statuses"
-                  searchable
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-ink-500">Carrier</label>
-                <Dropdown
-                  value={carrier}
-                  onChange={setCarrier}
-                  options={CARRIER_FILTER_OPTIONS}
-                  placeholder="All carriers"
-                  searchable
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-ink-500">Condition</label>
-                <Dropdown
-                  value={condition}
-                  onChange={setCondition}
-                  options={CONDITION_FILTER_OPTIONS}
-                  placeholder="All conditions"
                   searchable
                 />
               </div>
@@ -1286,6 +1278,32 @@ export default function InventoryPage() {
       )}
       {productLedgerId && (
         <ProductLedgerSheet id={productLedgerId} onClose={() => setProductLedgerId(null)} onOpenTxn={setSelectedTxnId} />
+      )}
+      {adjustProduct && (
+        <Sheet open title={`Adjust quantity: ${adjustProduct.brand} ${adjustProduct.model}`} onClose={() => setAdjustProduct(null)} width="max-w-md">
+          <div className="space-y-4">
+            <p className="text-sm text-ink-500">Enter a positive number to add stock or a negative number to remove stock.</p>
+            <Input value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} inputMode="numeric" placeholder="Quantity adjustment" />
+            <div className="flex justify-end gap-2">
+              <Button variant="grey" onClick={() => setAdjustProduct(null)}>Cancel</Button>
+              <Button loading={adjusting} onClick={async () => {
+                const quantity = Number.parseInt(adjustQty, 10);
+                if (!Number.isInteger(quantity) || quantity === 0) { toast("Enter a non-zero whole number", "error"); return; }
+                setAdjusting(true);
+                try {
+                  await apiRequest("/inventory/adjust", { method: "POST", body: { productId: adjustProduct.id, quantity } });
+                  toast("Stock quantity adjusted", "success");
+                  setAdjustProduct(null);
+                  refetch();
+                } catch (err) {
+                  toast(err instanceof Error ? err.message : "Failed to adjust stock", "error");
+                } finally {
+                  setAdjusting(false);
+                }
+              }}>Save adjustment</Button>
+            </div>
+          </div>
+        </Sheet>
       )}
     </div>
   );

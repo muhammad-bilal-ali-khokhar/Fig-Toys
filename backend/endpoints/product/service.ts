@@ -20,7 +20,7 @@ async function findDuplicate(key: { brandId: string; model: string; storage?: st
 }
 
 function throwDuplicate(existing: { brand: { name: string }; model: string } & Record<string, unknown>) {
-  throw new ApiError(409, "product.duplicate", `A product "${existing.brand.name} ${existing.model}" already exists with the same storage, color, category and PTA Status`);
+  throw new ApiError(409, "product.duplicate", `A product "${existing.brand.name} ${existing.model}" already exists with the same toy attributes and category`);
 }
 
 export async function listProducts({ q, categoryId }: { q?: string; categoryId?: string }) {
@@ -109,6 +109,11 @@ export async function listProducts({ q, categoryId }: { q?: string; categoryId?:
       carrier: (p as any).carrier ?? null,
       image: p.image,
       specs: p.specs,
+      ageRange: (p as any).ageRange ?? null,
+      size: (p as any).size ?? null,
+      pieceCount: (p as any).pieceCount ?? null,
+      material: (p as any).material ?? null,
+      batteryRequired: (p as any).batteryRequired ?? null,
       sellPrice: p.sellPrice,
       costPrice: p.costPrice,
       retailPrice: p.retailPrice,
@@ -169,6 +174,11 @@ export async function createProduct(input: ProductInput, userId: string) {
       barcode: input.barcode,
       image: input.image,
       specs: input.specs,
+      ageRange: input.ageRange,
+      size: input.size,
+      pieceCount: input.pieceCount,
+      material: input.material,
+      batteryRequired: input.batteryRequired,
       sellPrice: input.sellPrice,
       costPrice: input.costPrice,
       retailPrice: input.retailPrice ?? null,
@@ -229,6 +239,11 @@ export async function updateProduct(id: string, input: ProductInput, userId: str
       barcode: input.barcode,
       image: input.image,
       specs: input.specs,
+      ageRange: input.ageRange,
+      size: input.size,
+      pieceCount: input.pieceCount,
+      material: input.material,
+      batteryRequired: input.batteryRequired,
       sellPrice: input.sellPrice,
       costPrice: input.costPrice,
       retailPrice: input.retailPrice ?? null,
@@ -263,6 +278,9 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
           { model: { contains: token } },
           { sku: { contains: token } },
           { barcode: { contains: token } },
+          { ageRange: { contains: token } },
+          { size: { contains: token } },
+          { material: { contains: token } },
           { units: { some: { imei: { contains: token } } } },
         ],
       })),
@@ -291,6 +309,7 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
     brandId: p.brandId,
     brand: p.brand.name,
     model: p.model,
+    productName: p.model,
     storage: p.storage,
     ram: p.ram,
     screenSize: p.screenSize,
@@ -300,6 +319,11 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
     sku: p.sku,
     barcode: (p as any).barcode ?? null,
     carrier: (p as any).carrier ?? null,
+    ageRange: (p as any).ageRange ?? null,
+    size: (p as any).size ?? null,
+    pieceCount: (p as any).pieceCount ?? null,
+    material: (p as any).material ?? null,
+    batteryRequired: (p as any).batteryRequired ?? null,
     sellPrice: p.sellPrice,
     costPrice: (p as any).costPrice ?? null,
     units: p.units,
@@ -322,7 +346,7 @@ async function findOrCreateBrand(name: string) {
 async function findOrCreateCategory(name: string, parentId: string | null = null, type?: "PHONE" | "ACCESSORY") {
   const found = await prisma.category.findFirst({ where: { name, parentId } });
   if (found) return found;
-  const resolvedType = type ?? (name.toLowerCase().includes("accessory") ? "ACCESSORY" : "PHONE");
+  const resolvedType = type ?? "ACCESSORY";
   return prisma.category.create({ data: { name, parentId, type: resolvedType, active: true } });
 }
 

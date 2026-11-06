@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { hasPermissionList, PERMISSIONS } from "../../core/lib/permissions";
-import { listInventory } from "./service";
+import { adjustQuantity, listInventory } from "./service";
 
 export async function inventoryHandler(req: Request, res: Response) {
   const canView = hasPermissionList(req.user?.permissions, PERMISSIONS.reportProfit);
@@ -14,4 +14,8 @@ export async function inventoryHandler(req: Request, res: Response) {
       byCondition: result.byCondition,
     },
   });
+}
+
+export async function quantityAdjustmentHandler(req: Request, res: Response) {
+  res.json({ data: await adjustQuantity(req.body, req.user!.id) });
 }

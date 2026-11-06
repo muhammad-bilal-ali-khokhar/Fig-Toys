@@ -37,7 +37,7 @@ export function DesktopAppTab() {
       <div className="flex items-center justify-between rounded-3xl bg-white p-4">
         <div>
           <p className="text-sm font-semibold text-ink-900">Fig POS for Mobile Phones</p>
-          <p className="mt-0.5 text-xs text-ink-500">New &amp; used phones · IMEI tracking · Credit &amp; analytics</p>
+          <p className="mt-0.5 text-xs text-ink-500">Toy inventory · Barcode checkout · Credit &amp; analytics</p>
         </div>
         <Button variant="secondary" onClick={() => void window.fig?.about?.open()}>
           About

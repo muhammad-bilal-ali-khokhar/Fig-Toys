@@ -56,7 +56,7 @@ export function StockMovementsList({
                 <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
                   <th className="px-4 py-2.5 font-semibold">Type</th>
                   <th className="px-4 py-2.5 font-semibold">Product</th>
-                  <th className="px-4 py-2.5 font-semibold">IMEI</th>
+                  <th className="px-4 py-2.5 font-semibold">Barcode</th>
                   <th className="px-4 py-2.5 font-semibold">Qty</th>
                   <th className="px-4 py-2.5 font-semibold">Note</th>
                   <th className="px-4 py-2.5 text-right font-semibold">When</th>

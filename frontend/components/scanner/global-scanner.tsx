@@ -72,7 +72,7 @@ export function GlobalScannerProvider({ children }: { children: React.ReactNode 
       {children}
       {isOpen && (
         <div data-scanner-root>
-          <Scanner title="Scan IMEI or barcode" onScan={handleScan} onClose={close} />
+          <Scanner title="Scan barcode" onScan={handleScan} onClose={close} />
         </div>
       )}
     </GlobalScannerContext.Provider>

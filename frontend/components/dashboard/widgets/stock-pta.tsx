@@ -6,18 +6,12 @@ import type { DashboardOverview } from "@/lib/api-types";
 
 export function StockPtaWidget({ data }: { data?: DashboardOverview | null }) {
   const C = useChartColors();
-  const carrierData = data
-    ? [
-        { name: "PTA", value: data.carrierSplit.PTA, color: C.pta },
-        { name: "Non-PTA", value: data.carrierSplit.NON_PTA, color: C.nonPta },
-        { name: "SIM locked", value: data.carrierSplit.SIM_LOCKED, color: C.simLocked },
-      ].filter((c) => c.value > 0)
-    : [];
+  const carrierData = data ? Object.entries(data.soldByRootCategory).map(([name, value], index) => ({ name, value, color: [C.pta, C.nonPta, C.simLocked][index % 3] })).filter((c) => c.value > 0) : [];
   const carrierTotal = carrierData.reduce((sum, c) => sum + c.value, 0);
 
   return (
     <div className={`${DASHBOARD_WIDGET_SPANS.stockPta} h-full`}>
-      <Card title="Stock · PTA status" className="flex h-full flex-col">
+      <Card title="Toys sold · category mix" className="flex h-full flex-col">
         {!data ? (
           <div className="flex-1 space-y-3 px-5 pb-5">
             <Skeleton className="h-3 w-full rounded-full" />
@@ -50,7 +44,7 @@ export function StockPtaWidget({ data }: { data?: DashboardOverview | null }) {
             </ul>
           </div>
         ) : (
-          <p className="px-5 pb-5 text-sm text-ink-400">No units in stock.</p>
+           <p className="px-5 pb-5 text-sm text-ink-400">No toy sales in this period.</p>
         )}
       </Card>
     </div>

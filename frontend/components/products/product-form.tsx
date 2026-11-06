@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import type { Brand, Category, Color } from "@/lib/api-types";
-import { CARRIER_LABELS, CARRIER_OPTIONS, RAM_OPTIONS, SCREEN_SIZE_OPTIONS, STORAGE_OPTIONS } from "@/lib/constants";
 import { useDirtyForm } from "@/lib/use-dirty-form";
 import { DiscardConfirmDialog } from "@/components/ui/discard-confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -10,18 +9,18 @@ import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ImagePicker } from "@/components/products/image-picker";
-import { useUsedPricing } from "@/lib/used-pricing";
 
 export type ProductFormValues = {
   brandId: string;
   model: string;
-  storage: string;
-  ram: string;
-  screenSize: string;
   colorId: string;
   categoryId: string;
   subcategoryId: string;
-  carrier: string;
+  ageRange: string;
+  size: string;
+  pieceCount: string;
+  material: string;
+  batteryRequired: string;
   sellPrice: string;
   costPrice: string;
   retailPrice: string;
@@ -33,13 +32,14 @@ export type ProductFormValues = {
 export const EMPTY_PRODUCT_FORM: ProductFormValues = {
   brandId: "",
   model: "",
-  storage: "",
-  ram: "",
-  screenSize: "",
   colorId: "",
   categoryId: "",
   subcategoryId: "",
-  carrier: "",
+  ageRange: "",
+  size: "",
+  pieceCount: "",
+  material: "",
+  batteryRequired: "",
   sellPrice: "",
   costPrice: "",
   retailPrice: "",
@@ -77,6 +77,7 @@ export function ProductForm({
   saving,
   type,
   onSave,
+  onBrandCreated,
   onCancel,
 }: {
   initial: ProductFormValues;
@@ -85,8 +86,9 @@ export function ProductForm({
   colors: Color[];
   viewCosts: boolean;
   saving: boolean;
-  type?: "NEW" | "USED" | "ACCESSORY";
+  type?: "TOY";
   onSave: (values: ProductFormValues) => void;
+  onBrandCreated?: (brand: Brand) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState<ProductFormValues>(() => {
@@ -99,12 +101,11 @@ export function ProductForm({
     } else if (initial.subcategoryId && !initial.categoryId) {
       base = { ...initial, categoryId: initial.subcategoryId, subcategoryId: "" };
     } else base = { ...initial, subcategoryId: "" };
-    if (type === "NEW" && !base.carrier) base.carrier = "PTA";
     return base;
   });
+  const [newBrandName, setNewBrandName] = useState("");
+  const [addingBrand, setAddingBrand] = useState(false);
   const dirty = useDirtyForm(initial);
-  const { enabled: usedPricingEnabled, setEnabled: setUsedPricingEnabled } = useUsedPricing();
-  const hideUsedPricing = type === "USED" && usedPricingEnabled;
 
   function update(next: Partial<ProductFormValues>) {
     const updated = { ...form, ...next };
@@ -113,15 +114,7 @@ export function ProductForm({
   }
 
   const parentCategories = categories.filter((c) => !c.parentId);
-  const isPhone = type !== "ACCESSORY";
-  const filteredRoots =
-    type === "ACCESSORY"
-      ? parentCategories.filter((c) => c.type === "ACCESSORY")
-      : type === "USED"
-        ? parentCategories.filter((c) => c.type === "PHONE" && c.name.toLowerCase().includes("used"))
-        : type === "NEW"
-          ? parentCategories.filter((c) => c.type === "PHONE" && c.name.toLowerCase().includes("new"))
-          : parentCategories;
+  const filteredRoots = parentCategories;
   const categoryOptions = flattenForSelect(filteredRoots);
 
   const effectiveCategoryId = form.categoryId;
@@ -137,77 +130,65 @@ export function ProductForm({
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-ink-500">Brand</label>
+             <label className="mb-1 block text-xs font-semibold text-ink-500">Brand</label>
             <Dropdown
               value={form.brandId}
-              options={brands.map((b) => ({ value: b.id, label: b.name }))}
-              onChange={(value) => update({ brandId: value })}
+               options={[...brands.map((b) => ({ value: b.id, label: b.name })), { value: "__new_brand__", label: "+ Add new brand" }]}
+               onChange={(value) => {
+                 if (value === "__new_brand__") setNewBrandName("");
+                 else update({ brandId: value });
+               }}
               placeholder="Select…"
               searchable
             />
+            {newBrandName !== "" || form.brandId === "" ? (
+              <div className="mt-2 flex gap-2">
+                <Input value={newBrandName} onChange={(e) => setNewBrandName(e.target.value)} placeholder="New brand name" />
+                <Button type="button" variant="secondary" loading={addingBrand} onClick={async () => {
+                  const name = newBrandName.trim();
+                  if (!name) return;
+                  setAddingBrand(true);
+                  try {
+                    const brand = await (await import("@/lib/apiClient")).apiRequest<Brand>("/brand", { method: "POST", body: { name } });
+                    update({ brandId: brand.id });
+                    setNewBrandName("");
+                    onBrandCreated?.(brand);
+                  } finally {
+                    setAddingBrand(false);
+                  }
+                }}>Add</Button>
+              </div>
+            ) : null}
           </div>
           <Input
+            aria-label="Product name"
             value={form.model}
             onChange={(e) => update({ model: e.target.value })}
-            placeholder="Model"
+            placeholder="Product name"
             className="self-end"
           />
         </div>
-        {isPhone && (
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ink-500">Storage</label>
-              <Dropdown
-                value={form.storage}
-                options={STORAGE_OPTIONS.map((s) => ({ value: s, label: s }))}
-                onChange={(value) => update({ storage: value })}
-                searchable
-                allowCustom
-                placeholder="Select…"
-
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ink-500">RAM</label>
-              <Dropdown
-                value={form.ram}
-                options={RAM_OPTIONS.map((r) => ({ value: r, label: r }))}
-                onChange={(value) => update({ ram: value })}
-                searchable
-                allowCustom
-                placeholder="Select…"
-
-              />
-            </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-500">Color</label>
+            <Dropdown
+              value={form.colorId}
+              options={colors.map((c) => ({ value: c.id, label: c.name }))}
+              onChange={(value) => update({ colorId: value })}
+              searchable
+              placeholder="Select…"
+            />
           </div>
-        )}
-        {isPhone && (
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ink-500">Screen size</label>
-              <Dropdown
-                value={form.screenSize}
-                options={SCREEN_SIZE_OPTIONS.map((s) => ({ value: s, label: s }))}
-                onChange={(value) => update({ screenSize: value })}
-                searchable
-                allowCustom
-                placeholder="Select…"
-
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ink-500">Color</label>
-              <Dropdown
-                value={form.colorId}
-                options={colors.map((c) => ({ value: c.id, label: c.name }))}
-                onChange={(value) => update({ colorId: value })}
-                searchable
-                placeholder="Select…"
-
-              />
-            </div>
-          </div>
-        )}
+          <Input value={form.size} onChange={(e) => update({ size: e.target.value })} placeholder="Size (optional)" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Input value={form.ageRange} onChange={(e) => update({ ageRange: e.target.value })} placeholder="Recommended age (e.g. 3–5 years)" />
+          <Input value={form.pieceCount} onChange={(e) => update({ pieceCount: e.target.value })} placeholder="Piece count (optional)" inputMode="numeric" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Input value={form.material} onChange={(e) => update({ material: e.target.value })} placeholder="Material (optional)" />
+          <Input value={form.batteryRequired} onChange={(e) => update({ batteryRequired: e.target.value })} placeholder="Battery requirement (optional)" />
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-ink-500">Category</label>
@@ -219,39 +200,12 @@ export function ProductForm({
               searchable
             />
           </div>
-          {(type === "NEW" || type === "USED" || !type) && (
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-ink-500">Carrier</label>
-              <Dropdown
-                value={form.carrier}
-                options={CARRIER_OPTIONS.map((c) => ({ value: c, label: CARRIER_LABELS[c] }))}
-                onChange={(value) => update({ carrier: value })}
-                placeholder={type === "USED" ? "Select carrier…" : "PTA"}
-                searchable
-              />
-              {type === "USED" && !form.carrier && <p className="mt-1 text-xs text-error">Carrier is required for Used phones</p>}
-            </div>
-          )}
         </div>
-        {type === "ACCESSORY" && (
-          <div className="flex items-center gap-2 py-1">
-            <Checkbox checked={!!form.hasBarcode} onChange={(v) => update({ hasBarcode: !!v })} />
-            <label className="text-xs font-semibold text-ink-500">Contain barcode</label>
-            <span className="text-xs text-ink-400">— if disabled, no barcode (barcode added at purchase)</span>
-          </div>
-        )}
-        {type === "USED" && (
-          <div className="rounded-lg bg-ink-50 px-2.5 py-1.5">
-            <Checkbox
-              checked={usedPricingEnabled}
-              onChange={(v) => setUsedPricingEnabled(v)}
-              label="Add sale and cost while purchasing"
-              description="When on, cost and sale are set per phone at purchase."
-            />
-          </div>
-        )}
-        {!hideUsedPricing && (
-          <div className="grid grid-cols-2 gap-3">
+        <div className="flex items-center gap-2 py-1">
+          <Checkbox checked={!!form.hasBarcode} onChange={(v) => update({ hasBarcode: !!v })} />
+          <label className="text-xs font-semibold text-ink-500">Product has a barcode</label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-ink-500">Sell price (PKR)</label>
               <Input
@@ -273,9 +227,7 @@ export function ProductForm({
               </div>
             )}
           </div>
-        )}
-        {type !== "USED" && (
-          <div>
+        <div>
             <label className="mb-1 block text-xs font-semibold text-ink-500">
               Retail price (PKR) <span className="font-normal text-ink-400">(invoice / company MRP, optional)</span>
             </label>
@@ -285,8 +237,7 @@ export function ProductForm({
               placeholder="0"
               inputMode="numeric"
             />
-          </div>
-        )}
+        </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-ink-500">
             Image <span className="font-normal text-ink-400">(optional)</span>

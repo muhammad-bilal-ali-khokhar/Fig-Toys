@@ -539,6 +539,26 @@ export async function stockReport(permissions: readonly Permission[]) {
     },
   });
 
+  const quantityItems = await prisma.transactionItem.findMany({
+    where: { unitId: null },
+    select: {
+      productId: true,
+      quantity: true,
+      total: true,
+      unitPrice: true,
+      transaction: { select: { type: true } },
+      product: {
+        select: {
+          brand: { select: { name: true } },
+          model: true,
+          sellPrice: true,
+          costPrice: true,
+          category: { select: { id: true, name: true, parentId: true } },
+        },
+      },
+    },
+  });
+
   const byCondition = new Map<string, { condition: string; units: number; costValue: number; retailValue: number }>();
   const byCategory = new Map<string, { name: string; units: number; costValue: number; retailValue: number }>();
   const bySubCategory = new Map<string, { name: string; parentName: string; units: number; costValue: number; retailValue: number }>();
@@ -581,11 +601,52 @@ export async function stockReport(permissions: readonly Permission[]) {
     byBrand.set(brand, b);
   }
 
-  const totalCost = units.reduce((s, u) => s + n(u.costPrice), 0);
-  const totalRetail = units.reduce((s, u) => s + n(u.product.sellPrice), 0);
+  const quantityByProduct = new Map<string, { quantity: number; cost: number }>();
+  for (const item of quantityItems) {
+    const sign = item.transaction.type === "PURCHASE" || item.transaction.type === "SALE_RETURN" ? 1 : item.transaction.type === "SALE" || item.transaction.type === "PURCHASE_RETURN" ? -1 : 0;
+    const current = quantityByProduct.get(item.productId) ?? { quantity: 0, cost: 0 };
+    current.quantity += sign * item.quantity;
+    current.cost = Number(item.product.costPrice);
+    quantityByProduct.set(item.productId, current);
+  }
+
+  for (const item of quantityItems) {
+    const stock = quantityByProduct.get(item.productId);
+    if (!stock || stock.quantity <= 0 || item.quantity <= 0) continue;
+    const quantity = stock.quantity;
+    const costValue = stock.cost * quantity;
+    const retailValue = Number(item.product.sellPrice) * quantity;
+    const path = categoryPath(item.product.category.id, catMapData);
+    const rootName = path[0] ?? item.product.category.name;
+    const category = byCategory.get(rootName) ?? { name: rootName, units: 0, costValue: 0, retailValue: 0 };
+    category.units += quantity;
+    category.costValue += costValue;
+    category.retailValue += retailValue;
+    byCategory.set(rootName, category);
+    if (path.length > 1) {
+      const subKey = path.join(" > ");
+      const sub = bySubCategory.get(subKey) ?? { name: path[path.length - 1], parentName: path.slice(0, -1).join(" > "), units: 0, costValue: 0, retailValue: 0 };
+      sub.units += quantity;
+      sub.costValue += costValue;
+      sub.retailValue += retailValue;
+      bySubCategory.set(subKey, sub);
+    }
+    const brand = item.product.brand.name;
+    const brandRow = byBrand.get(brand) ?? { name: brand, units: 0, costValue: 0, retailValue: 0 };
+    brandRow.units += quantity;
+    brandRow.costValue += costValue;
+    brandRow.retailValue += retailValue;
+    byBrand.set(brand, brandRow);
+  }
+
+  const totalCost = units.reduce((s, u) => s + n(u.costPrice), 0) + [...quantityByProduct.values()].reduce((s, p) => s + (p.quantity > 0 ? p.cost * p.quantity : 0), 0);
+  const totalRetail = units.reduce((s, u) => s + n(u.product.sellPrice), 0) + [...quantityByProduct.entries()].reduce((s, [id, p]) => {
+    const item = quantityItems.find((row) => row.productId === id);
+    return s + (p.quantity > 0 ? Number(item?.product.sellPrice ?? 0) * p.quantity : 0);
+  }, 0);
 
   return {
-    units: units.length,
+    units: units.length + [...quantityByProduct.values()].reduce((s, p) => s + Math.max(0, p.quantity), 0),
     costValue: cost ? round(totalCost) : null,
     retailValue: round(totalRetail),
     byCondition: [...byCondition.values()].sort((a, b) => b.costValue - a.costValue),

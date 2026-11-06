@@ -1,9 +1,9 @@
 export const APP = {
-  name: "Fig POS",
-  nameFull: "Fig POS for Mobile Phones",
-  tagline: "The complete point of sale built for new and used mobile phone shops",
-  footer: "New & used · IMEI tracked · Credit & analytics",
-  storeSub: "Mobile Phone Shop",
+  name: "Fig Toys",
+  nameFull: "Fig Toys POS",
+  tagline: "Simple sales and inventory management for toy shops",
+  footer: "Toy inventory · Fast checkout · Credit & analytics",
+  storeSub: "Toy Shop",
   signInTitle: "Sign in to your store",
   // Build-verification marker shown only on dev builds (never in production).
   devMarker: process.env.NODE_ENV !== "production" ? "DEV-20260817" : "",

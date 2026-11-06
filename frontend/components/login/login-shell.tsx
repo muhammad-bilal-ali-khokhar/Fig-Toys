@@ -5,12 +5,12 @@ import { APP, AUTH } from "@/lib/constants";
 import type { CompanyProfile } from "@/lib/api-types";
 
 const FEATURES = [
-  { label: "Sale Invoice", value: "IMEI pick & split pay", icon: PosIcon, accent: "bg-brand-500" },
-  { label: "Inventory", value: "NEW vs USED & PTA", icon: InventoryIcon, accent: "bg-teal-500" },
+  { label: "Sale Invoice", value: "Fast checkout & split pay", icon: PosIcon, accent: "bg-brand-500" },
+  { label: "Inventory", value: "Barcode stock control", icon: InventoryIcon, accent: "bg-teal-500" },
   { label: "Contacts", value: "One ledger & credit", icon: UsersIcon, accent: "bg-violet-500" },
-  { label: "Purchases", value: "Buy new, buy used", icon: PurchasesIcon, accent: "bg-ink-700" },
+  { label: "Purchases", value: "Receive supplier stock", icon: PurchasesIcon, accent: "bg-ink-700" },
   { label: "Money & Bank", value: "Vouchers & Z report", icon: WalletIcon, accent: "bg-gold-500" },
-  { label: "Reports", value: "Profit by brand", icon: ReportsIcon, accent: "bg-brand-600" },
+  { label: "Reports", value: "Profit by category", icon: ReportsIcon, accent: "bg-brand-600" },
 ];
 
 export function LoginShell({
@@ -44,7 +44,7 @@ export function LoginShell({
           <p className="text-xs font-semibold uppercase tracking-widest text-white/50">Welcome back</p>
           <h1 className="mt-2 max-w-sm text-4xl font-bold leading-none tracking-tight">Sign in to your store.</h1>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/60">
-            {profile?.tagline ?? APP.tagline} Fast POS, IMEI stock and clear reports.
+            {profile?.tagline ?? APP.tagline} Fast checkout, accurate stock and clear reports.
           </p>
         </div>
 
@@ -64,7 +64,7 @@ export function LoginShell({
 
         <div className="relative mt-auto pt-10">
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80">New & Used</span>
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80">Barcode ready</span>
             <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80">Offline ready</span>
             <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80">Reservation & credit</span>
           </div>

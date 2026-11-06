@@ -20,8 +20,7 @@ export const REPORT_NAV_GROUPS: { title: string; items: ReportNavItem[] }[] = [
   {
     title: "Lists",
     items: [
-      { href: "/reports/device-lookup", label: "Device LookUp" },
-      { href: "/reports/inventory-list", label: "Inventory list" },
+       { href: "/reports/inventory-list", label: "Toy inventory list" },
       { href: "/reports/sales-list", label: "Sales list" },
       { href: "/reports/purchase-list", label: "Purchase list" },
       { href: "/reports/sale-returns", label: "Sale returns" },

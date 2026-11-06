@@ -7,7 +7,7 @@ import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
 import { brandOf, type BankAccount, type Brand, type CashDrawer, type Category, type Color, type Contact, type ProductSummary, type PurchaseOrder, type Transaction, type TransactionDetail } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS, MAX_MONEY_AMOUNT } from "@/lib/constants";
+import { MAX_MONEY_AMOUNT } from "@/lib/constants";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { canViewCosts, hasPermission } from "@/lib/roles";
 import { formatPKR, clampMoneyInput, roundMoney } from "@/lib/money";
@@ -36,7 +36,7 @@ import { ContactForm, EMPTY_CONTACT_FORM, type ContactFormValues } from "@/compo
 import { playPop, playSuccess } from "@/lib/sound";
 import { ScannerButton } from "@/components/scanner/scanner-button";
 import { useScannerScan } from "@/components/scanner/global-scanner";
-import { CameraIcon, CheckIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, ReportsIcon, SmartphoneIcon, XIcon } from "@/components/icons";
+import { CameraIcon, CheckIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, ReportsIcon, XIcon } from "@/components/icons";
 
 type PendingUnit = {
   key: string;
@@ -103,7 +103,7 @@ export default function PurchasesPage() {
   const [contactFormOpen, setContactFormOpen] = useState(false);
   const [savingProduct, setSavingProduct] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
-  const [flow, setFlow] = useState<"NEW" | "USED" | "ACCESSORY" | null>(null);
+   const [flow, setFlow] = useState<"NEW" | "USED" | "ACCESSORY" | null>(null);
   const [tab, setTab] = useState<"NEW" | "USED">("NEW");
   const [contactId, setContactId] = useState<string | null>(null);
   const [cash, setCash] = useState("");
@@ -270,13 +270,11 @@ export default function PurchasesPage() {
   }));
   const productOptions = (products ?? [])
     .filter((p) => {
-      if (flow === "ACCESSORY") return p.categoryType === "ACCESSORY";
-      if (flow === "USED") return p.categoryType === "PHONE" && (p.categoryName === "Used Phone" || p.parentCategoryName === "Used Phone");
-      return p.categoryType === "PHONE" && (p.categoryName === "New Phone" || p.parentCategoryName === "New Phone");
+      return p.categoryType === "ACCESSORY" || p.categoryType === "PHONE";
     })
     .map((p) => ({
       value: p.id,
-      label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${(p as any).carrier ? String((p as any).carrier).replace("_"," ") : ""}`.trim(),
+      label: `${p.brand} ${p.model} ${p.color ?? ""}`.trim(),
       searchKeywords: p.barcode ?? undefined,
       trailing: <span className="text-xs text-ink-400">{formatPKR(p.costPrice ?? 0)}</span>,
     }));
@@ -327,12 +325,13 @@ export default function PurchasesPage() {
         body: {
           brandId: values.brandId,
           model: values.model.trim(),
-          storage: values.storage || undefined,
-          ram: values.ram || undefined,
-          screenSize: values.screenSize || undefined,
           colorId: values.colorId || undefined,
           categoryId: values.categoryId,
-          carrier: values.carrier || undefined,
+          ageRange: values.ageRange || undefined,
+          size: values.size || undefined,
+          pieceCount: values.pieceCount ? parseInt(values.pieceCount, 10) : undefined,
+          material: values.material || undefined,
+          batteryRequired: values.batteryRequired || undefined,
           barcode: values.barcode || undefined,
           image: values.image || undefined,
           sellPrice: parseFloat(values.sellPrice) || 0,
@@ -604,7 +603,7 @@ export default function PurchasesPage() {
       toast("Cost price cannot be negative", "error");
       return;
     }
-    const label = `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""}`.trim();
+     const label = `${p.brand} ${p.model} ${p.color ?? ""}`.trim();
     playPop();
     setBarcodePopup({
       productId: p.id,
@@ -858,11 +857,9 @@ export default function PurchasesPage() {
     toast(`Editing ${txn.number}`, "success");
   }
 
-  function pickFlow(f: "NEW" | "USED" | "ACCESSORY") {
-    if (f === "NEW") setTab("NEW");
-    if (f === "USED") setTab("USED");
-    if (f === "ACCESSORY") setTab("NEW");
-    setFlow(f);
+  function pickFlow() {
+    setTab("NEW");
+    setFlow("ACCESSORY");
   }
 
   useSaveShortcut(() => {
@@ -881,32 +878,15 @@ export default function PurchasesPage() {
     }
     const validItems = rows.map((r) => {
       const netCost = Math.max(0, (parseFloat(r.costPrice) || 0) - rowDiscount(r));
-      return flow === "ACCESSORY"
-        ? {
-            productId: r.productId,
-            barcode: r.barcode || undefined,
-            costPrice: netCost,
-            quantity: r.quantity,
-          }
-        : {
-            productId: r.productId,
-            imei: r.imei.trim(),
-            costPrice: netCost,
-            sellPrice: usedPricingEnabled && tab === "USED" && r.salePrice ? parseFloat(r.salePrice) : undefined,
-            condition: tab,
-            grade: tab === "USED" ? r.grade : undefined,
-            carrier: r.carrier,
-            batteryHealth: tab === "USED" && r.batteryHealth ? Number(r.batteryHealth) : undefined,
-            colorId: r.colorId ?? undefined,
-          };
+      return {
+        productId: r.productId,
+        barcode: r.barcode || undefined,
+        costPrice: netCost,
+        quantity: r.quantity,
+      };
     });
-    if (flow === "ACCESSORY") {
-      if (validItems.some((i) => !i.productId)) {
-        toast("Every accessory needs a product", "error");
-        return;
-      }
-    } else if (validItems.some((i) => !i.productId || !i.imei)) {
-      toast("Every unit needs a product and IMEI", "error");
+    if (validItems.some((i) => !i.productId)) {
+      toast("Every stock line needs a product", "error");
       return;
     }
 
@@ -985,43 +965,27 @@ export default function PurchasesPage() {
     );
   }
 
-  if (!flow) {
-    const options = [
-      {
-        f: "NEW" as const,
-        icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
-        title: "New Phone",
-        desc: "Fresh sealed handsets bought straight from your vendors",
-        featured: true,
-      },
-      {
-        f: "USED" as const,
-        icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
-        title: "Used Phone",
-        desc: "Trade-ins bought from customers, inspected and ready to resell",
-        accent: "bg-ink-800",
-      },
-      {
-        f: "ACCESSORY" as const,
-        icon: <HeadphonesIcon className="h-8 w-8 text-white" />,
-        title: "Accessories",
-        desc: "Cases, chargers and more to sell alongside every phone",
-        accent: "bg-ink-400",
-      },
-    ];
+   if (!flow) {
+    const options = [{
+      f: "TOY" as const,
+      icon: <HeadphonesIcon className="h-8 w-8 text-white" />,
+      title: "Toy Stock",
+      desc: "Receive toys and gift items from your suppliers by quantity",
+      featured: true,
+    }];
     return (
       <div className="flex h-full items-center justify-center">
         <div className="w-full max-w-4xl">
           <p className="mb-8 text-center text-sm font-semibold uppercase tracking-wide text-ink-500">
             What are you buying?
           </p>
-          <div className="grid gap-5 md:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-1">
             {options.map((o) =>
               o.featured ? (
                 <button
                   key={o.f}
                   type="button"
-                  onClick={() => pickFlow(o.f)}
+                   onClick={() => pickFlow()}
                   className="flex flex-col items-center justify-center gap-4 rounded-3xl bg-brand-600 p-8 text-center hover:bg-brand-700"
                 >
                   <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20">
@@ -1030,20 +994,7 @@ export default function PurchasesPage() {
                   <span className="text-lg font-bold text-white">{o.title}</span>
                   <span className="text-sm text-brand-50">{o.desc}</span>
                 </button>
-              ) : (
-                <button
-                  key={o.f}
-                  type="button"
-                  onClick={() => pickFlow(o.f)}
-                  className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-white p-6 text-center hover:bg-ink-50"
-                >
-                  <span className={`flex h-16 w-16 items-center justify-center rounded-2xl ${o.accent}`}>
-                    {o.icon}
-                  </span>
-                  <span className="text-base font-semibold text-ink-900">{o.title}</span>
-                  <span className="text-xs text-ink-500">{o.desc}</span>
-                </button>
-              ),
+              ) : null,
             )}
           </div>
         </div>
@@ -1059,10 +1010,10 @@ export default function PurchasesPage() {
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
-            <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Purchase" : "Purchase"}<span className="ml-2 text-sm font-medium text-ink-400">{flow === "ACCESSORY" ? "· Accessories" : flow === "USED" ? "· Used Phone" : "· New Phone"}</span></h1>
+             <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Purchase" : "Purchase"}<span className="ml-2 text-sm font-medium text-ink-400">· Toy Stock</span></h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <ScannerButton label="Scan IMEI" variant="ghost" />
+            <ScannerButton label="Scan barcode" variant="ghost" />
             <Button variant="ghost" onClick={() => setModifyPickerOpen(true)}>Modify</Button>
             <Link href="/purchase-returns"><Button variant="ghost">Purchase Returns</Button></Link>
             <Link href="/reports/purchases"><Button variant="ghost"><ReportsIcon className="h-4 w-4" />Reports</Button></Link>
@@ -1072,8 +1023,8 @@ export default function PurchasesPage() {
         {po && (
           <div className="mt-3 shrink-0 rounded-2xl border border-brand-200 bg-brand-50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-ink-900">Receiving <span className="font-mono">{po.number}</span> · {po.contact.name}{parseFloat(po.advance) > 0 && <span className="ml-2 text-xs font-normal text-ink-600">Advance {formatPKR(po.advance)} already paid</span>}</p><Link href="/purchase-orders" className="text-xs text-brand-700 hover:underline">Back to orders</Link></div>
-            <p className="mt-1 text-xs text-ink-500">Pick each item to enter {flow === "ACCESSORY" ? "barcodes" : "IMEIs"} — it will be saved as a real purchase with stock.</p>
-            <div className="mt-3 grid gap-2">{po.items.map((it) => { const remaining = it.quantity - it.receivedQuantity; if (remaining <= 0) return null; const added = rows.filter((r) => r.productId === it.product.id).reduce((s, r) => s + r.quantity, 0); const label = `${it.product.brand?.name ?? ""} ${it.product.model} ${it.product.storage ?? ""} ${it.product.ram ?? ""}`.trim() || it.product.model; const isAcc = it.product.category?.type === "ACCESSORY"; const done = added >= remaining; return (<div key={it.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink-900">{label}</p><p className="text-xs text-ink-500">Qty {remaining} · {formatPKR(it.costPrice)} each {added > 0 && `· Added ${added}/${remaining}`}</p></div><Button size="sm" variant={done ? "ghost" : "secondary"} disabled={done} onClick={() => (isAcc ? promptPoBarcode(it) : promptPoImei(it))}>{done ? "Added" : flow === "ACCESSORY" ? "Add barcodes" : "Add IMEIs"}</Button></div>); })}</div>
+             <p className="mt-1 text-xs text-ink-500">Add toy quantities and optional barcodes. The purchase will update stock immediately.</p>
+             <div className="mt-3 grid gap-2">{po.items.map((it) => { const remaining = it.quantity - it.receivedQuantity; if (remaining <= 0) return null; const added = rows.filter((r) => r.productId === it.product.id).reduce((s, r) => s + r.quantity, 0); const label = `${it.product.brand?.name ?? ""} ${it.product.model}`.trim() || it.product.model; const done = added >= remaining; return (<div key={it.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink-900">{label}</p><p className="text-xs text-ink-500">Qty {remaining} · {formatPKR(it.costPrice)} each {added > 0 && `· Added ${added}/${remaining}`}</p></div><Button size="sm" variant={done ? "ghost" : "secondary"} disabled={done} onClick={() => promptPoBarcode(it)}>{done ? "Added" : "Add barcodes"}</Button></div>); })}</div>
           </div>
         )}
         <div className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
@@ -1106,7 +1057,7 @@ export default function PurchasesPage() {
                   const groupSale = parseFloat(groupRows[0].salePrice ?? "0") || 0;
                   const groupAmount = roundMoney(groupRows.reduce((s, l) => s + ((parseFloat(l.costPrice) || 0) - rowDiscount(l)) * l.quantity, 0));
                   const showSale = usedPricingEnabled && flow === "USED";
-                  return (<Fragment key={productId}><tr className="bg-ink-50/80 transition-colors duration-150"><td className="px-2 py-1.5"><div className="flex items-center gap-1.5"><div className="h-5 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span></div></td>{groupRows.length > 1 ? (<><td className="px-1.5 py-1 text-center text-sm font-semibold text-ink-900">{totalQty}</td>{flow === "USED" && <td className="px-1.5 py-1 text-center text-xs font-medium text-ink-700">{groupRows[0].grade || "-"}</td>}<td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={groupPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupPrice(productId, n)} className="h-7 w-16 bg-ink-100 px-1 text-right text-xs" /></div></td>{showSale && <td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={groupSale} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupSalePrice(productId, n)} className="h-7 w-16 bg-ink-100 px-1 text-right text-xs" /></div></td>}<td className="px-1.5 py-1 text-right"><DiscountFields pct={groupRows[0].discountPct} flat={groupRows[0].discountFlat} maxFlat={groupPrice} onChange={({ pct, flat }) => updateGroupDiscount(productId, { pct, flat })} /></td><td className="px-1.5 py-1 text-right text-sm font-semibold text-ink-900">{formatPKR(groupAmount)}</td></>) : (<><td />{flow === "USED" && <td /> }<td />{showSale && <td /> }<td /><td /></>)}<td className="px-4 py-2.5" /></tr>{groupRows.map((row) => (<tr key={row.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-1.5 py-1 pl-4"><div className="flex flex-wrap items-center gap-1"><span className="text-xs font-medium text-ink-900">{row.imei}</span>{row.colorLabel && <Badge variant="neutral">{row.colorLabel}</Badge>}{flow === "USED" && row.carrier && <Badge variant="neutral">{CARRIER_LABELS[row.carrier]}</Badge>}{flow === "USED" && row.batteryHealth && <Badge variant="neutral">{row.batteryHealth}%</Badge>}</div></td><td className="px-1.5 py-1 text-center text-ink-700">{row.quantity}</td>{flow === "USED" && <td className="px-1.5 py-1 text-center"><span className="inline-flex rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-medium text-ink-700">{row.grade || "-"}</span></td>}<td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={parseFloat(row.costPrice) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowPrice(row.key, n)} className="h-7 w-16 px-1 text-right text-xs" /></div></td>{showSale && <td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={parseFloat(row.salePrice ?? "0") || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowSalePrice(row.key, n)} className="h-7 w-16 px-1 text-right text-xs" /></div></td>}<td className="px-4 py-2.5"><DiscountFields pct={row.discountPct} flat={row.discountFlat} maxFlat={parseFloat(row.costPrice) || 0} onChange={({ pct, flat }) => updateRowDiscount(row.key, { pct, flat })} /></td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(roundMoney(((parseFloat(row.costPrice) || 0) - rowDiscount(row)) * row.quantity))}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>);
+                  return (<Fragment key={productId}><tr className="bg-ink-50/80 transition-colors duration-150"><td className="px-2 py-1.5"><div className="flex items-center gap-1.5"><div className="h-5 w-1 shrink-0 rounded-full bg-brand-500" /><span className="truncate text-sm font-semibold text-ink-900">{groupRows[0].productLabel}</span></div></td>{groupRows.length > 1 ? (<><td className="px-1.5 py-1 text-center text-sm font-semibold text-ink-900">{totalQty}</td>{flow === "USED" && <td className="px-1.5 py-1 text-center text-xs font-medium text-ink-700">{groupRows[0].grade || "-"}</td>}<td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={groupPrice} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupPrice(productId, n)} className="h-7 w-16 bg-ink-100 px-1 text-right text-xs" /></div></td>{showSale && <td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={groupSale} max={MAX_MONEY_AMOUNT} onChange={(n) => updateGroupSalePrice(productId, n)} className="h-7 w-16 bg-ink-100 px-1 text-right text-xs" /></div></td>}<td className="px-1.5 py-1 text-right"><DiscountFields pct={groupRows[0].discountPct} flat={groupRows[0].discountFlat} maxFlat={groupPrice} onChange={({ pct, flat }) => updateGroupDiscount(productId, { pct, flat })} /></td><td className="px-1.5 py-1 text-right text-sm font-semibold text-ink-900">{formatPKR(groupAmount)}</td></>) : (<><td />{flow === "USED" && <td /> }<td />{showSale && <td /> }<td /><td /></>)}<td className="px-4 py-2.5" /></tr>{groupRows.map((row) => (<tr key={row.key} className="cursor-pointer border-b border-ink-50 bg-white transition-colors duration-150 ease-out hover:bg-ink-50/60 will-change-auto"><td className="px-1.5 py-1 pl-4"><div className="flex flex-wrap items-center gap-1"><span className="text-xs font-medium text-ink-900">{row.imei}</span>{row.colorLabel && <Badge variant="neutral">{row.colorLabel}</Badge>}{flow === "USED" && row.carrier && <Badge variant="neutral">{""}</Badge>}{flow === "USED" && row.batteryHealth && <Badge variant="neutral">{row.batteryHealth}%</Badge>}</div></td><td className="px-1.5 py-1 text-center text-ink-700">{row.quantity}</td>{flow === "USED" && <td className="px-1.5 py-1 text-center"><span className="inline-flex rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-medium text-ink-700">{row.grade || "-"}</span></td>}<td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={parseFloat(row.costPrice) || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowPrice(row.key, n)} className="h-7 w-16 px-1 text-right text-xs" /></div></td>{showSale && <td className="px-1.5 py-1 text-right"><div className="w-16"><PriceInput value={parseFloat(row.salePrice ?? "0") || 0} max={MAX_MONEY_AMOUNT} onChange={(n) => updateRowSalePrice(row.key, n)} className="h-7 w-16 px-1 text-right text-xs" /></div></td>}<td className="px-4 py-2.5"><DiscountFields pct={row.discountPct} flat={row.discountFlat} maxFlat={parseFloat(row.costPrice) || 0} onChange={({ pct, flat }) => updateRowDiscount(row.key, { pct, flat })} /></td><td className="px-4 py-2.5 text-right font-semibold text-ink-900">{formatPKR(roundMoney(((parseFloat(row.costPrice) || 0) - rowDiscount(row)) * row.quantity))}</td><td className="px-4 py-2.5 text-right"><button type="button" onClick={() => removeRow(row.key)} title="Remove" className="rounded-lg p-1 text-ink-300 transition hover:bg-ink-100 hover:text-error"><XIcon className="h-4 w-4" /></button></td></tr>))}</Fragment>);
                 })}
                 {plain.map((row) => {
                   const amount = roundMoney(((parseFloat(row.costPrice) || 0) - rowDiscount(row)) * row.quantity);
@@ -1158,7 +1109,7 @@ export default function PurchasesPage() {
             colors={(colors ?? []).filter((c) => c.active)}
             viewCosts={viewCosts}
             saving={savingProduct}
-            type={flow ?? undefined}
+            type="TOY"
             onSave={saveQuickProduct}
             onCancel={() => setProductFormOpen(false)}
           />

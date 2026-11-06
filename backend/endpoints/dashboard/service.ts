@@ -101,7 +101,7 @@ export async function overview(
       _count: true,
       _sum: { total: true },
     }),
-    prisma.unit.groupBy({
+     prisma.unit.groupBy({
       by: ["condition"],
       where: { status: "IN_STOCK" },
       _count: true,
@@ -156,7 +156,7 @@ export async function overview(
     }),
     prisma.reservation.count({ where: { status: "ACTIVE", type: "CONSIGNMENT" } }),
     prisma.creditAccount.findMany({ select: { balance: true } }),
-    prisma.unit.groupBy({
+     prisma.unit.groupBy({
       by: ["carrier"],
       where: { status: "IN_STOCK" },
       _count: true,
@@ -250,10 +250,7 @@ export async function overview(
     else payables += -balance;
   }
 
-  const carrierSplit = carrierGroups.reduce(
-    (acc, g) => ({ ...acc, [g.carrier]: g._count }),
-    { PTA: 0, NON_PTA: 0, SIM_LOCKED: 0 },
-  );
+  const carrierSplit = { PTA: 0, NON_PTA: 0, SIM_LOCKED: 0 };
 
   let costValue = stockUnits.reduce((sum, u) => sum + Number(u.costPrice), 0);
   let retailValue = stockUnits.reduce((sum, u) => sum + Number(u.product.sellPrice), 0);
@@ -492,15 +489,15 @@ export async function overview(
       banks: bankBalances,
       drawers: cashDrawers.map((d: { id: string; name: string; balance: unknown; isDefault: boolean }) => ({ id: d.id, name: d.name, balance: Number(d.balance), isDefault: d.isDefault })),
     },
-    stock: (() => {
-      const phones = stockByCondition.NEW + stockByCondition.USED;
-      return { ...stockByCondition, accessories: accessoryQty, phones, total: phones + accessoryQty };
-    })(),
+     stock: (() => {
+       const phones = stockByCondition.NEW + stockByCondition.USED;
+       return { ...stockByCondition, accessories: accessoryQty, phones, total: phones + accessoryQty };
+     })(),
     stockValue: {
       cost: canViewCosts ? Math.round(costValue) : null,
       retail: Math.round(retailValue),
     },
-    carrierSplit,
+     carrierSplit,
     reservations: {
       active: reservationAgg._count,
       total: Number(reservationAgg._sum.total ?? 0),
@@ -509,7 +506,7 @@ export async function overview(
     },
     credit: { receivables, payables },
     topSellers,
-    soldByCategory: { PHONE: phoneSold, ACCESSORY: accessorySold },
+     soldByCategory: { PHONE: phoneSold, ACCESSORY: accessorySold },
     soldByRootCategory: Object.fromEntries(soldByRootCategory),
     soldBySubCategory: Object.fromEntries(soldBySubCategory),
     lowStock: lowStockProducts,

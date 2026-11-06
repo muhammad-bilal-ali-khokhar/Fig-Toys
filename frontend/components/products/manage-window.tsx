@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import type { Brand, CashDrawer, Category, CategoryType, Color, ScreenSize } from "@/lib/api-types";
+import type { Brand, CashDrawer, Category, CategoryType, Color } from "@/lib/api-types";
 import {
   INVENTORY_COLUMNS,
   DEFAULT_INVENTORY_VIEW,
@@ -27,7 +27,6 @@ export function ManageWindow({
   categories,
   brands,
   colors,
-  screenSizes,
   cashDrawers,
   initialTab,
   onClose,
@@ -39,7 +38,6 @@ export function ManageWindow({
   categories?: Category[];
   brands?: Brand[];
   colors?: Color[];
-  screenSizes?: ScreenSize[];
   cashDrawers?: CashDrawer[];
   initialTab?: ManageTab;
   onClose: () => void;
@@ -52,7 +50,6 @@ export function ManageWindow({
   const [catKey, setCatKey] = useState(0);
   const [brandKey, setBrandKey] = useState(0);
   const [colorKey, setColorKey] = useState(0);
-  const [sizeKey, setSizeKey] = useState(0);
   const hasView = view !== undefined && onViewChange !== undefined;
 
   if (hasView) {
@@ -111,19 +108,7 @@ export function ManageWindow({
           noun="color"
           placeholder="e.g. Midnight"
         />
-      ) : (
-        <EntityList
-          key={sizeKey}
-          items={screenSizes ?? []}
-          onChanged={() => {
-            setSizeKey((k) => k + 1);
-            onChanged?.();
-          }}
-          path="/screen-size"
-          noun="screen size"
-          placeholder={'e.g. 6.1"'}
-        />
-      )}
+      ) : null}
     </Sheet>
   );
 }
@@ -452,16 +437,7 @@ function ViewTab({
     <div className="mt-5 space-y-5">
       <div>
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">View mode</p>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => onViewChange({ ...view, mode: "units" })}
-            className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-              view.mode === "units" ? "bg-brand-600 text-white" : "bg-brand-50 text-brand-700 hover:bg-brand-100"
-            }`}
-          >
-            Units
-          </button>
+        <div className="grid grid-cols-1 gap-2">
           <button
             type="button"
             onClick={() => onViewChange({ ...view, mode: "quantity" })}
@@ -473,7 +449,7 @@ function ViewTab({
           </button>
         </div>
         <p className="mt-1.5 text-xs text-ink-400">
-          Units shows every IMEI with vendor details. Quantity shows one row per model with stock totals.
+          Quantity shows one row per toy with stock totals and supplier details.
         </p>
       </div>
 

@@ -23,7 +23,7 @@ export const RESET_TEXT = {
 
 export const RESET_SECTIONS = [
   { id: "sales", label: "Sales & purchases", description: "Every sale, purchase and their payments." },
-  { id: "inventory", label: "Products & stock", description: "Products, IMEI units and stock history." },
+  { id: "inventory", label: "Products & stock", description: "Products, quantities and stock history." },
   { id: "contacts", label: "Customers & suppliers", description: "All contacts and their credit balances." },
   { id: "reservations", label: "Reservations", description: "Holds, consignments and refunds." },
   { id: "purchaseOrders", label: "Purchase orders", description: "Orders and their items." },

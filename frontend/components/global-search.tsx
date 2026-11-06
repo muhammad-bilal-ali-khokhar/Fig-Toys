@@ -104,9 +104,9 @@ function actionsFor(r: SearchResult): Action[] {
       ];
     case "UNIT":
       return [
-        { label: "View in inventory", icon: InventoryIcon, href: `/inventory?imei=${encodeURIComponent(r.number)}` },
-        { label: "Sell this unit", icon: PosIcon, href: `/pos?imei=${encodeURIComponent(r.number)}` },
-        { label: "Print / history", icon: PrinterIcon, href: `/reports/device-lookup?imei=${encodeURIComponent(r.number)}` },
+         { label: "View in inventory", icon: InventoryIcon, href: "/inventory" },
+         { label: "Sell this item", icon: PosIcon, href: `/pos?search=${encodeURIComponent(r.number)}` },
+         { label: "Print / history", icon: PrinterIcon, href: "/reports/sales-list" },
       ];
     case "PRODUCT":
       return [
@@ -308,7 +308,7 @@ export function GlobalSearch({ variant = "light" }: { variant?: "light" | "dark"
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={handleKeyDown}
-            placeholder="Search IMEI, sale / purchase / voucher number…"
+             placeholder="Search barcode, sale / purchase / voucher number…"
             className={`h-full min-w-0 flex-1 bg-transparent text-sm outline-none ${isDark ? "text-white placeholder:text-white/50" : "text-ink-900 placeholder:text-ink-400"}`}
           />
         </label>
@@ -327,7 +327,7 @@ export function GlobalSearch({ variant = "light" }: { variant?: "light" | "dark"
           ) : query.trim() && results !== null && results.length === 0 ? (
             <p className="px-4 py-3 text-sm text-ink-400">No matches.</p>
           ) : results === null ? (
-            <p className="px-4 py-3 text-sm text-ink-400">Type an IMEI or document number to search.</p>
+             <p className="px-4 py-3 text-sm text-ink-400">Type a barcode or document number to search.</p>
           ) : (
             <div className="space-y-1">
               {results.map((r, i) => {

@@ -61,7 +61,7 @@ export const INVENTORY_COLUMNS: { key: InventoryColumnKey; label: string }[] = [
   { key: "cost", label: "Cost" },
 ];
 
-export type InventoryViewMode = "units" | "quantity";
+export type InventoryViewMode = "quantity";
 
 export type InventoryViewSettings = {
   mode: InventoryViewMode;
@@ -72,7 +72,7 @@ export type InventoryViewSettings = {
 export const INVENTORY_VIEW_STORAGE_KEY = "fig.inventory.view";
 
 export const DEFAULT_INVENTORY_VIEW: InventoryViewSettings = {
-  mode: "units",
+  mode: "quantity",
   blurCost: true,
   columns: {
     imei: true,

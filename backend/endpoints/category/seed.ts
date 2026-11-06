@@ -8,14 +8,15 @@ export const DEFAULT_CATEGORIES: {
   sortOrder: number;
   parentId?: string;
 }[] = [
-  { id: "cat-phone-new", name: "New Phone", type: "PHONE", sortOrder: 1 },
-  { id: "cat-phone-new-feature", name: "Feature Phone", type: "PHONE", sortOrder: 2, parentId: "cat-phone-new" },
-  { id: "cat-phone-new-smart", name: "Smart Phone", type: "PHONE", sortOrder: 3, parentId: "cat-phone-new" },
-  { id: "cat-phone-used", name: "Used Phone", type: "PHONE", sortOrder: 4 },
-  { id: "cat-phone-used-feature", name: "Feature Phone", type: "PHONE", sortOrder: 5, parentId: "cat-phone-used" },
-  { id: "cat-phone-used-smart", name: "Smart Phone", type: "PHONE", sortOrder: 6, parentId: "cat-phone-used" },
-  { id: "cat-accessory", name: "Accessory", type: "ACCESSORY", sortOrder: 7 },
-  { id: "cat-acc-other", name: "Other Accessories", type: "ACCESSORY", sortOrder: 8, parentId: "cat-accessory" },
+  { id: "cat-vehicles", name: "Cars & Vehicles", type: "ACCESSORY", sortOrder: 1 },
+  { id: "cat-dolls", name: "Dolls & Figures", type: "ACCESSORY", sortOrder: 2 },
+  { id: "cat-educational", name: "Educational Toys", type: "ACCESSORY", sortOrder: 3 },
+  { id: "cat-building", name: "Building Blocks", type: "ACCESSORY", sortOrder: 4 },
+  { id: "cat-puzzles", name: "Puzzles & Games", type: "ACCESSORY", sortOrder: 5 },
+  { id: "cat-outdoor", name: "Outdoor Toys", type: "ACCESSORY", sortOrder: 6 },
+  { id: "cat-baby", name: "Baby Toys", type: "ACCESSORY", sortOrder: 7 },
+  { id: "cat-party", name: "Party & Gift Items", type: "ACCESSORY", sortOrder: 8 },
+  { id: "cat-other", name: "Other Toys", type: "ACCESSORY", sortOrder: 9 },
 ];
 
 export async function seedCategories() {

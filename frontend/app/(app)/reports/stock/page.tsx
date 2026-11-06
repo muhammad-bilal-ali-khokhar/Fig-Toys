@@ -15,7 +15,7 @@ export default function StockReportPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold text-ink-900">Stock valuation</h2>
-        <p className="text-xs text-ink-500">Current in-stock units and their cost and retail value.</p>
+        <p className="text-xs text-ink-500">Current toy quantities and their cost and retail value.</p>
       </div>
 
       {loading ? (
@@ -23,7 +23,7 @@ export default function StockReportPage() {
       ) : data ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="Units in stock" value={String(data.units)} sub="Currently IN_STOCK" />
+             <KpiCard label="Toys in stock" value={String(data.units)} sub="Currently available" />
             <KpiCard
               label="Cost value"
               value={data.costValue !== null ? formatPKR(data.costValue) : "—"}
@@ -39,7 +39,7 @@ export default function StockReportPage() {
 
           <div className="grid gap-3 lg:grid-cols-3">
             <TopList
-              title="By condition"
+               title="By stock status"
               rows={data.byCondition.map((c) => ({
                 id: c.condition,
                 label: REPORT_CONDITION_LABELS[c.condition] ?? c.condition,

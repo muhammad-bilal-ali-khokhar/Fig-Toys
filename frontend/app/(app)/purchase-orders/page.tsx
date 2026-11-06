@@ -29,7 +29,7 @@ import { CameraIcon, ChevronLeftIcon, HeadphonesIcon, PlusIcon, RefreshIcon, Sma
 import { Sheet } from "@/components/ui/sheet";
 import { useDashboardLayout } from "@/lib/dashboard-layout-context";
 
-type Flow = "NEW" | "USED" | "ACCESSORY";
+type Flow = "TOY";
 type View = "form" | "list";
 
 type PendingRow = {
@@ -86,7 +86,7 @@ export default function PurchaseOrdersPage() {
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busy, setBusy] = useState(false);
-  // cashDrawerId intentionally not sent — backend splits cash by category drawer (New→Main, Used→Used Drawer, Accessories→Main) via splitCashByDrawer
+  // cashDrawerId intentionally not sent — backend splits cash by category drawer (Toy stock→Main) via splitCashByDrawer
 
   useEffect(() => {
     if (bankData) setBankAccounts(bankData);
@@ -135,9 +135,8 @@ export default function PurchaseOrdersPage() {
 
   const productOptions = (products ?? [])
     .filter((p) => {
-      if (flow === "ACCESSORY") return p.categoryType === "ACCESSORY";
-      if (flow === "USED") return p.categoryType === "PHONE" && (p.categoryName === "Used Phone" || p.parentCategoryName === "Used Phone");
-      return p.categoryType === "PHONE" && (p.categoryName === "New Phone" || p.parentCategoryName === "New Phone");
+      return p.inStock >= 0;
+
     })
     .map((p) => ({
       value: p.id,
@@ -380,29 +379,7 @@ export default function PurchaseOrdersPage() {
   }
 
   if (!flow && view !== "list") {
-    const options = [
-      {
-        f: "NEW" as const,
-        icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
-        title: "New Phone",
-        desc: "Order fresh sealed handsets from your vendors",
-        featured: true,
-      },
-      {
-        f: "USED" as const,
-        icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
-        title: "Used Phone",
-        desc: "Order trade-in phones to buy from sellers",
-        accent: "bg-ink-800",
-      },
-      {
-        f: "ACCESSORY" as const,
-        icon: <HeadphonesIcon className="h-8 w-8 text-white" />,
-        title: "Accessories",
-        desc: "Order cases, chargers and more",
-        accent: "bg-ink-400",
-      },
-    ];
+    const options = [{ f: "TOY" as const, icon: <HeadphonesIcon className="h-8 w-8 text-white" />, title: "Toy Stock", desc: "Order toys and gift items from suppliers", featured: true }];
     return (
       <div className="flex h-full flex-col gap-4">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
@@ -447,7 +424,7 @@ export default function PurchaseOrdersPage() {
                     onClick={() => pickFlow(o.f)}
                     className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-white p-6 text-center hover:bg-ink-50"
                   >
-                    <span className={`flex h-16 w-16 items-center justify-center rounded-2xl ${o.accent}`}>
+                    <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink-400">
                       {o.icon}
                     </span>
                     <span className="text-base font-semibold text-ink-900">{o.title}</span>
@@ -598,7 +575,7 @@ export default function PurchaseOrdersPage() {
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
-            <h1 className="text-lg font-bold text-ink-900">Purchase Order<span className="ml-2 text-sm font-medium text-ink-400">{flow === "ACCESSORY" ? "· Accessories" : flow === "USED" ? "· Used Phone" : "· New Phone"}</span></h1>
+            <h1 className="text-lg font-bold text-ink-900">Purchase Order<span className="ml-2 text-sm font-medium text-ink-400">{"· Toy Stock"}</span></h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" onClick={() => setView("list")}>View Orders</Button>
@@ -655,7 +632,7 @@ export default function PurchaseOrdersPage() {
           <h1 className="text-lg font-bold text-ink-900">
             Purchase Order
             <span className="ml-2 text-sm font-medium text-ink-400">
-              {flow === "ACCESSORY" ? "· Accessories" : flow === "USED" ? "· Used Phone" : "· New Phone"}
+              {"· Toy Stock"}
             </span>
           </h1>
         </div>
@@ -733,7 +710,7 @@ export default function PurchaseOrdersPage() {
 
       <div className="mt-3 mb-3 flex shrink-0 items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Order items</span>
-        <span className="text-xs text-ink-500">{rows.length} {flow === "ACCESSORY" ? "item(s)" : "unit(s)"}</span>
+        <span className="text-xs text-ink-500">{rows.length} product line(s)</span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto overscroll-none rounded-2xl bg-white">
@@ -741,7 +718,7 @@ export default function PurchaseOrdersPage() {
           <thead className="sticky top-0 bg-white">
             <tr className="text-left text-xs uppercase tracking-wide text-ink-500">
               <th className="px-1.5 py-1.5">Item</th>
-              {flow === "ACCESSORY" ? (
+              {flow === "TOY" ? (
                 <>
                   <th className="w-20 px-1.5 py-1.5 text-center">Qty</th>
                   <th className="w-28 px-1.5 py-1.5 text-right">Cost</th>

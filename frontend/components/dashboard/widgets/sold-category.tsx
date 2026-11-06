@@ -6,7 +6,7 @@ import type { DashboardOverview } from "@/lib/api-types";
 const ROOT_COLORS = ["#9b3f68", "#4a8f4d", "#64748b", "#e9a21a", "#7e3f95", "#3b6ea8", "#c98a24", "#6b7280"];
 
 export function SoldCategoryWidget({ data, rangeLabel }: { data?: DashboardOverview | null; rangeLabel: string }) {
-  const roots: Record<string, number> = data?.soldByRootCategory ?? (data ? { Phones: data.soldByCategory.PHONE, Accessories: data.soldByCategory.ACCESSORY } : {});
+  const roots: Record<string, number> = data?.soldByRootCategory ?? {};
   const entries = Object.entries(roots).sort(([, a], [, b]) => b - a);
   const soldTotal = entries.reduce((s, [, v]) => s + v, 0);
   const subEntries = data ? Object.entries(data.soldBySubCategory).sort(([, a], [, b]) => b - a) : [];
@@ -68,12 +68,11 @@ export function SoldCategoryWidget({ data, rangeLabel }: { data?: DashboardOverv
               ))}
             </div>
             <div className="mx-5 mb-4 flex justify-center gap-4 border-t border-ink-100 pt-3 text-xs text-ink-400">
-              <span>Phones · {data.soldByCategory.PHONE}</span>
-              <span>Accessories · {data.soldByCategory.ACCESSORY}</span>
+               <span>Total toys · {soldTotal}</span>
             </div>
           </>
         ) : (
-          <p className="px-5 pb-5 text-sm text-ink-400">No units sold in {rangeLabel.toLowerCase()}.</p>
+           <p className="px-5 pb-5 text-sm text-ink-400">No toys sold in {rangeLabel.toLowerCase()}.</p>
         )}
       </Card>
     </div>

@@ -108,12 +108,6 @@ export async function createSale(input: CreateSaleInput, userId: string) {
   for (const item of input.items) {
     const product = await prisma.product.findUnique({ where: { id: item.productId }, include: { category: true } });
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
-    if (product.category.type === "PHONE" && !item.unitId) {
-      throw new ApiError(400, "sale.phone_requires_imei", `IMEI/Serial required for ${product.model} — phones must be sold by serial`);
-    }
-    if (product.category.type === "PHONE" && item.unitId && item.quantity !== 1) {
-      throw new ApiError(400, "sale.phone_quantity", "Phones must be sold one unit at a time");
-    }
   }
 
   for (const item of input.items) {
@@ -679,7 +673,7 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
         discount: 0,
         total,
         status,
-        note: input.note ?? `Return for ${sale.number}`,
+         note: [input.note, input.reason ? `Reason: ${input.reason}` : null, input.itemCondition ? `Condition: ${input.itemCondition}` : null].filter(Boolean).join(" · ") || `Return for ${sale.number}`,
         ...(createdAt ? { createdAt } : {}),
         items: { create: createdItems },
       },
@@ -830,7 +824,7 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
         discount: 0,
         total,
         status,
-        note: input.note ?? `Return for ${purchase.number}`,
+         note: [input.note, input.reason ? `Reason: ${input.reason}` : null, input.itemCondition ? `Condition: ${input.itemCondition}` : null].filter(Boolean).join(" · ") || `Return for ${purchase.number}`,
         ...(createdAt ? { createdAt } : {}),
         items: { create: createdItems },
       },
@@ -1286,12 +1280,6 @@ export async function modifySale(id: string, input: CreateSaleInput, userId: str
   for (const item of input.items) {
     const product = await prisma.product.findUnique({ where: { id: item.productId }, include: { category: true } });
     if (!product) throw new ApiError(404, "product.not_found", "Product not found");
-    if (product.category.type === "PHONE" && !item.unitId) {
-      throw new ApiError(400, "sale.phone_requires_imei", `IMEI/Serial required for ${product.model} — phones must be sold by serial`);
-    }
-    if (product.category.type === "PHONE" && item.unitId && item.quantity !== 1) {
-      throw new ApiError(400, "sale.phone_quantity", "Phones must be sold one unit at a time");
-    }
   }
 
   const items = input.items.map((i) => {

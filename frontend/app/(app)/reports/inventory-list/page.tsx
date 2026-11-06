@@ -184,7 +184,7 @@ export default function InventoryListReportPage() {
         <SearchInput
           value={filters.q}
           onChange={(v) => setFilters({ ...filters, q: v })}
-          placeholder="Search by IMEI, brand or model…"
+          placeholder="Search barcode, brand or toy name…"
           variant="white"
           wrapperClassName="min-w-[220px] flex-1"
         />
@@ -220,7 +220,7 @@ export default function InventoryListReportPage() {
               <thead>
                 <tr className="border-b border-ink-100 bg-ink-50/70 text-left text-[11px] uppercase tracking-wider text-ink-500">
                   <th className="px-4 py-2.5 font-semibold">Product</th>
-                  <th className="px-4 py-2.5 font-semibold">IMEI / Barcode</th>
+                  <th className="px-4 py-2.5 font-semibold">Barcode</th>
                   <th className="px-4 py-2.5 font-semibold">Category</th>
                   <th className="px-4 py-2.5 font-semibold">Color</th>
                   <th className="px-4 py-2.5 font-semibold">Condition</th>

@@ -5,15 +5,15 @@ export const DEFAULT_BRANDS: {
   name: string;
   sortOrder: number;
 }[] = [
-  { id: "brand-apple", name: "Apple", sortOrder: 1 },
-  { id: "brand-samsung", name: "Samsung", sortOrder: 2 },
-  { id: "brand-oneplus", name: "OnePlus", sortOrder: 3 },
-  { id: "brand-infinix", name: "Infinix", sortOrder: 4 },
-  { id: "brand-xiaomi", name: "Xiaomi", sortOrder: 5 },
-  { id: "brand-oppo", name: "Oppo", sortOrder: 6 },
-  { id: "brand-vivo", name: "Vivo", sortOrder: 7 },
-  { id: "brand-generic", name: "Generic", sortOrder: 8 },
-  { id: "brand-other", name: "Other", sortOrder: 9 },
+  { id: "brand-apple", name: "PlaySmart", sortOrder: 1 },
+  { id: "brand-samsung", name: "FunBox", sortOrder: 2 },
+  { id: "brand-oneplus", name: "KiddoCraft", sortOrder: 3 },
+  { id: "brand-infinix", name: "Little Genius", sortOrder: 4 },
+  { id: "brand-xiaomi", name: "Happy Wheels", sortOrder: 5 },
+  { id: "brand-oppo", name: "BrightStart", sortOrder: 6 },
+  { id: "brand-vivo", name: "BuildMax", sortOrder: 7 },
+  { id: "brand-generic", name: "WonderLand", sortOrder: 8 },
+  { id: "brand-other", name: "ToyHouse", sortOrder: 9 },
 ];
 
 export async function seedBrands() {

@@ -1051,7 +1051,7 @@ function PrintStudioContent() {
       )}
       {layoutType === "inventory" && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <SearchInput value={q} onChange={setQ} placeholder="Search by IMEI, brand or model… (brand-wise, keyword)" variant="white" wrapperClassName="min-w-[220px] flex-1" />
+          <SearchInput value={q} onChange={setQ} placeholder="Search barcode, brand or toy name…" variant="white" wrapperClassName="min-w-[220px] flex-1" />
           <span className="text-xs text-ink-500">{totalFilteredCount} of {rawTotalCount} pcs · {filteredUnits.length} phones + {filteredProducts.reduce((s,p)=>s+p.qty,0)} accessories</span>
           {activeFilterCount > 0 && (
             <Button variant="grey" className="px-3 py-1.5 text-xs" onClick={() => { setQ(""); setCategoryId(""); setSubcategoryId(""); setBrandId(""); setColorId(""); setStatus(""); setCarrier(""); setCondition(""); setVendor(""); }}>

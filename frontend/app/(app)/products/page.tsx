@@ -4,13 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { Brand, CashDrawer, Category, Color, ProductDetail, ProductSummary, ScreenSize } from "@/lib/api-types";
+import type { Brand, CashDrawer, Category, Color, ProductDetail, ProductSummary } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { canViewCosts, hasPermission } from "@/lib/roles";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { formatPKR } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
-import { getEffectiveUsedPricing } from "@/lib/used-pricing";
 import { parseCsvLine, downloadCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +24,7 @@ import { ManageWindow } from "@/components/products/manage-window";
 import { SortHeader } from "@/components/ui/sort-header";
 import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
-import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon, CopyIcon, HeadphonesIcon, SmartphoneIcon } from "@/components/icons";
+import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon, CopyIcon, HeadphonesIcon } from "@/components/icons";
 
 type SortKey = "brand" | "color" | "categoryName" | "sku" | "sellPrice" | "retailPrice" | "costPrice";
 
@@ -74,7 +73,6 @@ export default function ProductsPage() {
   const { data: categories, refetch: refetchCategories } = useApi<Category[]>("/category");
   const { data: brands, refetch: refetchBrands } = useApi<Brand[]>("/brand");
   const { data: colors, refetch: refetchColors } = useApi<Color[]>("/color");
-  const { data: screenSizes, refetch: refetchScreenSizes } = useApi<ScreenSize[]>("/screen-size");
   const { data: cashDrawers } = useApi<CashDrawer[]>("/cash-drawer");
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -97,7 +95,7 @@ export default function ProductsPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [manageTab, setManageTab] = useState<"category" | "brand" | "color">("category");
   const [formKey, setFormKey] = useState(0);
-  const [createType, setCreateType] = useState<"NEW" | "USED" | "ACCESSORY" | null>(null);
+  const [createType, setCreateType] = useState<"TOY" | null>(null);
   const [historyProduct, setHistoryProduct] = useState<ProductSummary | null>(null);
   const [historyData, setHistoryData] = useState<ProductDetail | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -125,7 +123,7 @@ export default function ProductsPage() {
       if (colorId && p.colorId !== colorId) return false;
       const query = q.trim().toLowerCase();
       if (!query) return true;
-      return [p.brand, p.model, p.storage ?? "", p.ram ?? "", p.screenSize ?? "", p.color ?? "", p.sku ?? "", (p as any).barcode ?? ""]
+      return [p.brand, p.model, p.color ?? "", p.ageRange ?? "", p.size ?? "", p.material ?? "", p.sku ?? "", p.barcode ?? ""]
         .join(" ")
         .toLowerCase()
         .includes(query);
@@ -247,29 +245,17 @@ export default function ProductsPage() {
     }
   }
 
-  function defaultCategoryForType(type: "NEW" | "USED" | "ACCESSORY" | null): string {
-    if (type === "ACCESSORY") {
-      return activeCategories.find((c) => !c.parentId && c.type === "ACCESSORY")?.id ?? activeCategories[0]?.id ?? "";
-    }
-    if (type === "USED") {
-      return activeCategories.find((c) => !c.parentId && c.type === "PHONE" && c.name.toLowerCase().includes("used"))?.id ?? activeCategories[0]?.id ?? "";
-    }
-    if (type === "NEW") {
-      return activeCategories.find((c) => !c.parentId && c.type === "PHONE" && c.name.toLowerCase().includes("new"))?.id ?? activeCategories[0]?.id ?? "";
-    }
+  function defaultCategoryForType(_type: "TOY" | null): string {
     return activeCategories[0]?.id ?? "";
   }
 
   function initialForm(): ProductFormValues {
     const sourceId = editingId ?? duplicateId;
     if (!sourceId) {
-      const isPhone = createType !== "ACCESSORY";
-      const defaultCarrier = createType === "NEW" ? "PTA" : createType === "USED" ? "" : "";
       return {
         ...EMPTY_PRODUCT_FORM,
         brandId: activeBrands[0]?.id ?? "",
         categoryId: defaultCategoryForType(createType),
-        carrier: isPhone ? defaultCarrier : "",
       };
     }
     const p = (data ?? []).find((x) => x.id === sourceId);
@@ -278,19 +264,19 @@ export default function ProductsPage() {
         ...EMPTY_PRODUCT_FORM,
         brandId: activeBrands[0]?.id ?? "",
         categoryId: activeCategories[0]?.id ?? "",
-        carrier: "",
       };
     }
     return {
       brandId: p.brandId,
       model: p.model,
-      storage: p.storage ?? "",
-      ram: p.ram ?? "",
-      screenSize: p.screenSize ?? "",
       colorId: p.colorId ?? "",
       categoryId: p.parentCategoryId ?? p.categoryId,
       subcategoryId: p.parentCategoryId ? p.categoryId : "",
-      carrier: (p as any).carrier ?? "",
+      ageRange: p.ageRange ?? "",
+      size: p.size ?? "",
+      pieceCount: p.pieceCount ? String(p.pieceCount) : "",
+      material: p.material ?? "",
+      batteryRequired: p.batteryRequired ?? "",
       sellPrice: String(p.sellPrice),
       costPrice: p.costPrice ? String(p.costPrice) : "",
       retailPrice: p.retailPrice ? String(p.retailPrice) : "",
@@ -306,7 +292,7 @@ export default function ProductsPage() {
       return;
     }
     if (!values.model.trim()) {
-      toast("Model is required", "error");
+      toast("Product name is required", "error");
       return;
     }
     if (!values.categoryId) {
@@ -314,19 +300,11 @@ export default function ProductsPage() {
       return;
     }
     const cat = categories?.find((c) => c.id === values.categoryId) ?? activeCategories.find((c) => c.id === values.categoryId) ?? findCategory(categories ?? [], values.categoryId);
-    const isPhoneCat = cat?.type === "PHONE";
-    const parentCat = cat?.parentId ? activeCategories.find((c) => c.id === cat.parentId) : null;
-    const isUsedCat = !!cat?.name.toLowerCase().includes("used") || !!parentCat?.name.toLowerCase().includes("used");
-    if (isPhoneCat && !values.carrier) {
-      if (isUsedCat) { toast("Carrier is required for Used phones", "error"); return; }
-    }
-    const usedPricingOn = getEffectiveUsedPricing(false);
-    const hideUsedPricing = isUsedCat && usedPricingOn;
-    if (!hideUsedPricing && (parseFloat(values.sellPrice) || 0) <= 0) {
+    if ((parseFloat(values.sellPrice) || 0) <= 0) {
       toast("Sell price must be greater than 0", "error");
       return;
     }
-    if (!hideUsedPricing && viewCosts && (parseFloat(values.costPrice) || 0) <= 0) {
+    if (viewCosts && (parseFloat(values.costPrice) || 0) <= 0) {
       toast("Cost price must be greater than 0", "error");
       return;
     }
@@ -335,15 +313,17 @@ export default function ProductsPage() {
       const body: any = {
         brandId: values.brandId,
         model: values.model,
-        storage: values.storage || undefined,
-        ram: values.ram || undefined,
-        screenSize: values.screenSize || undefined,
         colorId: values.colorId || undefined,
         categoryId: values.categoryId,
-        carrier: isPhoneCat ? (values.carrier || "PTA") : undefined,
-        sellPrice: hideUsedPricing ? 0 : parseFloat(values.sellPrice) || 0,
-        costPrice: hideUsedPricing ? 0 : parseFloat(values.costPrice) || 0,
-        retailPrice: isUsedCat ? undefined : values.retailPrice ? parseFloat(values.retailPrice) : undefined,
+        ageRange: values.ageRange || undefined,
+        size: values.size || undefined,
+        pieceCount: values.pieceCount ? parseInt(values.pieceCount, 10) : undefined,
+        material: values.material || undefined,
+        batteryRequired: values.batteryRequired || undefined,
+        sellPrice: parseFloat(values.sellPrice) || 0,
+        costPrice: parseFloat(values.costPrice) || 0,
+        retailPrice: values.retailPrice ? parseFloat(values.retailPrice) : undefined,
+        barcode: values.barcode || undefined,
         image: values.image || undefined,
       };
       if (editingId) {
@@ -394,14 +374,15 @@ export default function ProductsPage() {
   function exportCsv() {
     const headers = [
       "Brand",
-      "Model",
-      "Storage",
-      "RAM",
-      "Screen size",
-      "Color",
-      "Category",
-      "Subcategory",
-      "Carrier",
+       "Product name",
+       "Color",
+       "Category",
+       "Subcategory",
+       "Age range",
+       "Size",
+       "Piece count",
+       "Material",
+       "Battery requirement",
       "SKU",
       "Barcode",
       "Image",
@@ -415,13 +396,14 @@ export default function ProductsPage() {
       [
         p.brand,
         p.model,
-        p.storage ?? "",
-        p.ram ?? "",
-        p.screenSize ?? "",
-        p.color ?? "",
-        p.parentCategoryName ?? p.categoryName,
-        p.parentCategoryName ? p.categoryName : "",
-        p.carrier ?? "",
+         p.color ?? "",
+         p.parentCategoryName ?? p.categoryName,
+         p.parentCategoryName ? p.categoryName : "",
+         p.ageRange ?? "",
+         p.size ?? "",
+         p.pieceCount ?? "",
+         p.material ?? "",
+         p.batteryRequired ?? "",
         p.sku ?? "",
         p.barcode ?? "",
         p.image ?? "",
@@ -608,16 +590,15 @@ export default function ProductsPage() {
                           <p className="truncate font-medium text-ink-900">
                             {p.brand} {p.model}
                           </p>
-                          {[p.storage, p.ram, p.screenSize].filter(Boolean).length > 0 && (
-                            <p className="text-xs text-ink-500">
-                              {[p.storage, p.ram, p.screenSize].filter(Boolean).join(" · ")}
-                            </p>
+                           {[p.color, p.size, p.ageRange].filter(Boolean).length > 0 && (
+                             <p className="text-xs text-ink-500">
+                               {[p.color, p.size, p.ageRange].filter(Boolean).join(" · ")}
+                             </p>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-ink-700">{p.color ?? "—"}</td>
-                    <td className="px-5 py-3">{(p as any).carrier ? <Badge variant="neutral">{String((p as any).carrier).replace("_"," ")}</Badge> : <span className="text-ink-300">—</span>}</td>
+                    <td className="px-5 py-3 text-ink-700">{p.categoryName}</td>
                     <td className="px-5 py-3">
                       <Badge variant="neutral">
                         {p.parentCategoryName ? `${p.parentCategoryName} > ${p.categoryName}` : p.categoryName}
@@ -690,7 +671,7 @@ export default function ProductsPage() {
 
       <Sheet
         open={open}
-        title={editingId ? "Edit product" : duplicateId ? "Duplicate product" : createType ? `Add ${createType === "ACCESSORY" ? "Accessory" : createType === "USED" ? "Used Phone" : "Phone"}` : "New product"}
+        title={editingId ? "Edit toy" : duplicateId ? "Duplicate toy" : createType ? "Add toy" : "New toy"}
         onClose={() => setOpen(false)}
         width="max-w-2xl"
       >
@@ -699,27 +680,13 @@ export default function ProductsPage() {
             <p className="text-sm text-ink-500">What are you adding?</p>
             {[
               {
-                t: "NEW" as const,
-                icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
-                title: "Phone",
-                desc: "Brand-new sealed handsets",
+                 t: "TOY" as const,
+                 icon: <HeadphonesIcon className="h-8 w-8 text-white" />,
+                 title: "Toy",
+                 desc: "A sellable toy or gift item",
                 accent: "bg-brand-600",
               },
-              {
-                t: "USED" as const,
-                icon: <SmartphoneIcon className="h-8 w-8 text-white" />,
-                title: "Used Phone",
-                desc: "Trade-ins inspected and ready to resell",
-                accent: "bg-ink-800",
-              },
-              {
-                t: "ACCESSORY" as const,
-                icon: <HeadphonesIcon className="h-8 w-8 text-white" />,
-                title: "Accessory",
-                desc: "Cases, chargers and more",
-                accent: "bg-ink-400",
-              },
-            ].map((o) => (
+             ].map((o) => (
               <button
                 key={o.t}
                 type="button"
@@ -747,6 +714,9 @@ export default function ProductsPage() {
             saving={saving}
             type={editingId ? undefined : createType ?? undefined}
             onSave={save}
+            onBrandCreated={() => {
+              refetchBrands();
+            }}
             onCancel={() => setOpen(false)}
           />
         )}
@@ -877,8 +847,8 @@ export default function ProductsPage() {
         description={
           <>
             Upload a CSV with columns:{" "}
-            <span className="font-semibold text-ink-700">Brand, Model, Storage, RAM, Screen size, Color, Category, Subcategory, Carrier, SKU, Barcode, Image, Specs, Sell price, Cost price, Retail price, Low stock threshold</span>.
-            Brand, Model and Category are required. New brands, colors and categories are created automatically;
+             <span className="font-semibold text-ink-700">Brand, Product name, Color, Category, Subcategory, Age range, Size, Piece count, Material, Battery requirement, SKU, Barcode, Image, Specs, Sell price, Cost price, Retail price, Low stock threshold</span>.
+             Brand, Product name and Category are required. New brands, colors and categories are created automatically;
             the exported products.csv can be edited and imported back. Existing products are skipped.
           </>
         }
@@ -888,11 +858,10 @@ export default function ProductsPage() {
       />
 
       {manageOpen && (
-        <ManageWindow
+      <ManageWindow
           categories={categories ?? []}
           brands={brands ?? []}
           colors={colors ?? []}
-          screenSizes={screenSizes ?? []}
           cashDrawers={cashDrawers ?? []}
           initialTab={manageTab}
           onClose={() => setManageOpen(false)}
@@ -900,8 +869,7 @@ export default function ProductsPage() {
             refetchCategories();
             refetchBrands();
             refetchColors();
-            refetchScreenSizes();
-            refetch();
+             refetch();
           }}
         />
       )}
@@ -936,13 +904,14 @@ function parseProductsCsv(text: string) {
   const rows: {
     brand: string;
     model: string;
-    storage?: string;
-    ram?: string;
-    screenSize?: string;
     color?: string;
     category: string;
     subcategory?: string;
-    carrier?: string;
+    ageRange?: string;
+    size?: string;
+    pieceCount?: number;
+    material?: string;
+    batteryRequired?: string;
     sku?: string;
     barcode?: string;
     image?: string;
@@ -968,17 +937,18 @@ function parseProductsCsv(text: string) {
     const costPrice = parseFloat(at("costprice")) || 0;
     const retailPrice = at("retailprice") ? parseFloat(at("retailprice")) : undefined;
     const lowStockThreshold = at("lowstockthreshold") ? parseInt(at("lowstockthreshold"), 10) : undefined;
-    const carrier = at("carrier").toUpperCase();
+    const pieceCount = at("piececount") ? parseInt(at("piececount"), 10) : undefined;
     rows.push({
       brand,
       model,
-      storage: at("storage") || undefined,
-      ram: at("ram") || undefined,
-      screenSize: at("screensize") || undefined,
       color: at("color") || undefined,
       category,
       subcategory: at("subcategory") || undefined,
-      carrier: ["PTA", "NON_PTA", "SIM_LOCKED"].includes(carrier) ? carrier : undefined,
+      ageRange: at("agerange") || undefined,
+      size: at("size") || undefined,
+      pieceCount: pieceCount && !Number.isNaN(pieceCount) ? pieceCount : undefined,
+      material: at("material") || undefined,
+      batteryRequired: at("batteryrequirement") || undefined,
       sku: at("sku") || undefined,
       barcode: at("barcode") || undefined,
       image: at("image") || undefined,

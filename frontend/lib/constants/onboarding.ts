@@ -21,7 +21,7 @@ export const ONBOARDING = {
   taglinePlaceholder: "One-line description (optional)",
   address: "Address",
   addressPlaceholder: "Shop address (optional)",
-  phone: "Phone",
+  phone: "Contact phone",
   phonePlaceholder: "0300-1234567",
   email: "Email",
   emailPlaceholder: "shop@example.com",

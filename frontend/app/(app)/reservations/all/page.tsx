@@ -151,7 +151,7 @@ export default function AllReservationsPage() {
         toast(`${reservation.number}. Advance refunded to ${reservation.contact.name}`, "success");
       } else {
         await apiRequest(`/reservation/${reservation.id}/return`, { method: "POST" });
-        toast(`${reservation.number} returned. Phones are back in stock`, "success");
+        toast(`${reservation.number} returned. Toys are back in stock`, "success");
       }
       setAction(null);
       void refetch();

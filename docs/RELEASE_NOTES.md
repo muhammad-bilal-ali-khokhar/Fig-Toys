@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **Welcome to Fig Toys POS.** Your shop now has a toy-focused identity with fast checkout, barcode-ready inventory, supplier stock receiving, and category-based reporting. Open the app and start organizing your toy catalog for a smoother day at the counter.
+- **Build a better toy catalog.** Products can now carry the details shoppers and staff need, including recommended age, size, piece count, material, and battery requirements. Add these details while creating a toy so every item is easier to sell and manage.
+- **Know your real toy stock.** Inventory now works with product quantities and barcode-ready stock instead of making every item look like an individual phone. Managers can adjust quantities with a clear audit trail, while cashiers keep a simple read-only stock view.
+- **Receive toy stock faster.** Purchases now use one simple toy-stock flow with quantities, optional barcodes, supplier selection, and payment tracking. Add a product, enter how many arrived, and record the purchase without phone-specific details.
+- **A faster checkout for every toy.** Fig Toys POS now lets you scan a barcode or search by toy name, add any quantity to the cart, apply discounts, and collect cash, card, bank, or credit payments without IMEI or phone-specific steps.
+- **Simpler toy returns.** Sale and supplier returns now support quantity-based toy lines with clear reason and item-condition tracking, so refunds, stock updates, and return history stay easy to understand.
+- **Create ready-to-sell toy sets.** Toy bundles let you group products into gift packs and sell them at one simple price. Open Toy bundles, choose the included toys and quantities, and create your first pack for birthdays, holidays, or everyday gifts.
+- **See your toy shop clearly.** Dashboard and stock reports now speak the language of toy shops, showing sellable toy quantities, category sales, low-stock products, and category-based stock value instead of phone status metrics.
+- **A cleaner toy-shop workspace.** Phone-only navigation and customer-facing wording have been cleared from the active experience. Search, scanning, reports, reservations, purchase orders, printing, help, and settings now guide staff around toys, barcodes, and quantities.
+- **Ready-to-explore demo shop.** Run `npm run seed:demo` in the backend to add 10 sample brands, categories, colors, suppliers, customers, toys, bundles, and opening-stock records. The demo data is safe to run again without creating duplicates.
+- **Create products your way.** Mobile brands are gone from the toy catalog, and the New Toy form now uses a clear Product name field with a **+ Add new brand** option. Add a brand immediately when it is missing, then continue creating the toy without leaving the form.
+
 ## v0.2.43
 
 - **Your payment request is never lost.** If you send a renewal payment and the app closes or restarts, Fig POS remembers it. Reopen the payment window and you will see your request still waiting for approval, so you never have to send it twice.

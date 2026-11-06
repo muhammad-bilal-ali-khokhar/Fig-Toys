@@ -1,6 +1,9 @@
 import { prisma } from "../../core/lib/prisma";
 import { quantitySign } from "../../core/lib/stock";
 import { listUnits } from "../unit/service";
+import type { QuantityAdjustmentInput } from "./schemas";
+import { writeAudit } from "../../core/lib/audit";
+import { ApiError } from "../../core/middleware/error";
 
 const n = (v: unknown) => Number(v ?? 0);
 const round = (v: number) => Math.round(v * 100) / 100;
@@ -60,7 +63,9 @@ export async function listInventory(canViewCosts = false) {
             barcode: true,
             sellPrice: true,
             retailPrice: true,
-            costPrice: true,
+             costPrice: true,
+             stockAdjustment: true,
+             damagedStock: true,
             colorId: true,
             color: { select: { name: true } },
             categoryId: true,
@@ -71,7 +76,8 @@ export async function listInventory(canViewCosts = false) {
 
   const quantityProducts = products
     .map((p) => {
-      const agg = byProduct.get(p.id)!;
+    const agg = byProduct.get(p.id)!;
+    const adjustment = p.stockAdjustment ?? 0;
       return {
         id: p.id,
         brandId: p.brandId,
@@ -90,13 +96,14 @@ export async function listInventory(canViewCosts = false) {
         sellPrice: p.sellPrice,
         retailPrice: p.retailPrice,
         costPrice: p.costPrice,
-        qty: agg.qty,
+        qty: agg.qty + adjustment,
+        damagedQty: p.damagedStock ?? 0,
         costTotal: agg.costTotal,
         lastPurchasedAt: agg.lastPurchase?.at.toISOString() ?? null,
         lastVendor: agg.lastPurchase?.vendor ?? null,
       };
     })
-    .filter((p) => p.qty > 0);
+    .filter((p) => p.qty > 0 || p.damagedQty > 0);
 
   const inStockByProduct = new Map<string, number>();
   for (const u of units) {
@@ -172,4 +179,20 @@ export async function listInventory(canViewCosts = false) {
       .map((c) => ({ ...c, costValue: canViewCosts ? round(c.costValue) : null, retailValue: round(c.retailValue) }))
       .sort((a, b) => b.units - a.units),
   };
+}
+
+export async function adjustQuantity(input: QuantityAdjustmentInput, userId: string) {
+  const product = await prisma.product.findUnique({ where: { id: input.productId }, select: { id: true, model: true } });
+  if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+  const damagedQuantity = input.damagedQuantity ?? 0;
+  const updated = await prisma.product.update({
+    where: { id: product.id },
+    data: { stockAdjustment: { increment: input.quantity }, damagedStock: damagedQuantity },
+    select: { id: true, stockAdjustment: true, damagedStock: true },
+  });
+  await prisma.stockMovement.create({
+    data: { productId: product.id, type: "ADJUST", qty: input.quantity, note: input.note ?? "Quantity stock adjustment" },
+  });
+  await writeAudit({ userId, action: "INVENTORY.ADJUST", entity: "Product", entityId: product.id, details: JSON.stringify({ quantity: input.quantity, damagedQuantity, note: input.note }) });
+  return updated;
 }

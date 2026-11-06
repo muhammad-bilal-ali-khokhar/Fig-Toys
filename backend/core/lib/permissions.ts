@@ -30,6 +30,11 @@ export const PERMISSIONS = {
   cityUpdate: "city.update",
   cityDelete: "city.delete",
   inventoryView: "inventory.view",
+  inventoryAdjust: "inventory.adjust",
+  bundleView: "bundle.view",
+  bundleManage: "bundle.manage",
+  promotionManage: "promotion.manage",
+  giftCardManage: "giftCard.manage",
 
   // Contacts
   contactView: "contact.view",

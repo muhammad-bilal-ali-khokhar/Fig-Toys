@@ -989,7 +989,7 @@ export function ReservationDocument({
               <p className="text-[13px] font-black leading-tight text-black">{typeof item.product.brand === "string" ? item.product.brand : item.product.brand.name} {item.product.model} {item.product.storage ?? ""}{item.quantity > 1 ? ` ×${item.quantity}` : ""}</p>
               <p className="whitespace-nowrap text-right text-[13px] font-black text-black">{formatPKR(item.total)}</p>
             </div>
-            <p className="font-mono text-[11px] font-bold leading-tight text-black">IMEI: {item.unit?.imei ?? "—"}</p>
+            <p className="font-mono text-[11px] font-bold leading-tight text-black">Barcode: {(item as any).product?.barcode ?? item.unit?.imei ?? "—"}</p>
           </div>
         ))}
       </div>
@@ -1005,4 +1005,3 @@ export function ReservationDocument({
     </div>
   );
 }
-

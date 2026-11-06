@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { brandOf, type BankAccount, type CashDrawer, type Contact, type ProductSummary, type ReturnEligibility, type TransactionDetail, type Unit } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
-import { CARRIER_LABELS } from "@/lib/constants";
 import { formatPKR, clampMoneyInput } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -67,6 +66,8 @@ export default function SaleReturnsPage() {
   const [contactPhone, setContactPhone] = useState("");
   const [cart, setCart] = useState<ReturnLine[]>([]);
   const [note, setNote] = useState("");
+  const [returnReason, setReturnReason] = useState("");
+  const [itemCondition, setItemCondition] = useState("");
   const [cash, setCash] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
   const [card, setCard] = useState("");
@@ -155,7 +156,7 @@ export default function SaleReturnsPage() {
   }, [searchFocused]);
 
   const productOptions = (products ?? [])
-    .filter((p) => p.categoryType === "ACCESSORY")
+    .filter((p) => p.inStock > 0)
     .map((p) => ({
       value: p.id,
       label: `${p.brand} ${p.model} ${p.storage ?? ""} ${p.ram ?? ""} ${p.screenSize ?? ""} ${p.color ?? ""}`.trim(),
@@ -528,7 +529,9 @@ export default function SaleReturnsPage() {
           body: {
             saleId: firstSaleId,
             items: cart.map((l) => ({ productId: l.productId, unitId: l.unitId, refund: l.refund })),
-            note: note.trim() || undefined,
+             note: note.trim() || undefined,
+             reason: returnReason || undefined,
+             itemCondition: itemCondition || undefined,
             payments,
             number: returnNo,
             date: returnDate ? new Date(returnDate.includes("T") ? returnDate : `${returnDate}T00:00:00`).toISOString() : undefined,
@@ -579,7 +582,9 @@ export default function SaleReturnsPage() {
             body: {
               saleId,
               items: lines.map((l) => ({ productId: l.productId, unitId: l.unitId, refund: l.refund })),
-              note: note.trim() || undefined,
+               note: note.trim() || undefined,
+               reason: returnReason || undefined,
+               itemCondition: itemCondition || undefined,
               payments: groupPayments,
               number: `RET-${String(nextNo++).padStart(4, "0")}`,
               date: returnDate ? new Date(returnDate.includes("T") ? returnDate : `${returnDate}T00:00:00`).toISOString() : undefined,
@@ -656,14 +661,14 @@ export default function SaleReturnsPage() {
             <section className="shrink-0">
               <div className="flex flex-wrap items-end gap-3">
                 <div ref={searchWrapRef} className="relative min-w-48 flex-1">
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">IMEI / Barcode</p>
-                  <SearchInput data-scanner-input="sale-return-search" value={q} onChange={setQ} onFocus={() => { setSearchFocused(true); if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q); }} onKeyDown={(e) => { const hasResults = flatUnits.length > 0; if (e.key === "ArrowDown") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i + 1) % flatUnits.length); } else if (e.key === "ArrowUp") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i <= 0 ? flatUnits.length - 1 : i - 1)); } else if (e.key === "Enter") { e.preventDefault(); if (hasResults && highlightedIndex >= 0 && highlightedIndex < flatUnits.length) { pickUnit(flatUnits[highlightedIndex].unit); } else { void handleEnterOrScan(q); } } else if (e.key === "Escape") { setSearchFocused(false); } }} placeholder="Scan IMEI / Barcode…" variant="white" className="bg-ink-100 h-10 text-sm rounded-[12px]" iconClassName="h-4 w-4" />
-                  {panelPos && results.length === 0 && (<div style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"><p className="text-sm text-ink-400">{searching ? "Searching…" : q.trim().length >= 2 ? "No sold units for IMEI / Barcode." : "Scan IMEI / Barcode — product via dropdown"}</p></div>)}
-                  {panelPos && results.length > 0 && (<div ref={listRef} style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5">{flatUnits.map((item, idx) => { const product = results[item.productIndex]; const isActive = idx === highlightedIndex; return (<button key={item.unit.id} data-flat={idx} type="button" onClick={() => pickUnit(item.unit)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-1.5 py-1 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{[brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ")} <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span></p><p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500"><Badge variant="neutral">{item.unit.condition}</Badge><Badge variant="neutral">{CARRIER_LABELS[item.unit.carrier]}</Badge></p></div><span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span></button>); })}</div>)}
+                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Barcode or toy name</p>
+                   <SearchInput data-scanner-input="sale-return-search" value={q} onChange={setQ} onFocus={() => { setSearchFocused(true); if (q.trim().length >= 2 && results.length === 0 && !searching) void runSearch(q); }} onKeyDown={(e) => { const hasResults = flatUnits.length > 0; if (e.key === "ArrowDown") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i + 1) % flatUnits.length); } else if (e.key === "ArrowUp") { e.preventDefault(); if (hasResults) setHighlightedIndex((i) => (i <= 0 ? flatUnits.length - 1 : i - 1)); } else if (e.key === "Enter") { e.preventDefault(); if (hasResults && highlightedIndex >= 0 && highlightedIndex < flatUnits.length) { pickUnit(flatUnits[highlightedIndex].unit); } else { void handleEnterOrScan(q); } } else if (e.key === "Escape") { setSearchFocused(false); } }} placeholder="Scan barcode or search toy…" variant="white" className="bg-ink-100 h-10 text-sm rounded-[12px]" iconClassName="h-4 w-4" />
+                  {panelPos && results.length === 0 && (<div style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] rounded-2xl bg-white p-4 shadow-lg shadow-ink-900/5"><p className="text-sm text-ink-400">{searching ? "Searching…" : q.trim().length >= 2 ? "No sold products found." : "Scan barcode or choose a toy"}</p></div>)}
+                  {panelPos && results.length > 0 && (<div ref={listRef} style={{ position: "fixed", top: panelPos.top, left: panelPos.left, width: panelPos.width }} className="z-[100] max-h-72 space-y-1 overflow-y-auto overscroll-none rounded-2xl bg-white p-1.5 shadow-lg shadow-ink-900/5">{flatUnits.map((item, idx) => { const product = results[item.productIndex]; const isActive = idx === highlightedIndex; return (<button key={item.unit.id} data-flat={idx} type="button" onClick={() => pickUnit(item.unit)} onMouseEnter={() => setHighlightedIndex(idx)} className={`flex w-full items-center justify-between gap-3 rounded-xl px-1.5 py-1 text-left ${isActive ? "bg-brand-100" : item.added ? "bg-brand-50 hover:bg-brand-100" : "bg-ink-50 hover:bg-brand-50"}`}><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-ink-900">{[brandOf(product), product.model, product.storage, product.ram, product.screenSize].filter(Boolean).join(" ")} <span className="font-mono text-xs text-ink-500">· {item.unit.imei}</span></p><p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500"><Badge variant="neutral">{item.unit.condition}</Badge><Badge variant="neutral">Barcode return</Badge></p></div><span className={`shrink-0 ${item.added ? "text-xs font-semibold text-brand-600" : ""}`}>{item.added ? "Added" : <PlusIcon className="h-4 w-4 text-ink-400" />}</span></button>); })}</div>)}
                 </div>
-                <div className="min-w-64 max-w-[320px] flex-1">
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Product (Accessories only)</p>
-                  <Dropdown value={selProductId} options={productOptions} onChange={(v) => { if (quickAddEnabled) { const p = (products ?? []).find((x) => x.id === v); if (!p) return; if (p.categoryType === "PHONE") { toast("Phones require IMEI — scan the serial", "error"); return; } const prod = (products ?? []).find((x) => x.id === p.id); const available = prod?.inStock ?? Infinity; const existingQty = cart.filter((l) => l.productId === p.id && !l.unitId).reduce((s, l) => s + l.quantity, 0); if (existingQty + 1 > available) { toast(`Only ${available} pcs available for ${p.brand} ${p.model}`, "error"); return; } const price = parseFloat(p.sellPrice) || 0; const existing = cart.find((l) => l.productId === p.id && !l.unitId); if (existing) setCart((prev) => prev.map((l) => (l.productId === p.id && !l.unitId ? { ...l, quantity: l.quantity + 1, refund: price || l.refund } : l))); else { const saleId = cart[0]?.saleId ?? ""; const saleNumber = cart[0]?.saleNumber ?? ""; setCart((prev) => [...prev, { id: crypto.randomUUID(), productId: p.id, unitId: undefined, imei: undefined, productLabel: `${p.brand} ${p.model}`, saleId, saleNumber, refund: price, quantity: 1 }]); } toast(`${p.brand} ${p.model} added`, "success"); setSelProductId(null); return; } setSelProductId(v); const p = (products ?? []).find((x) => x.id === v); if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || "")); }} triggerClassName="bg-white" searchable placeholder="Select accessory…" />
+                 <div className="min-w-64 max-w-[320px] flex-1">
+                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Toy product</p>
+                  <Dropdown value={selProductId} options={productOptions} onChange={(v) => { if (quickAddEnabled) { const p = (products ?? []).find((x) => x.id === v); if (!p) return; if (p.categoryType === "PHONE") { toast("Phones require IMEI — scan the serial", "error"); return; } const prod = (products ?? []).find((x) => x.id === p.id); const available = prod?.inStock ?? Infinity; const existingQty = cart.filter((l) => l.productId === p.id && !l.unitId).reduce((s, l) => s + l.quantity, 0); if (existingQty + 1 > available) { toast(`Only ${available} pcs available for ${p.brand} ${p.model}`, "error"); return; } const price = parseFloat(p.sellPrice) || 0; const existing = cart.find((l) => l.productId === p.id && !l.unitId); if (existing) setCart((prev) => prev.map((l) => (l.productId === p.id && !l.unitId ? { ...l, quantity: l.quantity + 1, refund: price || l.refund } : l))); else { const saleId = cart[0]?.saleId ?? ""; const saleNumber = cart[0]?.saleNumber ?? ""; setCart((prev) => [...prev, { id: crypto.randomUUID(), productId: p.id, unitId: undefined, imei: undefined, productLabel: `${p.brand} ${p.model}`, saleId, saleNumber, refund: price, quantity: 1 }]); } toast(`${p.brand} ${p.model} added`, "success"); setSelProductId(null); return; } setSelProductId(v); const p = (products ?? []).find((x) => x.id === v); if (p?.sellPrice) setReturnPrice(String(parseFloat(p.sellPrice) || "")); }} triggerClassName="bg-white" searchable placeholder="Select toy…" />
                 </div>
                 {!quickAddEnabled && (
                   <>
@@ -732,7 +737,11 @@ export default function SaleReturnsPage() {
                 <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Cash</p><Input value={cash} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotal - (parseFloat(creditAmount) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCash(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-8 shrink-0 whitespace-nowrap px-2.5 text-[11px] active:scale-[0.97] transition-transform duration-100" onClick={() => setCash(clampMoneyInput(String(refundTotal - (parseFloat(creditAmount) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill cash</Button></div>
                 <div className="flex min-w-0 items-end gap-1.5"><div className="flex-1 min-w-0"><p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500">Credit</p><Input value={creditAmount} onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); const n = parseFloat(raw) || 0; const bankTotal = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0); const max = Math.max(0, refundTotal - (parseFloat(cash) || 0) - bankTotal); const v = n > max ? String(max) : raw; setCreditAmount(clampMoneyInput(v)); }} placeholder="0" inputMode="decimal" pattern="[0-9]*" className="!h-8 bg-ink-100 text-sm" /></div><Button className="h-8 shrink-0 whitespace-nowrap px-2.5 text-[11px] active:scale-[0.97] transition-transform duration-100" onClick={() => setCreditAmount(clampMoneyInput(String(refundTotal - (parseFloat(cash) || 0) - bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0))))}>Fill credit</Button></div>
               </div>
-              <div className="mt-3"><BankPaymentRow bankRows={bankRows} bankAccounts={bankAccounts} onBankSheetOpen={() => setBankSheetOpen(true)} onAddBank={() => { if (bankRows.length === 0) { const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0]; setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]); } setBankSheetOpen(true); }} /></div>
+               <div className="mt-3 grid grid-cols-2 gap-2">
+                 <Dropdown value={returnReason} onChange={setReturnReason} options={[{ value: "", label: "Return reason" }, { value: "DAMAGED", label: "Damaged" }, { value: "DEFECTIVE", label: "Defective" }, { value: "WRONG_ITEM", label: "Wrong item" }, { value: "MISSING_PARTS", label: "Missing parts" }, { value: "CHANGED_MIND", label: "Changed mind" }, { value: "OTHER", label: "Other" }]} />
+                 <Dropdown value={itemCondition} onChange={setItemCondition} options={[{ value: "", label: "Item condition" }, { value: "UNOPENED", label: "Unopened" }, { value: "OPENED_COMPLETE", label: "Opened, complete" }, { value: "USED", label: "Used" }, { value: "DAMAGED", label: "Damaged" }, { value: "MISSING_PARTS", label: "Missing parts" }, { value: "DEFECTIVE", label: "Defective" }]} />
+               </div>
+               <div className="mt-3"><BankPaymentRow bankRows={bankRows} bankAccounts={bankAccounts} onBankSheetOpen={() => setBankSheetOpen(true)} onAddBank={() => { if (bankRows.length === 0) { const next = bankAccounts.find((a) => a.isDefault) ?? bankAccounts[0]; setBankRows([{ id: crypto.randomUUID(), amount: "", bankId: next?.id ?? "" }]); } setBankSheetOpen(true); }} /></div>
             </div>
             <div className="sticky bottom-0 rounded-2xl bg-white p-4">
               <div className="flex items-baseline justify-between"><p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Total refund</p><p className="text-3xl font-bold tracking-tight text-brand-600">{formatPKR(refundTotal)}</p></div>

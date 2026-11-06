@@ -5,7 +5,7 @@ import { CameraIcon } from "@/components/icons";
 import { useGlobalScanner } from "@/components/scanner/global-scanner";
 
 export function ScannerButton({
-  label = "Scan IMEI",
+  label = "Scan barcode",
   variant = "ghost",
   className,
 }: {
@@ -23,7 +23,7 @@ export function ScannerButton({
   );
 }
 
-export function ScannerIconButton({ title = "Scan IMEI " }: { title?: string }) {
+export function ScannerIconButton({ title = "Scan barcode" }: { title?: string }) {
   const { open } = useGlobalScanner();
   return (
     <button

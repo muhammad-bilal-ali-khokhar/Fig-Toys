@@ -145,7 +145,7 @@ export function ClassicHelp({ section, onSectionChange }: { section: HelpSection
               <Heading>Sale Invoice</Heading>
               <Body>This is the counter screen where you make sales. Search for a phone by name or scan it by IMEI. New and used devices are shown separately so you always know what you are selling.</Body>
               <Heading>Creating a sale</Heading>
-              <Bullets items={["Start typing in the search box, or use a scanner to find a unit by IMEI.", "Tap the unit to add it to the invoice.", "Apply any discounts or switch to a credit sale for a customer.", "Choose how the customer pays: cash, card or bank transfer.", "Confirm the invoice to print a receipt and update your stock automatically."]} />
+              <Bullets items={["Start typing in the search box, or scan a toy barcode.", "Tap the toy to add it to the invoice.", "Apply discounts or switch to a credit sale for a customer.", "Choose how the customer pays: cash, card or bank transfer.", "Confirm the invoice to print a receipt and update your stock automatically."]} />
               <Heading>After you finalize</Heading>
               <Body>Once the sale is saved, the unit leaves inventory and the sale appears in your reports. The receipt can be printed or re-printed later if needed.</Body>
             </Group>
@@ -161,7 +161,7 @@ export function ClassicHelp({ section, onSectionChange }: { section: HelpSection
           <>
             <div className="mb-4">
               <h2 className="text-lg font-bold text-ink-900">Stock & inventory</h2>
-              <p className="text-sm text-ink-500">Track every phone by IMEI, new or used.</p>
+              <p className="text-sm text-ink-500">Track every toy by quantity and barcode.</p>
             </div>
             <Group>
               <Heading>Units and IMEI</Heading>

@@ -13,7 +13,7 @@ export function NewUsedWidget({ data }: { data?: DashboardOverview | null }) {
 
   return (
     <div className={`${DASHBOARD_WIDGET_SPANS.newUsed} h-full`}>
-      <Card title="Sold · by Category" className="flex h-full flex-col">
+        <Card title="Toys sold · by Category" className="flex h-full flex-col">
         <div className="min-h-48 flex-1 px-2 pb-2">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -51,13 +51,6 @@ export function NewUsedWidget({ data }: { data?: DashboardOverview | null }) {
             </div>
           </div>
         )}
-        <div className="mx-3 mb-3 flex flex-wrap justify-center gap-1.5 pt-1">
-          {data && (data.soldByCategory.PHONE + data.soldByCategory.ACCESSORY > 0) && (
-            <span className="text-[10px] text-ink-400">
-              {data.soldByCategory.PHONE} phones · {data.soldByCategory.ACCESSORY} accessories
-            </span>
-          )}
-        </div>
       </Card>
     </div>
   );

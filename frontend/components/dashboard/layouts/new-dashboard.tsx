@@ -144,7 +144,7 @@ export function NewDashboard({ data, activity, profile, loading, range, setRange
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <HeroStat label="Sales" value={!data ? "…" : fmt(data.range.revenue)} sub={!data ? undefined : `${data.range.salesCount} invoices · Total ${fmt(data.all.revenue)}`} icon={WalletIcon} accent="bg-brand-500" />
         <HeroStat label={viewCosts ? "Net Profit" : "Purchases"} value={!data ? "…" : viewCosts ? (data.range.profit === null ? "—" : fmt(data.range.profit)) : fmt(data.range.purchasesAmount)} sub={viewCosts ? "For selected period" : "Stock purchases in period"} icon={TrendingUpIcon} accent="bg-violet-500" />
-        <HeroStat label="Units in Stock" value={!data ? "…" : String(data.stock.total)} sub={!data ? undefined : `${data.stock.NEW} new · ${data.stock.USED} used · ${data.stock.accessories ?? 0} acc`} icon={InventoryIcon} accent="bg-teal-500" />
+        <HeroStat label="Toys in Stock" value={!data ? "…" : String(data.stock.total)} sub={!data ? undefined : `${data.stock.total} sellable items · ${data.lowStock.length} low stock`} icon={InventoryIcon} accent="bg-teal-500" />
         <HeroStat label="Cash on Hand" value={!data ? "…" : fmt(data.cashOnHand)} sub={!data ? undefined : data.money?.drawers && data.money.drawers.length > 0 ? data.money.drawers.map((d) => `${d.name} ${fmt(d.balance)}`).join(" · ") : `${fmt(data.money?.totalBankBalance ?? 0)} in bank`} icon={VoucherIcon} accent="bg-ink-700" />
       </div>
 
