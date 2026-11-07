@@ -4,7 +4,15 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.50
+## v0.0.1
+
+- Released on: 2026-11-07
+
+- Start Fig Toys version sequence at 0.0.1
+- Publish separate toy website metadata
+- Add Fig Toys download option
+- Remove accidental root lockfile
+- Separate Fig Toys update channel
 
 - Released on: 2026-11-07
 
