@@ -15,7 +15,7 @@ app.setName("Fig POS for Mobile Phones");
 const ROOT = path.resolve(__dirname, "..");
 const APP_ICON =
   process.platform === "darwin"
-    ? path.join(__dirname, "build", "icon.iconset", "icon_512x512.png")
+    ? path.join(__dirname, "icon.png")
     : path.join(__dirname, "build", "icon.ico");
 const PROD_DIR = path.join(ROOT, "production");
 const PROD_BACKEND = path.join(PROD_DIR, "backend");
@@ -44,8 +44,8 @@ const DEV_ATTACH = process.argv.includes("--dev");
 // gate cookie rejects direct browser access instead. If the port is already in
 // use we fail loudly rather than silently shifting (which would confuse the
 // app's other consumers of the resolved port).
-const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 47620);
-const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 58340);
+const BACKEND_PORT = Number(process.env.FIG_BACKEND_PORT || 47621);
+const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 58341);
 
 // External service URLs. These are public endpoints, not secrets, so they are
 // safe to ship with the app — this keeps them working in packaged builds where

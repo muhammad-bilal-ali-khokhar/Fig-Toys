@@ -2,7 +2,8 @@
 // and the migration-tracking table. The schema itself is applied by
 // migrate-db.cjs (000_initial + later migrations), which is the single source
 // of truth. Usage: node setup.cjs <dbPath>
-const Database = require("better-sqlite3");
+const path = require("node:path");
+const Database = require(path.join(__dirname, "native", "better-sqlite3"));
 
 const dbPath = process.argv[2];
 if (!dbPath) {

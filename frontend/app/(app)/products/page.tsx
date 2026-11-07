@@ -24,7 +24,7 @@ import { ManageWindow } from "@/components/products/manage-window";
 import { SortHeader } from "@/components/ui/sort-header";
 import { PaginationBar, usePagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
-import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon, CopyIcon, HeadphonesIcon } from "@/components/icons";
+import { CameraIcon, FilterIcon, PlusIcon, SettingsIcon, TrashIcon, UploadIcon, DownloadIcon, HistoryIcon, CopyIcon } from "@/components/icons";
 
 type SortKey = "brand" | "color" | "categoryName" | "sku" | "sellPrice" | "retailPrice" | "costPrice";
 
@@ -211,7 +211,7 @@ export default function ProductsPage() {
   function openCreate() {
     setEditingId(null);
     setDuplicateId(null);
-    setCreateType(null);
+    setCreateType("TOY");
     setFormKey((k) => k + 1);
     setOpen(true);
   }
@@ -675,36 +675,7 @@ export default function ProductsPage() {
         onClose={() => setOpen(false)}
         width="max-w-2xl"
       >
-        {!editingId && !duplicateId && !createType ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-ink-500">What are you adding?</p>
-            {[
-              {
-                 t: "TOY" as const,
-                 icon: <HeadphonesIcon className="h-8 w-8 text-white" />,
-                 title: "Toy",
-                 desc: "A sellable toy or gift item",
-                accent: "bg-brand-600",
-              },
-             ].map((o) => (
-              <button
-                key={o.t}
-                type="button"
-                onClick={() => { setCreateType(o.t); setFormKey((k) => k + 1); }}
-                className="flex items-center gap-4 rounded-2xl bg-white p-4 text-left ring-1 ring-ink-100 transition hover:bg-ink-50"
-              >
-                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${o.accent}`}>
-                  {o.icon}
-                </span>
-                <span className="flex flex-col">
-                  <span className="text-base font-semibold text-ink-900">{o.title}</span>
-                  <span className="text-xs text-ink-500">{o.desc}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <ProductForm
+        <ProductForm
             key={formKey}
             initial={initialForm()}
             brands={activeBrands}
@@ -719,7 +690,6 @@ export default function ProductsPage() {
             }}
             onCancel={() => setOpen(false)}
           />
-        )}
       </Sheet>
 
       <Sheet

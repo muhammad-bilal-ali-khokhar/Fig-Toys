@@ -29,7 +29,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path $PSScriptRoot
 $Desktop = Join-Path $Root "desktop"
 
-# Stop any running instance so ports (47620/58340) free up.
+# Stop any running instance so ports (47621/58341) free up.
 Get-Process -Name "electron","Fig POS" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 1
 
@@ -64,7 +64,7 @@ if ($Mode -eq "pack") {
     $frontendExists = Test-Path (Join-Path $Root "production\frontend\server.js")
     if (-not $backendExists -or -not $frontendExists) {
         Push-Location (Join-Path $Root "frontend")
-        $env:BACKEND_URL = "http://localhost:47620"
+        $env:BACKEND_URL = "http://localhost:47621"
         npm run build
         Remove-Item Env:\BACKEND_URL -ErrorAction SilentlyContinue
         npm run build:production
@@ -88,7 +88,7 @@ if ($Mode -eq "dist") {
     if (-not $backendExists -or -not $frontendExists) {
         Write-Host "Building production bundles..." -ForegroundColor Cyan
         Push-Location (Join-Path $Root "frontend")
-        $env:BACKEND_URL = "http://localhost:47620"
+        $env:BACKEND_URL = "http://localhost:47621"
         npm run build
         Remove-Item Env:\BACKEND_URL -ErrorAction SilentlyContinue
         npm run build:production
@@ -128,7 +128,7 @@ $needBuild = -not $backendExists -or -not $frontendExists
 if ($Mode -eq "build" -or $needBuild) {
     Write-Host "Building production bundles..." -ForegroundColor Cyan
     Push-Location (Join-Path $Root "frontend")
-    $env:BACKEND_URL = "http://localhost:47620"
+    $env:BACKEND_URL = "http://localhost:47621"
     npm run build
     Remove-Item Env:\BACKEND_URL -ErrorAction SilentlyContinue
     npm run build:production

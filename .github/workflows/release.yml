@@ -91,7 +91,7 @@ jobs:
 
       - name: Commit + tag
         run: |
-          git add backend/package.json frontend/package.json desktop/package.json CHANGELOG.md .release-notes.md docs/RELEASE_NOTES.md
+          git add -A
           git commit -m "v${{ steps.version.outputs.version }}"
           git tag "v${{ steps.version.outputs.version }}"
           git push origin main --tags
@@ -146,7 +146,7 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          BACKEND_URL: http://localhost:47620
+          BACKEND_URL: http://localhost:47621
         run: npm run build
 
       # Prepare the self-contained production frontend bundle (renames
@@ -233,6 +233,17 @@ jobs:
           R2_VERSION: ${{ needs.release.outputs.version }}
           R2_SOURCE_DIR: desktop/release
         run: node scripts/publish-to-r2.mjs
+
+      - name: Notify owner console of successful release
+        env:
+          CONVEX_SITE_URL: ${{ vars.CONVEX_SITE_URL }}
+          LICENSE_ADMIN_TOKEN: ${{ secrets.LICENSE_ADMIN_TOKEN }}
+        run: |
+          if [ -z "$CONVEX_SITE_URL" ] || [ -z "$LICENSE_ADMIN_TOKEN" ]; then exit 0; fi
+          curl -sS -f -X POST "${CONVEX_SITE_URL%/}/admin/mutate" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LICENSE_ADMIN_TOKEN" \
+            --data '{"type":"createReleaseNotification","actor":"GitHub Actions","payload":{"version":"${{ needs.release.outputs.version }}","status":"published"}}'
 
       - name: Notify owner console of build failure
         if: failure()

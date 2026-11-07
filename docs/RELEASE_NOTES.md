@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **Release updates stay in sync.** Successful desktop releases now appear in the owner console after the installer and update files finish publishing, so you can confirm what customers received.
+- **Purchase orders open faster.** New toy purchase orders now go straight to the order form without an extra product type screen.
+- **Print labels in seconds.** Choose any toy, preview a clean barcode label, and print it directly or continue in Print Studio for a full preview workflow.
+- **Create toys without an extra step.** New product now opens the toy form directly, so adding catalog items takes you straight to the fields you need.
+- **Straight to stock receiving.** The purchase screen now opens directly to toy stock, so your team can start adding received quantities immediately without an extra selection screen.
+- **Clearer forms at a glance.** Placeholder text now has stronger contrast across the app, making examples and optional fields easier to read while entering shop details.
+- **A more dependable launch.** Production builds now prepare the shop database engine automatically, so launching Fig POS after an update is smoother and less likely to stop during setup.
+- **A smoother desktop setup.** Fig POS now uses dedicated local ports so it can run alongside your mobile phone software without getting in the way. Start the app as usual and enjoy a cleaner launch with fewer connection conflicts.
+- **Fig POS now opens smoothly on Mac.** The desktop app uses its available app icon during startup, so your shop workspace can launch without an icon loading error.
 - **Welcome to Fig Toys POS.** Your shop now has a toy-focused identity with fast checkout, barcode-ready inventory, supplier stock receiving, and category-based reporting. Open the app and start organizing your toy catalog for a smoother day at the counter.
 - **Build a better toy catalog.** Products can now carry the details shoppers and staff need, including recommended age, size, piece count, material, and battery requirements. Add these details while creating a toy so every item is easier to sell and manage.
 - **Know your real toy stock.** Inventory now works with product quantities and barcode-ready stock instead of making every item look like an individual phone. Managers can adjust quantities with a clear audit trail, while cashiers keep a simple read-only stock view.

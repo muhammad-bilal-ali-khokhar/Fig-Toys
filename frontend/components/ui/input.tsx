@@ -6,9 +6,9 @@ import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 type Variant = "filled" | "outline" | "white";
 
 const VARIANTS: Record<Variant, string> = {
-  filled: "bg-ink-100 placeholder:text-ink-400",
-  outline: "bg-white placeholder:text-ink-400",
-  white: "bg-white placeholder:text-ink-400",
+  filled: "bg-ink-100 placeholder:text-ink-500",
+  outline: "bg-white placeholder:text-ink-500",
+  white: "bg-white placeholder:text-ink-500",
 };
 
 export const Input = forwardRef<
@@ -27,7 +27,7 @@ export const Input = forwardRef<
       {prefix && <span className={`shrink-0 ${compact ? "pl-1.5 text-xs" : "pl-3.5 text-sm"} text-ink-400`}>{prefix}</span>}
       <input
         ref={ref}
-        className={`h-full min-w-0 flex-1 bg-transparent ${compact ? "px-1.5 text-xs" : "px-3.5 text-sm"} text-ink-900 outline-none placeholder:text-ink-400`}
+        className={`h-full min-w-0 flex-1 bg-transparent ${compact ? "px-1.5 text-xs" : "px-3.5 text-sm"} text-ink-900 outline-none placeholder:text-ink-500`}
         {...rest}
       />
       {suffix && <span className={`shrink-0 ${compact ? "pr-1.5 text-xs" : "pr-3.5 text-sm"} text-ink-400`}>{suffix}</span>}

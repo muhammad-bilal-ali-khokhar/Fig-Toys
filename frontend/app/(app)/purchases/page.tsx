@@ -103,7 +103,7 @@ export default function PurchasesPage() {
   const [contactFormOpen, setContactFormOpen] = useState(false);
   const [savingProduct, setSavingProduct] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
-   const [flow, setFlow] = useState<"NEW" | "USED" | "ACCESSORY" | null>(null);
+  const [flow, setFlow] = useState<"NEW" | "USED" | "ACCESSORY">("ACCESSORY");
   const [tab, setTab] = useState<"NEW" | "USED">("NEW");
   const [contactId, setContactId] = useState<string | null>(null);
   const [cash, setCash] = useState("");
@@ -857,11 +857,6 @@ export default function PurchasesPage() {
     toast(`Editing ${txn.number}`, "success");
   }
 
-  function pickFlow() {
-    setTab("NEW");
-    setFlow("ACCESSORY");
-  }
-
   useSaveShortcut(() => {
     void submit();
   }, !submitting && rows.length > 0);
@@ -965,43 +960,6 @@ export default function PurchasesPage() {
     );
   }
 
-   if (!flow) {
-    const options = [{
-      f: "TOY" as const,
-      icon: <HeadphonesIcon className="h-8 w-8 text-white" />,
-      title: "Toy Stock",
-      desc: "Receive toys and gift items from your suppliers by quantity",
-      featured: true,
-    }];
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="w-full max-w-4xl">
-          <p className="mb-8 text-center text-sm font-semibold uppercase tracking-wide text-ink-500">
-            What are you buying?
-          </p>
-          <div className="grid gap-5 md:grid-cols-1">
-            {options.map((o) =>
-              o.featured ? (
-                <button
-                  key={o.f}
-                  type="button"
-                   onClick={() => pickFlow()}
-                  className="flex flex-col items-center justify-center gap-4 rounded-3xl bg-brand-600 p-8 text-center hover:bg-brand-700"
-                >
-                  <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20">
-                    {o.icon}
-                  </span>
-                  <span className="text-lg font-bold text-white">{o.title}</span>
-                  <span className="text-sm text-brand-50">{o.desc}</span>
-                </button>
-              ) : null,
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
     const cashAmtNL = parseFloat(cash) || 0;
     const creditAmtNL = parseFloat(creditAmount) || 0;
     const bankAmtNL = bankRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
@@ -1009,7 +967,7 @@ export default function PurchasesPage() {
       <div className="flex h-full flex-col gap-4">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
+            <button type="button" onClick={clearAll} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
              <h1 className="text-lg font-bold text-ink-900">{modifyId ? "Modify Purchase" : "Purchase"}<span className="ml-2 text-sm font-medium text-ink-400">· Toy Stock</span></h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">

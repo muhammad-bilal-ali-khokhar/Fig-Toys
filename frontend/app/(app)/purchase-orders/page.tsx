@@ -63,7 +63,7 @@ export default function PurchaseOrdersPage() {
   const canCancel = hasPermission(user, PERMISSIONS.purchaseOrderCancel);
 
   const [view, setView] = useState<View>("form");
-  const [flow, setFlow] = useState<Flow | null>(null);
+  const [flow, setFlow] = useState<Flow>("TOY");
 
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -321,7 +321,7 @@ export default function PurchaseOrdersPage() {
       });
       toast("Purchase order created", "success");
       clearAll();
-      setFlow(null);
+      setFlow("TOY");
       setView("list");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Could not create order", "error");
@@ -378,7 +378,7 @@ export default function PurchaseOrdersPage() {
     setFlow(f);
   }
 
-  if (!flow && view !== "list") {
+  if (false && !flow && view !== "list") {
     const options = [{ f: "TOY" as const, icon: <HeadphonesIcon className="h-8 w-8 text-white" />, title: "Toy Stock", desc: "Order toys and gift items from suppliers", featured: true }];
     return (
       <div className="flex h-full flex-col gap-4">
@@ -455,7 +455,7 @@ export default function PurchaseOrdersPage() {
               Refresh
             </Button>
             {canCreate && (
-              <Button onClick={() => { setFlow(null); setView("form"); }}>
+              <Button onClick={() => { setFlow("TOY"); setView("form"); }}>
                 <PlusIcon className="h-4 w-4" />
                 New order
               </Button>
@@ -574,7 +574,7 @@ export default function PurchaseOrdersPage() {
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
+            <button type="button" onClick={() => setFlow("TOY")} className="text-ink-400 hover:text-ink-700"><ChevronLeftIcon className="h-5 w-5" /></button>
             <h1 className="text-lg font-bold text-ink-900">Purchase Order<span className="ml-2 text-sm font-medium text-ink-400">{"· Toy Stock"}</span></h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -626,7 +626,7 @@ export default function PurchaseOrdersPage() {
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setFlow(null)} className="text-ink-400 hover:text-ink-700">
+          <button type="button" onClick={() => setFlow("TOY")} className="text-ink-400 hover:text-ink-700">
             <ChevronLeftIcon className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold text-ink-900">

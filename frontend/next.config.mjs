@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-const backendUrl = process.env.BACKEND_URL ?? "http://localhost:47620";
+const backendUrl = process.env.BACKEND_URL ?? "http://localhost:47621";
 const tenantApiUrl = process.env.TENANT_API_URL ?? "https://fig-tenant-api.p0s.workers.dev";
 
 const nextConfig = {

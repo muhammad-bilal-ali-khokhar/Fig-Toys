@@ -32,6 +32,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/inventory", label: "Inventory", icon: "inventory" },
       { href: "/products", label: "Products", icon: "products" },
+      { href: "/products/labels", label: "Print Labels", icon: "print" },
     ],
   },
   {

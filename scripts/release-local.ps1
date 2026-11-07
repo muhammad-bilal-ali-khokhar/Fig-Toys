@@ -93,7 +93,7 @@ Write-Host "Cut ## Unreleased → ## v$Version"
 
 # 2. Commit + tag + push (like release.yml:86)
 Step "Commit + tag + push"
-git add backend/package.json frontend/package.json desktop/package.json CHANGELOG.md .release-notes.md docs/RELEASE_NOTES.md
+git add -A
 # also stage any other tracked changes the user wants in this release (optional)
 $status = git status --porcelain
 if (-not $status) { Write-Host "No changes to commit (version already bumped?)" -ForegroundColor Yellow }
@@ -117,7 +117,7 @@ if (-not $SkipBuild) {
   Push-Location "$Root\desktop"; npm ci; Pop-Location
 
   Push-Location "$Root\frontend"
-  $env:BACKEND_URL = "http://localhost:47620"
+  $env:BACKEND_URL = "http://localhost:47621"
   npm run build
   npm run build:production
   Pop-Location

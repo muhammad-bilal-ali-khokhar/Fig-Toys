@@ -13,7 +13,7 @@
 // Usage: node migrate-db.cjs <dbPath> <migrationsDir>
 const fs = require("node:fs");
 const path = require("node:path");
-const Database = require("better-sqlite3");
+const Database = require(path.join(__dirname, "native", "better-sqlite3"));
 
 const dbPath = process.argv[2];
 const migrationsDir = process.argv[3];

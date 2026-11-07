@@ -54,10 +54,10 @@ const envSchema = z.object({
   SAFEPAY_SECRET_KEY: z.string().optional(),
   SAFEPAY_REDIRECT_URL: z
     .string()
-    .default("http://localhost:47620/api/license/safepay/callback"),
+    .default("http://localhost:47621/api/license/safepay/callback"),
   SAFEPAY_CANCEL_URL: z
     .string()
-    .default("http://localhost:47620/api/license/safepay/cancel"),
+    .default("http://localhost:47621/api/license/safepay/cancel"),
   SAFEPAY_WEBHOOK_SECRET: z.string().optional(),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),

@@ -232,7 +232,7 @@ The current web app is a standalone Next.js app in `web/`. It keeps all state in
 
 ### Live local data
 
-- Set `POS_ADMIN_API_URL` to the POS backend API, for example `http://localhost:47620/api`.
+- Set `POS_ADMIN_API_URL` to the POS backend API, for example `http://localhost:47621/api`.
 - In development the web app defaults to this local URL.
 - The dashboard reads the real local shop, license status, expiry and payment history from `/license/admin/shop`.
 - Local admin endpoints under `/license/admin/*` require an `x-license-admin` header that matches `LICENSE_LOCAL_ADMIN_TOKEN`.
