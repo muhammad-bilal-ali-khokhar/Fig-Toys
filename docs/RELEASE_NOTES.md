@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.2.45
+
+
+
 ## v0.2.44
 
 - **Release updates stay in sync.** Successful desktop releases now appear in the owner console after the installer and update files finish publishing, so you can confirm what customers received.

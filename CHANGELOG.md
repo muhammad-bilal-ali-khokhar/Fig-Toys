@@ -4,7 +4,11 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.2.44
+## v0.2.45
+
+- Released on: 2026-11-07
+
+- Fix cross-platform Next compiler dependency
 
 - Released on: 2026-11-07
 
