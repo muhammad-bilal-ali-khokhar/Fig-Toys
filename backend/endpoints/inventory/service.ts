@@ -49,11 +49,8 @@ export async function listInventory(canViewCosts = false) {
     }
   }
 
-  const ids = [...byProduct.keys()];
-  const products =
-    ids.length > 0
-      ? await prisma.product.findMany({
-          where: { id: { in: ids } },
+  const products = await prisma.product.findMany({
+          where: {},
           select: {
             id: true,
             brandId: true,
@@ -71,12 +68,11 @@ export async function listInventory(canViewCosts = false) {
             categoryId: true,
             category: { select: { id: true, name: true, parentId: true, parent: { select: { id: true, name: true } } } },
           },
-        })
-      : [];
+        });
 
   const quantityProducts = products
     .map((p) => {
-    const agg = byProduct.get(p.id)!;
+    const agg = byProduct.get(p.id) ?? { qty: 0, costTotal: 0, lastPurchase: null };
     const adjustment = p.stockAdjustment ?? 0;
       return {
         id: p.id,
@@ -102,8 +98,7 @@ export async function listInventory(canViewCosts = false) {
         lastPurchasedAt: agg.lastPurchase?.at.toISOString() ?? null,
         lastVendor: agg.lastPurchase?.vendor ?? null,
       };
-    })
-    .filter((p) => p.qty > 0 || p.damagedQty > 0);
+    });
 
   const inStockByProduct = new Map<string, number>();
   for (const u of units) {
