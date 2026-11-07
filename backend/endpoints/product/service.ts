@@ -160,6 +160,12 @@ export async function createProduct(input: ProductInput, userId: string) {
   if (existing) throwDuplicate(existing);
 
   const sku = await resolveSku(input);
+  let barcode = input.barcode?.trim() || "";
+  if (!barcode) {
+    do {
+      barcode = `200${Date.now().toString().slice(-9)}${Math.floor(Math.random() * 10)}`;
+    } while (await prisma.product.findFirst({ where: { barcode }, select: { id: true } }));
+  }
   const product = await prisma.product.create({
     data: {
       brandId: input.brandId,
@@ -171,7 +177,7 @@ export async function createProduct(input: ProductInput, userId: string) {
       categoryId: input.categoryId,
       carrier: (input as any).carrier ?? null,
       sku,
-      barcode: input.barcode,
+      barcode,
       image: input.image,
       specs: input.specs,
       ageRange: input.ageRange,
