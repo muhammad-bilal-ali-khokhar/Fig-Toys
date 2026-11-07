@@ -49,6 +49,7 @@ const SECRET = process.env.R2_SECRET_ACCESS_KEY || "";
 const BUCKET = process.env.R2_BUCKET || "";
 const PUBLIC = (process.env.R2_PUBLIC_URL || "").replace(/\/+$/, "");
 const VERSION = process.env.R2_VERSION || "";
+const PREFIX_ROOT = (process.env.R2_PREFIX || "").replace(/^\/+|\/+$/g, "");
 const SOURCE = path.resolve(process.env.R2_SOURCE_DIR || "desktop/release");
 
 if (!ACCOUNT || !KEY || !SECRET || !BUCKET || !PUBLIC) {
@@ -145,7 +146,7 @@ async function main() {
   const version = VERSION || (setup.match(/-(\d+\.\d+\.\d+)\.exe$/) || [])[1] || "unknown";
 
   // Each version's files live in a versioned folder, e.g. v0.1.50/.
-  const prefix = `v${version}/`;
+  const prefix = `${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}v${version}/`;
   const setupKey = `${prefix}${setup}`;
   const blockmapKey = blockmap ? `${prefix}${blockmap}` : null;
   const latestYmlKey = latestYml ? `${prefix}${latestYml}` : null;
@@ -177,7 +178,7 @@ async function main() {
     const ymlBuf = readFileSync(path.join(SOURCE, latestYml));
     const ymlText = ymlBuf.toString("utf8");
     let patchedYaml = ymlText
-      .replace(/url:\s*Fig-POS-Setup[^ \n]*\.exe/g, `url: ${absoluteUrl}`)
+      .replace(/url:\s*[^ \n]*Setup[^ \n]*\.exe/g, `url: ${absoluteUrl}`)
       .replace(/^(\s*path:\s*).+$/m, `$1${absoluteUrl}`);
     if (/^\s*files:/m.test(patchedYaml)) {
       finalYml = patchedYaml;
@@ -190,18 +191,18 @@ async function main() {
     console.log(`  generated latest.yml (no builder file) → ${absoluteUrl}`);
   }
   await putObject(`${prefix}latest.yml`, Buffer.from(finalYml), "application/octet-stream");
-  await putObject("latest.yml", Buffer.from(finalYml), "application/octet-stream", "no-cache");
+  await putObject(`${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}latest.yml`, Buffer.from(finalYml), "application/octet-stream", "no-cache");
   console.log(`  latest.yml at root → ${PUBLIC}/latest.yml (url: ${absoluteUrl})`);
   latest.url.latestYml = `${PUBLIC}/${prefix}latest.yml`;
   if (!latest.publishedAt) latest.publishedAt = new Date().toISOString();
-  await putObject("latest.json", Buffer.from(JSON.stringify(latest, null, 2)), "application/json", "no-cache");
-  await putObject("latest.js", Buffer.from(`window.FIG_LATEST=${JSON.stringify(latest)};`), "application/javascript", "no-cache");
+  await putObject(`${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}latest.json`, Buffer.from(JSON.stringify(latest, null, 2)), "application/json", "no-cache");
+  await putObject(`${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}latest.js`, Buffer.from(`window.FIG_LATEST=${JSON.stringify(latest)};`), "application/javascript", "no-cache");
 
   // Maintain a versions.json listing the last 5 releases so visitors can
   // download recent versions (older installers stay in the bucket untouched).
   const KEEP = 5;
   let history = [];
-  const existing = await getObject("versions.json");
+  const existing = await getObject(`${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}versions.json`);
   if (existing) {
     try {
       const parsed = JSON.parse(existing);
@@ -219,13 +220,13 @@ async function main() {
   };
   history = [entry, ...history.filter((v) => v.version !== version)].slice(0, KEEP);
   await putObject(
-    "versions.json",
+    `${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}versions.json`,
     Buffer.from(JSON.stringify({ versions: history }, null, 2)),
     "application/json",
     "no-cache",
   );
   await putObject(
-    "versions.js",
+    `${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}versions.js`,
     Buffer.from(`window.FIG_VERSIONS=${JSON.stringify({ versions: history })};`),
     "application/javascript",
     "no-cache",

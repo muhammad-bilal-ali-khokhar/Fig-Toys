@@ -51,8 +51,8 @@ const FRONTEND_PORT = Number(process.env.FIG_FRONTEND_PORT || 58341);
 // safe to ship with the app — this keeps them working in packaged builds where
 // no .env file or env var is present.
 const URLS = {
-  downloadBase: "https://download.myko.pk",
-  changelog: "https://github.com/arsalanwahab/Fig-POS/releases/latest",
+  downloadBase: "https://download.myko.pk/toys",
+  changelog: "https://github.com/muhammad-bilal-ali-khokhar/Fig-Toys/releases/latest",
   licenseRedeem: "https://fiery-panda-147.convex.site/redeem",
 };
 

@@ -1,5 +1,5 @@
-appId: com.fig.pos
-productName: Fig POS
+appId: com.fig.toys
+productName: Fig Toys
 copyright: Copyright © 2026 MYKO Pvt Ltd. All rights reserved.
 directories:
   output: release
@@ -44,11 +44,11 @@ win:
       arch:
         - x64
   icon: build/icon.ico
-  artifactName: Fig-POS-Setup-${version}.${ext}
+  artifactName: Fig-Toys-Setup-${version}.${ext}
 
 publish:
   provider: generic
-  url: https://download.myko.pk/
+  url: https://download.myko.pk/toys/
 
 nsis:
   oneClick: true
