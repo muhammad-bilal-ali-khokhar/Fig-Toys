@@ -12,7 +12,10 @@ export async function listInventory(canViewCosts = false) {
   const [units, items] = await Promise.all([
     listUnits({}),
     prisma.transactionItem.findMany({
-      where: { unitId: null, transaction: { note: { not: { contains: "Migrated legacy" } } } },
+      where: {
+        unitId: null,
+        transaction: { OR: [{ note: null }, { note: { not: { contains: "Migrated legacy" } } }] },
+      },
       select: {
         productId: true,
         quantity: true,
