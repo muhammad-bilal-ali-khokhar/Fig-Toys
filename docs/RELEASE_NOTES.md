@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.2.44
+
 - **Release updates stay in sync.** Successful desktop releases now appear in the owner console after the installer and update files finish publishing, so you can confirm what customers received.
 - **Purchase orders open faster.** New toy purchase orders now go straight to the order form without an extra product type screen.
 - **Print labels in seconds.** Choose any toy, preview a clean barcode label, and print it directly or continue in Print Studio for a full preview workflow.
