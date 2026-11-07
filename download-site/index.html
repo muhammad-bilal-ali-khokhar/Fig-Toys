@@ -165,6 +165,18 @@
                         <a href="#download" class="bg-brand-600 text-ink-50 px-8 py-4 rounded-full text-lg font-medium hover:bg-brand-700 transition-colors border border-brand-700">Get Started</a>
                         <a href="#product" class="bg-ink-100 text-ink-950 px-8 py-4 rounded-full text-lg font-medium hover:bg-ink-200 transition-colors border border-ink-200">Explore Fig</a>
                     </div>
+
+                    <div class="mt-8 bg-violet-50 border border-violet-200 rounded-3xl overflow-hidden" id="toys-download">
+                        <div class="p-8 border-b border-violet-200">
+                            <p class="text-xs font-semibold tracking-widest uppercase text-violet-700">Fig Toys</p>
+                            <h3 class="mt-2 text-2xl font-semibold text-ink-950">Point of sale for toy shops</h3>
+                            <p class="mt-2 text-sm text-ink-600">Toy inventory, barcode labels, supplier receiving, bundles, and checkout in one offline-first app.</p>
+                        </div>
+                        <div class="p-8">
+                            <a href="https://download.myko.pk/toys/" id="toys-download-btn" class="block w-full bg-violet-600 text-white py-4 rounded-full text-lg font-medium hover:bg-violet-700 transition-colors text-center">Download Fig Toys</a>
+                            <p class="mt-3 text-center text-sm text-ink-500" id="toys-version">Latest toy release</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Product Dashboard UI (scales up on scroll) -->
@@ -1056,6 +1068,7 @@
     </script>
     <script src="https://download.myko.pk/latest.js?v=20260818" defer></script>
     <script src="https://download.myko.pk/versions.js?v=20261027e" defer></script>
+    <script src="https://download.myko.pk/toys/latest.js?v=20261107" defer></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -1102,6 +1115,11 @@
 
             // Populate the download button + version metadata.
             const d = window.FIG_LATEST;
+            const toy = window.FIG_LATEST_TOYS;
+            if (toy && toy.version) {
+                document.getElementById("toys-download-btn").href = toy.url.setup;
+                document.getElementById("toys-version").textContent = "Latest release v" + toy.version + (toy.size ? " · " + toy.size : "");
+            }
             if (d && d.version) {
                 document.getElementById("product-version").textContent = "v" + d.version;
                 document.getElementById("download-btn").href = d.url.setup;
