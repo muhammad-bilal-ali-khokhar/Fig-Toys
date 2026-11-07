@@ -1,5 +1,9 @@
 ## Unreleased
 
+## v0.0.2
+
+
+
 ## v0.0.1
 
 - **Toy updates have their own safe channel.** Fig Toys releases now use a separate installer identity and download path, so mobile POS users will never receive toy updates.
