@@ -196,7 +196,8 @@ async function main() {
   latest.url.latestYml = `${PUBLIC}/${prefix}latest.yml`;
   if (!latest.publishedAt) latest.publishedAt = new Date().toISOString();
   await putObject(`${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}latest.json`, Buffer.from(JSON.stringify(latest, null, 2)), "application/json", "no-cache");
-  await putObject(`${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}latest.js`, Buffer.from(`window.FIG_LATEST=${JSON.stringify(latest)};`), "application/javascript", "no-cache");
+  const latestVariable = PREFIX_ROOT === "toys" ? "FIG_LATEST_TOYS" : "FIG_LATEST";
+  await putObject(`${PREFIX_ROOT ? `${PREFIX_ROOT}/` : ""}latest.js`, Buffer.from(`window.${latestVariable}=${JSON.stringify(latest)};`), "application/javascript", "no-cache");
 
   // Maintain a versions.json listing the last 5 releases so visitors can
   // download recent versions (older installers stay in the bucket untouched).
