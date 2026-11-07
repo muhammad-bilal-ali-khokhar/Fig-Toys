@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { ProductSummary } from "@/lib/api-types";
+import type { CompanyProfile, ProductSummary } from "@/lib/api-types";
 import { useApi } from "@/lib/use-api";
 import { formatPKR } from "@/lib/money";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Barcode } from "@/components/products/barcode";
 
 export default function PrintLabelsPage() {
   const { data: products, loading } = useApi<ProductSummary[]>("/product");
+  const { data: company } = useApi<CompanyProfile>("/settings/company");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const selected = products?.find((product) => product.id === selectedId) ?? products?.[0];
@@ -31,7 +32,7 @@ export default function PrintLabelsPage() {
           {loading ? <p className="py-8 text-center text-sm text-ink-500">Loading products…</p> : <div className="space-y-1">{filtered.map((product) => <button key={product.id} type="button" onClick={() => setSelectedId(product.id)} className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left ${selected?.id === product.id ? "bg-brand-50 ring-1 ring-brand-200" : "hover:bg-ink-50"}`}><span><span className="block text-sm font-semibold text-ink-900">{product.brand} {product.model}</span><span className="text-xs text-ink-500">{product.sku ?? product.barcode ?? "No SKU"}</span></span><span className="text-sm font-semibold text-ink-700">{formatPKR(product.sellPrice)}</span></button>)}</div>}
         </section>
         <section className="flex items-center justify-center rounded-2xl bg-ink-100 p-8 print:bg-white">
-          {selected ? <div className="w-[280px] rounded-xl border border-ink-200 bg-white p-4 text-center shadow-lg print:shadow-none"><p className="text-xs font-semibold text-ink-500">Fig Toys</p><p className="mt-2 truncate text-lg font-bold text-ink-900">{selected.brand} {selected.model}</p><p className="mt-1 text-2xl font-bold text-brand-700">{formatPKR(selected.sellPrice)}</p><Barcode value={selected.barcode ?? selected.sku ?? selected.id} height={52} width={2} displayValue /><p className="mt-2 text-xs text-ink-500">{selected.sku ?? ""}</p></div> : <p className="text-sm text-ink-500">Select a product to preview its label.</p>}
+          {selected ? <div className="w-[280px] rounded-xl border border-ink-200 bg-white p-4 text-center shadow-lg print:shadow-none"><p className="truncate text-xs font-semibold text-ink-500">{company?.name || "Your business"}</p><p className="mt-2 truncate text-lg font-bold text-ink-900">{selected.brand} {selected.model}</p><p className="mt-1 text-2xl font-bold text-brand-700">{formatPKR(selected.sellPrice)}</p><Barcode value={selected.barcode ?? selected.sku ?? selected.id} height={52} width={2} displayValue /><p className="mt-2 text-xs text-ink-500">{selected.sku ?? ""}</p></div> : <p className="text-sm text-ink-500">Select a product to preview its label.</p>}
         </section>
       </div>
     </div>
