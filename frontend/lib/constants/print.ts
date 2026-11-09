@@ -23,7 +23,72 @@ export type PrintDocType =
   | "SALES_LIST"
   | "SALE_RETURNS"
   | "PURCHASE_LIST"
-  | "PURCHASE_RETURNS";
+  | "PURCHASE_RETURNS"
+  | "LABEL";
+
+export type LabelPresetId = "50x30" | "40x30" | "38x25" | "58x40" | "100x50" | "custom";
+
+export type LabelConfig = {
+  preset: LabelPresetId;
+  widthMm: number;
+  heightMm: number;
+  gapMm: number;
+  marginMm: number;
+  columns: number;
+  copies: number;
+  fontSize: number;
+  barcodeHeight: number;
+  matchPrinter: boolean;
+  showShop: boolean;
+  showBrand: boolean;
+  showModel: boolean;
+  showPrice: boolean;
+  showBarcode: boolean;
+  showSku: boolean;
+  showCategory: boolean;
+  showAge: boolean;
+};
+
+export const LABEL_PRESETS: { id: LabelPresetId; label: string; widthMm: number; heightMm: number }[] = [
+  { id: "50x30", label: "50 × 30 mm", widthMm: 50, heightMm: 30 },
+  { id: "40x30", label: "40 × 30 mm", widthMm: 40, heightMm: 30 },
+  { id: "38x25", label: "38 × 25 mm", widthMm: 38, heightMm: 25 },
+  { id: "58x40", label: "58 × 40 mm", widthMm: 58, heightMm: 40 },
+  { id: "100x50", label: "100 × 50 mm", widthMm: 100, heightMm: 50 },
+  { id: "custom", label: "Custom size", widthMm: 50, heightMm: 30 },
+];
+
+export const LABEL_DEFAULT_CONFIG: LabelConfig = {
+  preset: "50x30",
+  widthMm: 50,
+  heightMm: 30,
+  gapMm: 2,
+  marginMm: 0,
+  columns: 1,
+  copies: 1,
+  fontSize: 11,
+  barcodeHeight: 30,
+  matchPrinter: true,
+  showShop: true,
+  showBrand: true,
+  showModel: true,
+  showPrice: true,
+  showBarcode: true,
+  showSku: true,
+  showCategory: false,
+  showAge: false,
+};
+
+export const LABEL_FIELD_LABELS: { key: keyof LabelConfig; label: string; hint: string }[] = [
+  { key: "showShop", label: "Shop name", hint: "Store name at the top of the label" },
+  { key: "showBrand", label: "Brand", hint: "Toy brand above the product name" },
+  { key: "showModel", label: "Product name", hint: "Toy name in bold" },
+  { key: "showPrice", label: "Sell price", hint: "Price shown in large text" },
+  { key: "showBarcode", label: "Barcode", hint: "Scannable barcode for the toy" },
+  { key: "showSku", label: "SKU / barcode text", hint: "SKU or barcode number below the barcode" },
+  { key: "showCategory", label: "Category", hint: "Toy category" },
+  { key: "showAge", label: "Age range", hint: "Recommended age range" },
+];
 
 export type PrintDensity = "light" | "normal" | "bold";
 
@@ -123,6 +188,7 @@ export const PRINT = {
   formatKey: "fig.print.format",
   qrTypeKey: "fig.print.qrType",
   bankAccountsTitle: "Bank Payment Details",
+  labelPrinterKey: "fig.label.printer",
 } as const;
 
 export const RECEIPT_TEXT = {

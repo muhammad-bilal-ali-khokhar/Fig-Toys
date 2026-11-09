@@ -552,9 +552,18 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
 }
 
 export async function createSaleReturn(input: SaleReturnInput, userId: string) {
-  const sale = await prisma.transaction.findUnique({ where: { id: input.saleId } });
-  if (!sale) throw new ApiError(404, "transaction.not_found", "Transaction not found");
-  if (sale.type !== "SALE") throw new ApiError(400, "transaction.not_sale", "Not a sale");
+  const sale = input.saleId
+    ? await prisma.transaction.findUnique({ where: { id: input.saleId } })
+    : null;
+  if (input.saleId && !sale) throw new ApiError(404, "transaction.not_found", "Transaction not found");
+  if (sale && sale.type !== "SALE") throw new ApiError(400, "transaction.not_sale", "Not a sale");
+
+  const contactId = sale?.contactId ?? input.contactId?.trim();
+  if (!contactId) {
+    throw new ApiError(400, "return.contact_required", "Select a customer for this return.");
+  }
+  const contact = await prisma.contact.findUnique({ where: { id: contactId } });
+  if (!contact) throw new ApiError(404, "contact.not_found", "Customer not found");
 
   for (const item of input.items) {
     const product = await prisma.product.findUnique({ where: { id: item.productId } });
@@ -574,9 +583,9 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
   if (input.date) {
     createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
   }
-  const saleItems = await prisma.transactionItem.findMany({
-    where: { transactionId: input.saleId },
-  });
+  const saleItems = input.saleId
+    ? await prisma.transactionItem.findMany({ where: { transactionId: input.saleId } })
+    : [];
   const saleItemByUnit = new Map(saleItems.filter((i) => i.unitId).map((i) => [i.unitId as string, i]));
   const saleItemByProduct = new Map(saleItems.filter((i) => !i.unitId).map((i) => [i.productId, i]));
 
@@ -667,13 +676,13 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
         type: "SALE_RETURN",
         number,
         ...(input.clientRef ? { clientRef: input.clientRef } : {}),
-        contactId: sale.contactId,
+        contactId,
         userId,
         subtotal: total,
         discount: 0,
         total,
         status,
-         note: [input.note, input.reason ? `Reason: ${input.reason}` : null, input.itemCondition ? `Condition: ${input.itemCondition}` : null].filter(Boolean).join(" · ") || `Return for ${sale.number}`,
+         note: [input.note, input.reason ? `Reason: ${input.reason}` : null, input.itemCondition ? `Condition: ${input.itemCondition}` : null].filter(Boolean).join(" · ") || (sale ? `Return for ${sale.number}` : `Return from ${contact.name}`),
         ...(createdAt ? { createdAt } : {}),
         items: { create: createdItems },
       },
@@ -681,7 +690,7 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
 
     await applyPayments(tx, {
       transactionId: created.id,
-      contactId: sale.contactId,
+      contactId,
       payments,
       sourceType: "SALE_RETURN",
       moneySign: -1,
@@ -695,7 +704,7 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
     action: "SALE_RETURN.CREATE",
     entity: "Transaction",
     entityId: transaction.id,
-    details: JSON.stringify({ number, total: Number(transaction.total), of: sale.number }),
+    details: JSON.stringify({ number, total: Number(transaction.total), of: sale?.number ?? "standalone" }),
   });
 
   return transaction;
@@ -1585,9 +1594,11 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
   if (!existing) throw new ApiError(404, "transaction.not_found", "Transaction not found");
   if (existing.type !== "SALE_RETURN") throw new ApiError(400, "transaction.not_sale_return", "Only sale returns can be modified");
 
-  const sale = await prisma.transaction.findUnique({ where: { id: input.saleId } });
-  if (!sale) throw new ApiError(404, "transaction.not_found", "Original sale not found");
-  if (sale.type !== "SALE") throw new ApiError(400, "transaction.not_sale", "Referenced transaction is not a sale");
+  const sale = input.saleId
+    ? await prisma.transaction.findUnique({ where: { id: input.saleId } })
+    : null;
+  if (input.saleId && !sale) throw new ApiError(404, "transaction.not_found", "Original sale not found");
+  if (sale && sale.type !== "SALE") throw new ApiError(400, "transaction.not_sale", "Referenced transaction is not a sale");
 
   for (const item of input.items) {
     const product = await prisma.product.findUnique({ where: { id: item.productId } });
@@ -1600,9 +1611,9 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
     createdAt = input.date.includes("T") ? new Date(input.date) : new Date(`${input.date}T00:00:00`);
   }
 
-  const saleItems = await prisma.transactionItem.findMany({
-    where: { transactionId: input.saleId },
-  });
+  const saleItems = input.saleId
+    ? await prisma.transactionItem.findMany({ where: { transactionId: input.saleId } })
+    : [];
   const saleItemByUnit = new Map(saleItems.filter((i) => i.unitId).map((i) => [i.unitId as string, i]));
   const saleItemByProduct = new Map(saleItems.filter((i) => !i.unitId).map((i) => [i.productId, i]));
 
@@ -1718,13 +1729,13 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
       where: { id },
       data: {
         number,
-        contactId: sale.contactId,
+        contactId: existing.contactId,
         userId,
         subtotal: total,
         discount: 0,
         total,
         status,
-        note: input.note ?? `Return for ${sale.number}`,
+        note: input.note ?? (sale ? `Return for ${sale.number}` : existing.note ?? "Sale return"),
         ...(createdAt ? { createdAt } : {}),
       },
     });
@@ -1734,7 +1745,7 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
 
     await applyPayments(tx, {
       transactionId: id,
-      contactId: sale.contactId,
+      contactId: existing.contactId,
       payments,
       sourceType: "SALE_RETURN",
       moneySign: -1,
@@ -1749,7 +1760,7 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
     action: "SALE_RETURN.MODIFY",
     entity: "Transaction",
     entityId: id,
-    details: JSON.stringify({ number, total: Number(transaction!.total), of: sale.number }),
+    details: JSON.stringify({ number, total: Number(transaction!.total), of: sale?.number ?? "standalone" }),
   });
 
   return prisma.transaction.findUnique({

@@ -17,12 +17,12 @@ export function getEffectivePrintMode(fallback: PrintMode = "dialog"): PrintMode
   return getLocalPrintMode() ?? fallback;
 }
 
-export async function doPrintWithMode(mode: PrintMode) {
+export async function doPrintWithMode(mode: PrintMode, options?: PrintJobOptions) {
   if (mode === "silent") {
-    const fig = (typeof window !== "undefined" ? (window as unknown as { fig?: { print?: { silent: () => Promise<unknown>; dialog: () => Promise<unknown> } } }).fig : undefined);
+    const fig = (typeof window !== "undefined" ? (window as unknown as { fig?: { print?: { silent: (options?: PrintJobOptions) => Promise<unknown>; dialog: (options?: PrintJobOptions) => Promise<unknown> } } }).fig : undefined);
     if (fig?.print?.silent) {
       try {
-        await fig.print.silent();
+        await fig.print.silent(options);
         return;
       } catch {
       }
@@ -30,15 +30,26 @@ export async function doPrintWithMode(mode: PrintMode) {
     window.print();
     return;
   }
-  const fig = (typeof window !== "undefined" ? (window as unknown as { fig?: { print?: { dialog: () => Promise<unknown> } } }).fig : undefined);
+  const fig = (typeof window !== "undefined" ? (window as unknown as { fig?: { print?: { dialog: (options?: PrintJobOptions) => Promise<unknown> } } }).fig : undefined);
   if (fig?.print?.dialog) {
     try {
-      await fig.print.dialog();
+      await fig.print.dialog(options);
       return;
     } catch {
     }
   }
   window.print();
+}
+
+export async function listPrinters(): Promise<PrinterInfo[]> {
+  if (typeof window === "undefined") return [];
+  const fig = (window as unknown as { fig?: { print?: { printers?: () => Promise<PrinterInfo[]> } } }).fig;
+  if (!fig?.print?.printers) return [];
+  try {
+    return (await fig.print.printers()) ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function doPrint() {

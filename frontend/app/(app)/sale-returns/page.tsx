@@ -508,6 +508,10 @@ export default function SaleReturnsPage() {
       toast("Add at least one unit to return", "error");
       return;
     }
+    if (!customerId) {
+      toast("Select the customer for this return", "error");
+      return;
+    }
     if (Math.abs(totalPaid - refundTotal) > 0.01) {
       toast(`Payments must equal ${formatPKR(refundTotal)}`, "error");
       return;
@@ -527,7 +531,8 @@ export default function SaleReturnsPage() {
         await apiRequest<{ number: string }>(`/transaction/${modifyId}/sale-return`, {
           method: "PUT",
           body: {
-            saleId: firstSaleId,
+            saleId: firstSaleId || undefined,
+            contactId: customerId ?? undefined,
             items: cart.map((l) => ({ productId: l.productId, unitId: l.unitId, refund: l.refund })),
              note: note.trim() || undefined,
              reason: returnReason || undefined,
@@ -580,7 +585,8 @@ export default function SaleReturnsPage() {
           await apiRequest<{ number: string }>("/transaction/sale/returns", {
             method: "POST",
             body: {
-              saleId,
+              saleId: saleId || undefined,
+              contactId: customerId ?? undefined,
               items: lines.map((l) => ({ productId: l.productId, unitId: l.unitId, refund: l.refund })),
                note: note.trim() || undefined,
                reason: returnReason || undefined,

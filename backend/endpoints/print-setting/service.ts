@@ -1,4 +1,5 @@
 import { prisma } from "../../core/lib/prisma";
+import type { Prisma } from "../../generated/prisma/client";
 import type { PrintSettingInput } from "./schemas";
 
 const DEFAULT_CONFIG = {
@@ -14,7 +15,7 @@ const DEFAULT_CONFIG = {
   barcodeHeight: 56,
 };
 
-const DEFAULTS: Record<string, { format: string; options: Record<string, boolean>; qrType: string; config: typeof DEFAULT_CONFIG }> = {
+const DEFAULTS: Record<string, { format: string; options: Record<string, boolean>; qrType: string; config: Record<string, unknown> }> = {
   SALE: {
     format: "80",
     options: {
@@ -116,6 +117,31 @@ const DEFAULTS: Record<string, { format: string; options: Record<string, boolean
   SALE_RETURNS: { format: "a4", options: {}, qrType: "none", config: { ...DEFAULT_CONFIG } },
   PURCHASE_LIST: { format: "a4", options: {}, qrType: "none", config: { ...DEFAULT_CONFIG } },
   PURCHASE_RETURNS: { format: "a4", options: {}, qrType: "none", config: { ...DEFAULT_CONFIG } },
+  LABEL: {
+    format: "a4",
+    options: {},
+    qrType: "none",
+    config: {
+      ...DEFAULT_CONFIG,
+      preset: "50x30",
+      widthMm: 50,
+      heightMm: 30,
+      gapMm: 2,
+      columns: 1,
+      copies: 1,
+      fontSize: 11,
+      barcodeHeight: 30,
+      matchPrinter: true,
+      showShop: true,
+      showBrand: true,
+      showModel: true,
+      showPrice: true,
+      showBarcode: true,
+      showSku: true,
+      showCategory: false,
+      showAge: false,
+    },
+  },
 };
 
 export async function listPrintSettings() {
@@ -145,6 +171,6 @@ export async function upsertPrintSetting(docType: string, input: PrintSettingInp
     });
   }
   return prisma.printSetting.create({
-    data: { docType, format: input.format, options: input.options, qrType: input.qrType, config: input.config ?? DEFAULTS[docType]?.config ?? DEFAULT_CONFIG },
+    data: { docType, format: input.format, options: input.options, qrType: input.qrType, config: (input.config ?? DEFAULTS[docType]?.config ?? DEFAULT_CONFIG) as Prisma.InputJsonValue },
   });
 }

@@ -61,7 +61,8 @@ export const saleReturnItemSchema = z.object({
 });
 
 export const saleReturnSchema = z.object({
-  saleId: z.string().min(1, "saleId is required"),
+  saleId: z.string().trim().optional().default(""),
+  contactId: z.string().trim().optional(),
   items: z.array(saleReturnItemSchema).min(1, "At least one item is required"),
   payments: z.array(paymentSchema).optional().default([]),
   refundMethod: z.enum(["CASH", "CREDIT"]).default("CASH"),

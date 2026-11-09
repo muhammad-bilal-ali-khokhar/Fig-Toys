@@ -54,8 +54,9 @@ contextBridge.exposeInMainWorld("fig", {
     pdf: (dataUrl, name) => ipcRenderer.invoke("share:pdf", dataUrl, name),
   },
   print: {
-    silent: () => ipcRenderer.invoke("print:silent"),
-    dialog: () => ipcRenderer.invoke("print:dialog"),
+    silent: (options) => ipcRenderer.invoke("print:silent", options),
+    dialog: (options) => ipcRenderer.invoke("print:dialog", options),
+    printers: () => ipcRenderer.invoke("print:printers"),
   },
   loading: {
     onStatus: (cb) => ipcRenderer.on("loading:status", (_event, text) => cb(text)),

@@ -1577,13 +1577,39 @@ if (isUpdater) {
     }
   });
 
-  ipcMain.handle("print:silent", async (event) => {
+  ipcMain.handle("print:printers", async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) throw new Error("No window to read printers from");
+    return win.webContents.getPrintersAsync();
+  });
+
+  function buildPrintOptions(silent, options) {
+    const out = { silent, printBackground: true };
+    if (!options || typeof options !== "object") return out;
+    if (typeof options.deviceName === "string" && options.deviceName) {
+      out.deviceName = options.deviceName;
+    }
+    const size = options.pageSize;
+    if (size && typeof size === "object" && Number.isFinite(Number(size.width)) && Number.isFinite(Number(size.height))) {
+      out.pageSize = { width: Math.round(Number(size.width)), height: Math.round(Number(size.height)) };
+    }
+    if (Number.isFinite(Number(options.copies)) && Number(options.copies) > 0) {
+      out.copies = Math.max(1, Math.round(Number(options.copies)));
+    }
+    const margins = options.margins;
+    if (margins && typeof margins === "object") {
+      out.margins = margins;
+    }
+    return out;
+  }
+
+  ipcMain.handle("print:silent", async (event, options) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) throw new Error("No window to print from");
     const contents = win.webContents;
     const silent = await new Promise((resolve, reject) => {
       try {
-        const maybePromise = contents.print({ silent: true, printBackground: true }, (success, failureReason) => {
+        const maybePromise = contents.print(buildPrintOptions(true, options), (success, failureReason) => {
           if (success) resolve(true);
           else reject(new Error(failureReason || "Print failed"));
         });
@@ -1597,13 +1623,13 @@ if (isUpdater) {
     return silent;
   });
 
-  ipcMain.handle("print:dialog", async (event) => {
+  ipcMain.handle("print:dialog", async (event, options) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) throw new Error("No window to print from");
     const contents = win.webContents;
     return new Promise((resolve, reject) => {
       try {
-        const maybePromise = contents.print({ silent: false, printBackground: true }, (success, failureReason) => {
+        const maybePromise = contents.print(buildPrintOptions(false, options), (success, failureReason) => {
           if (success) resolve(true);
           else reject(new Error(failureReason || "Print cancelled"));
         });

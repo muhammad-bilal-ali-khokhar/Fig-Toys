@@ -23,6 +23,32 @@ declare global {
     platform?: string;
   };
 
+  type PrintPageSize = { width: number; height: number };
+
+  type PrintMargins = {
+    marginType?: "default" | "none" | "printableArea" | "custom";
+    top?: number;
+    bottom?: number;
+    left?: number;
+    right?: number;
+  };
+
+  type PrintJobOptions = {
+    deviceName?: string;
+    pageSize?: PrintPageSize;
+    copies?: number;
+    margins?: PrintMargins;
+  };
+
+  type PrinterInfo = {
+    name: string;
+    displayName: string;
+    description: string;
+    status: number;
+    isDefault: boolean;
+    options: Record<string, string>;
+  };
+
   interface Window {
     fig?: {
       isElectron?: boolean;
@@ -70,8 +96,9 @@ declare global {
         pdf: (dataUrl: string, name?: string) => Promise<boolean>;
       };
       print?: {
-        silent: () => Promise<boolean>;
-        dialog: () => Promise<boolean>;
+        silent: (options?: PrintJobOptions) => Promise<boolean>;
+        dialog: (options?: PrintJobOptions) => Promise<boolean>;
+        printers: () => Promise<PrinterInfo[]>;
       };
       loading?: {
         onStatus: (cb: (text: string) => void) => unknown;
