@@ -116,6 +116,9 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      electron_config_cache: ${{ github.workspace }}\.cache\electron
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}\.cache\electron-builder
     steps:
       - uses: actions/checkout@v4
         with:
@@ -131,17 +134,47 @@ jobs:
             frontend/package-lock.json
             desktop/package-lock.json
 
+      # Electron and electron-builder download large binaries from GitHub's CDN.
+      # Caching them keeps releases fast and avoids transient 504 timeouts.
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}\.cache\electron
+            ${{ github.workspace }}\.cache\electron-builder
+          key: electron-win32-${{ hashFiles('desktop/package-lock.json') }}
+          restore-keys: |
+            electron-win32-
+
       - name: Install backend deps
         working-directory: backend
-        run: npm ci && npx prisma generate
+        run: |
+          for attempt in 1 2 3 4; do
+            if npm ci && npx prisma generate; then exit 0; fi
+            echo "Backend install attempt $attempt failed, retrying..."
+            sleep 15
+          done
+          exit 1
 
       - name: Install frontend deps
         working-directory: frontend
-        run: npm ci
+        run: |
+          for attempt in 1 2 3 4; do
+            if npm ci; then exit 0; fi
+            echo "Frontend install attempt $attempt failed, retrying..."
+            sleep 15
+          done
+          exit 1
 
       - name: Install desktop deps
         working-directory: desktop
-        run: npm ci
+        run: |
+          for attempt in 1 2 3 4; do
+            if npm ci; then exit 0; fi
+            echo "Desktop install attempt $attempt failed, retrying..."
+            sleep 15
+          done
+          exit 1
 
       - name: Build frontend
         working-directory: frontend
@@ -159,7 +192,13 @@ jobs:
       # Rebuild the backend's native module (better-sqlite3) for Windows + Electron.
       - name: Rebuild native modules
         working-directory: desktop
-        run: npm run rebuild
+        run: |
+          for attempt in 1 2 3 4; do
+            if npm run rebuild; then exit 0; fi
+            echo "Native rebuild attempt $attempt failed, retrying..."
+            sleep 20
+          done
+          exit 1
 
       # Bundle the self-contained production backend (esbuild + native module +
       # schema.sql + setup.cjs) into production/backend.
@@ -185,13 +224,25 @@ jobs:
 
       - name: Package installer
         working-directory: desktop
-        run: npm run dist:win
+        run: |
+          for attempt in 1 2 3 4; do
+            if npm run dist:win; then exit 0; fi
+            echo "Packaging attempt $attempt failed, retrying..."
+            sleep 20
+          done
+          exit 1
 
       # Unpacked build — lets you test on Windows with NO installation: extract
       # the zip and run "Fig Mobile POS.exe" directly.
       - name: Build unpacked (no-install) test build
         working-directory: desktop
-        run: npm run pack:win
+        run: |
+          for attempt in 1 2 3 4; do
+            if npm run pack:win; then exit 0; fi
+            echo "Unpacked build attempt $attempt failed, retrying..."
+            sleep 20
+          done
+          exit 1
 
       - name: Zip unpacked test build
         working-directory: desktop

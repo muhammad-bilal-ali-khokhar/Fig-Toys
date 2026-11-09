@@ -1,7 +1,5 @@
 ## Unreleased
 
-## v0.0.5
-
 - **Live label preview that matches your printer.** Print Labels now finds the printers connected to your computer, shows which one is ready, and uses the label size that printer reports. The preview updates instantly as you change size, copies, columns or fields, and every label is shown exactly as it will print. Select several toys or print many copies and you will see every page before you print.
 - **Labels that fit your label printer.** Print Labels now has its own settings panel, just like Print Studio. Pick a label size such as 50 by 30 mm, choose how many labels fit per row, set copies, tune text and barcode size, and turn fields like shop name, brand, price or category on and off. Everything saves automatically, so your printer prints one neat label instead of a full page.
 - **Returns without hunting for an invoice.** You can now return toys by simply choosing the customer and adding the items. No sale number is needed, so walk-in and quick returns are faster, and editing an existing return works the same way.
