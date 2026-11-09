@@ -4,7 +4,20 @@ All notable changes are documented here. Released sections are curated by hand
 for clarity; `scripts/changelog.sh` prepends the newest version's section on
 each release without overwriting earlier notes.
 
-## v0.0.4
+## v0.0.5
+
+- Released on: 2026-11-09
+
+- Add label printer settings, live preview and standalone returns
+- Count normal purchase stock in inventory
+- Generate product barcodes automatically
+- Use business name on toy labels
+- Show catalog products in inventory
+- Start Fig Toys version sequence at 0.0.1
+- Publish separate toy website metadata
+- Add Fig Toys download option
+- Remove accidental root lockfile
+- Separate Fig Toys update channel
 
 - Released on: 2026-11-07
 
