@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **Scan a toy to return it.** Scan any toy barcode on the Sale Return screen and it lands in the return list right away, with the customer, the original bill and the price they paid filled in for you. No need to type an IMEI or search by hand. If a customer bought two of the same toy, add the second piece by scanning again, and the app always protects you from refunding more pieces than were sold.
+- **Toy returns with the right price and quantity.** Returns now carry the quantity and the price you set on screen, so a two piece refund pays exactly what you choose. This keeps your cash drawer and reports accurate.
+
 ## v0.0.6
 
 - **Live label preview that matches your printer.** Print Labels now finds the printers connected to your computer, shows which one is ready, and uses the label size that printer reports. The preview updates instantly as you change size, copies, columns or fields, and every label is shown exactly as it will print. Select several toys or print many copies and you will see every page before you print.

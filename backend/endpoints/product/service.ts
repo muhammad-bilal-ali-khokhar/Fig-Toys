@@ -335,10 +335,10 @@ export async function searchProducts(q: string, statuses: string[] = ["IN_STOCK"
     units: p.units,
   }));
   if (/^\d+$/.test(query)) {
-    mapped = mapped.map((p) => ({
-      ...p,
-      units: p.units.filter((u) => u.imei.includes(query)),
-    }));
+    mapped = mapped.map((p) => {
+      const matchesCode = (p.barcode ?? "").includes(query) || p.sku.includes(query);
+      return matchesCode ? p : { ...p, units: p.units.filter((u) => u.imei.includes(query)) };
+    });
   }
   return mapped.filter((p) => p.category.type === "ACCESSORY" || p.units.length > 0);
 }

@@ -551,6 +551,83 @@ export async function createPurchase(input: CreatePurchaseInput, userId: string)
   });
 }
 
+export async function getSoldProductReturnInfo({
+  productId,
+  contactId,
+}: {
+  productId: string;
+  contactId?: string;
+}) {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { brand: { select: { name: true } }, color: { select: { name: true } } },
+  });
+  if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+
+  const saleItems = await prisma.transactionItem.findMany({
+    where: {
+      productId,
+      unitId: null,
+      transaction: { type: "SALE", ...(contactId ? { contactId } : {}) },
+    },
+    orderBy: [{ transaction: { createdAt: "desc" } }, { id: "desc" }],
+    include: {
+      transaction: {
+        select: {
+          id: true,
+          number: true,
+          createdAt: true,
+          contactId: true,
+          contact: { select: { id: true, name: true, phone: true } },
+        },
+      },
+    },
+  });
+  const latest = saleItems[0];
+  if (!latest) {
+    return { eligible: false, code: "product.not_sold", reason: "This toy has not been sold" };
+  }
+
+  const returnedItems = await prisma.transactionItem.aggregate({
+    where: {
+      productId,
+      unitId: null,
+      transaction: { type: "SALE_RETURN", contactId: latest.transaction.contactId },
+    },
+    _sum: { quantity: true },
+  });
+  const sold = saleItems.reduce((sum, item) => sum + item.quantity, 0);
+  const returned = returnedItems._sum.quantity ?? 0;
+  const remaining = Math.max(0, sold - returned);
+  if (remaining === 0) {
+    return {
+      eligible: false,
+      code: "product.already_returned",
+      reason: "Every sold piece of this toy is already returned",
+      sold,
+      returned,
+      contact: latest.transaction.contact,
+      product: { ...product, brand: product.brand.name, color: product.color?.name ?? null },
+    };
+  }
+
+  return {
+    eligible: true,
+    sold,
+    returned,
+    remaining,
+    refund: Number(latest.unitPrice) - Number(latest.discount),
+    saleId: latest.transaction.id,
+    saleNumber: latest.transaction.number,
+    contact: latest.transaction.contact,
+    product: {
+      ...product,
+      brand: product.brand.name,
+      color: product.color?.name ?? null,
+    },
+  };
+}
+
 export async function createSaleReturn(input: SaleReturnInput, userId: string) {
   const sale = input.saleId
     ? await prisma.transaction.findUnique({ where: { id: input.saleId } })
@@ -595,7 +672,7 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
       return { productId: i.productId, total: si ? Number(si.unitPrice) - Number(si.discount) : 0 };
     }
     const si = saleItemByProduct.get(i.productId);
-    const unitPrice = si ? Number(si.unitPrice) : 0;
+    const unitPrice = i.refund ?? (si ? Number(si.unitPrice) : 0);
     return { productId: i.productId, total: unitPrice * i.quantity };
   });
   await splitCashByDrawer(prisma, input.payments, returnLineItems);
@@ -639,7 +716,8 @@ export async function createSaleReturn(input: SaleReturnInput, userId: string) {
         total += refund;
       } else {
         const saleItem = saleItemByProduct.get(item.productId);
-        const unitPrice = saleItem ? Number(saleItem.unitPrice) : Number(product.sellPrice);
+        const unitPrice =
+          item.refund ?? (saleItem ? Number(saleItem.unitPrice) : Number(product.sellPrice));
         const lineTotal = unitPrice * item.quantity;
         await tx.stockMovement.create({
           data: { productId: item.productId, type: "IN", qty: item.quantity, note: "Sale return" },
@@ -1623,7 +1701,7 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
       return { productId: i.productId, total: si ? Number(si.unitPrice) - Number(si.discount) : 0 };
     }
     const si = saleItemByProduct.get(i.productId);
-    const unitPrice = si ? Number(si.unitPrice) : 0;
+    const unitPrice = i.refund ?? (si ? Number(si.unitPrice) : 0);
     return { productId: i.productId, total: unitPrice * i.quantity };
   });
 
@@ -1693,7 +1771,8 @@ export async function modifySaleReturn(id: string, input: SaleReturnInput, userI
       } else {
         const saleItem = saleItemByProduct.get(item.productId);
         const qty = item.quantity;
-        const refundPerUnit = saleItem ? Number(saleItem.unitPrice) - Number(saleItem.discount) : 0;
+        const refundPerUnit =
+          item.refund ?? (saleItem ? Number(saleItem.unitPrice) - Number(saleItem.discount) : 0);
         await tx.stockMovement.create({
           data: { productId: item.productId, type: "IN", qty, note: "Sale return" },
         });

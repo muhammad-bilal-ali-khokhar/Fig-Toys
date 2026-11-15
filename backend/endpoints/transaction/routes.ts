@@ -16,6 +16,7 @@ import {
   modifySaleReturnHandler,
   purchaseReturnHandler,
   saleReturnHandler,
+  soldProductReturnInfoHandler,
   voidRebateHandler,
   voidReturnHandler,
 } from "./handlers";
@@ -32,6 +33,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/", requirePermission(PERMISSIONS.transactionView), asyncHandler(listHandler));
+router.get("/sale-return-product", requirePermission(PERMISSIONS.transactionView), asyncHandler(soldProductReturnInfoHandler));
 router.get("/:id", requirePermission(PERMISSIONS.transactionView), asyncHandler(getHandler));
 router.post("/sale", requirePermission(PERMISSIONS.saleCreate), validate(createSaleSchema), asyncHandler(createSaleHandler));
 router.put("/:id/sale", requirePermission(PERMISSIONS.saleCreate), validate(createSaleSchema), asyncHandler(modifySaleHandler));

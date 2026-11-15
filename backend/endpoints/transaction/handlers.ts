@@ -1,10 +1,12 @@
 import type { Request, Response } from "express";
+import { ApiError } from "../../core/middleware/error";
 import {
   createPurchase,
   createPurchaseReturn,
   createRebate,
   createSale,
   createSaleReturn,
+  getSoldProductReturnInfo,
   getTransaction,
   listTransactions,
   modifyPurchase,
@@ -40,6 +42,19 @@ export async function listHandler(req: Request, res: Response) {
 
 export async function getHandler(req: Request, res: Response) {
   res.json({ data: await getTransaction(req.params.id) });
+}
+
+export async function soldProductReturnInfoHandler(req: Request, res: Response) {
+  const productId = typeof req.query.productId === "string" ? req.query.productId : "";
+  if (!productId) {
+    throw new ApiError(400, "product.id_required", "productId is required");
+  }
+  res.json({
+    data: await getSoldProductReturnInfo({
+      productId,
+      contactId: typeof req.query.contactId === "string" ? req.query.contactId : undefined,
+    }),
+  });
 }
 
 export async function createSaleHandler(req: Request, res: Response) {

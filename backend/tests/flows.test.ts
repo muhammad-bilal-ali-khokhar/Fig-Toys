@@ -182,6 +182,73 @@ describe("returns flow", () => {
     expect(afterBal).toBe(beforeBal - 200000);
   });
 
+  it("returns toys by barcode and quantity without an IMEI", async () => {
+    const brand = await prisma.brand.create({ data: { name: "ToyBrand" } });
+    const category = await prisma.category.create({ data: { name: "Toys", type: "ACCESSORY" } });
+    const toy = await prisma.product.create({
+      data: {
+        brandId: brand.id,
+        model: "Toy Race Car",
+        categoryId: category.id,
+        sku: "TOY-SKU-1",
+        barcode: "8907999001",
+        sellPrice: 950,
+        costPrice: 600,
+      },
+    });
+
+    const purchase = await request(app)
+      .post("/api/transaction/purchase")
+      .set(auth(cookie))
+      .send({
+        contactId: vendorId,
+        items: [{ productId: toy.id, quantity: 5, costPrice: 600 }],
+        payments: [{ method: "CASH", amount: 3000 }],
+      });
+    expect(purchase.status).toBe(201);
+
+    const sale = await request(app)
+      .post("/api/transaction/sale")
+      .set(auth(cookie))
+      .send({
+        contactId: customerId,
+        items: [{ productId: toy.id, quantity: 3, unitPrice: 950 }],
+        payments: [{ method: "CASH", amount: 2850 }],
+      });
+    expect(sale.status).toBe(201);
+
+    const search = await request(app)
+      .get("/api/product/search?q=8907999001&statuses=SOLD")
+      .set(auth(cookie));
+    expect(search.status).toBe(200);
+    expect(search.body.data.map((p: { id: string }) => p.id)).toContain(toy.id);
+
+    const info = await request(app)
+      .get(`/api/transaction/sale-return-product?productId=${toy.id}`)
+      .set(auth(cookie));
+    expect(info.status).toBe(200);
+    expect(info.body.data.eligible).toBe(true);
+    expect(info.body.data.remaining).toBe(3);
+    expect(info.body.data.refund).toBe(950);
+
+    const ret = await request(app)
+      .post("/api/transaction/sale/returns")
+      .set(auth(cookie))
+      .send({
+        saleId: sale.body.data.id,
+        contactId: customerId,
+        items: [{ productId: toy.id, quantity: 2, refund: 900 }],
+        payments: [{ method: "CASH", amount: 1800 }],
+      });
+    expect(ret.status).toBe(201);
+    expect(Number(ret.body.data.total)).toBe(1800);
+
+    const after = await request(app)
+      .get(`/api/transaction/sale-return-product?productId=${toy.id}`)
+      .set(auth(cookie));
+    expect(after.body.data.remaining).toBe(1);
+  });
+
   it("voids a sale return and restores the unit to SOLD", async () => {
     const [unit] = await addStockUnits(productId, 1, 150000, Number(await nextImei()));
     const sale = await request(app)
