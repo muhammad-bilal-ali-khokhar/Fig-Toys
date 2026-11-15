@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.0.8
+
 - **Profit you can trust, even after returns.** Your profit now takes returns into account, so a toy that comes back no longer counts as sold. Revenue, cost and profit adjust automatically, and the dashboard figure now includes every toy you sell, not just items with serial numbers.
 - **See exactly what sold and what came back.** Meet the new Sold vs returned report. Pick any period and see, toy by toy, how many pieces you sold, how many were returned, what you refunded and the profit you kept. Print it in A4 or thermal with one tap.
 
