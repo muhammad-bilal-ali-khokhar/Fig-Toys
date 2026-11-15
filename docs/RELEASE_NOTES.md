@@ -1,5 +1,7 @@
 ## Unreleased
 
+## v0.0.7
+
 - **Scan a toy to return it.** Scan any toy barcode on the Sale Return screen and it lands in the return list right away, with the customer, the original bill and the price they paid filled in for you. No need to type an IMEI or search by hand. If a customer bought two of the same toy, add the second piece by scanning again, and the app always protects you from refunding more pieces than were sold.
 - **Toy returns with the right price and quantity.** Returns now carry the quantity and the price you set on screen, so a two piece refund pays exactly what you choose. This keeps your cash drawer and reports accurate.
 
