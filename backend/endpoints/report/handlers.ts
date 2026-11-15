@@ -55,6 +55,10 @@ export async function stockHandler(req: Request, res: Response) {
   res.json({ data: await report.stockReport(req.user!.permissions) });
 }
 
+export async function soldReturnedHandler(req: Request, res: Response) {
+  res.json({ data: await report.soldReturnedReport(req.user!.permissions, await rangeWithTz(req)) });
+}
+
 export async function paymentsHandler(req: Request, res: Response) {
   res.json({ data: await report.paymentsReport(await rangeWithTz(req)) });
 }

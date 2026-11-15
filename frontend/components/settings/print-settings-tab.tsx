@@ -32,6 +32,7 @@ const DOC_TYPES: { key: PrintDocType; label: string }[] = [
   { key: "SALE_RETURNS", label: "Sale returns" },
   { key: "PURCHASE_LIST", label: "Purchase list" },
   { key: "PURCHASE_RETURNS", label: "Purchase returns" },
+  { key: "SOLD_RETURNED_REPORT", label: "Sold vs returned" },
 ];
 
 const FORMAT_OPTIONS = [

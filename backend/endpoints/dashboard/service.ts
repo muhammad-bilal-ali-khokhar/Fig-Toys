@@ -111,6 +111,7 @@ export async function overview(
       select: {
         createdAt: true,
         total: true,
+        discount: true,
         items: {
           include: {
             unit: { select: { condition: true, costPrice: true } },
@@ -119,6 +120,7 @@ export async function overview(
                 brand: { select: { name: true } },
                 model: true,
                 storage: true,
+                costPrice: true,
                 category: { select: { id: true, type: true, name: true, parentId: true } },
               },
             },
@@ -309,25 +311,52 @@ export async function overview(
 
   let profitToday = null;
   let profitRange = null;
+  const returnProfitByDay = new Map<string, number>();
   if (canViewCosts) {
-    const items = await prisma.transactionItem.findMany({
-      where: {
-        transaction: { type: "SALE", createdAt: { gte: today } },
-        unit: { isNot: null },
-      },
-      include: { unit: true },
-    });
-    profitToday = items.reduce((sum, i) => sum + (Number(i.total) - Number(i.unit?.costPrice ?? 0)), 0);
-    profitToday -= Number(todayExpenses._sum.amount ?? 0);
-    const rangeItems = await prisma.transactionItem.findMany({
-      where: {
-        transaction: { type: "SALE", ...rangeWhere(range, timeZone) },
-        unit: { isNot: null },
-      },
-      include: { unit: true },
-    });
-    profitRange = rangeItems.reduce((sum, i) => sum + (Number(i.total) - Number(i.unit?.costPrice ?? 0)), 0);
-    profitRange -= rangeExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    const itemSelect = {
+      quantity: true,
+      total: true,
+      unit: { select: { costPrice: true } },
+      product: { select: { costPrice: true } },
+    } as const;
+    const [todaySales, todayReturns, rangeReturns] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { type: "SALE", createdAt: { gte: today } },
+        select: { discount: true, items: { select: itemSelect } },
+      }),
+      prisma.transactionItem.findMany({
+        where: { transaction: { type: "SALE_RETURN", createdAt: { gte: today } } },
+        select: itemSelect,
+      }),
+      prisma.transactionItem.findMany({
+        where: { transaction: { type: "SALE_RETURN", ...rangeWhere(range, timeZone) } },
+        select: { ...itemSelect, transaction: { select: { createdAt: true } } },
+      }),
+    ]);
+    const lineMargin = (
+      i: { quantity: number; total: unknown; unit: { costPrice: unknown } | null; product: { costPrice: unknown } },
+      factor = 1,
+    ) => Number(i.total) * factor - Number(i.unit?.costPrice ?? i.product.costPrice) * i.quantity;
+    const saleMargin = (discount: unknown, items: (typeof todaySales)[number]["items"]) => {
+      const sum = items.reduce((s, i) => s + Number(i.total), 0);
+      const factor = sum > 0 ? Math.max(0, (sum - Number(discount)) / sum) : 1;
+      return items.reduce((s, i) => s + lineMargin(i, factor), 0);
+    };
+    const rangeSaleMargin = recentSales.reduce((s, t) => s + saleMargin(t.discount, t.items), 0);
+    const returnMargin = (rows: (typeof todayReturns)[number][]) =>
+      rows.reduce((sum, i) => sum + lineMargin(i), 0);
+    profitToday =
+      todaySales.reduce((s, t) => s + saleMargin(t.discount, t.items), 0) -
+      returnMargin(todayReturns) -
+      Number(todayExpenses._sum.amount ?? 0);
+    profitRange =
+      rangeSaleMargin -
+      returnMargin(rangeReturns) -
+      rangeExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    for (const item of rangeReturns) {
+      const key = dayKeyInTz(item.transaction.createdAt, timeZone);
+      returnProfitByDay.set(key, (returnProfitByDay.get(key) ?? 0) + lineMargin(item));
+    }
   }
 
   const inStockByProduct = new Map<string, number>();
@@ -399,6 +428,9 @@ export async function overview(
 
   for (const s of recentSales) {
     const idx = dayIndex.get(dayKeyInTz(s.createdAt, timeZone));
+    const saleItemTotal = s.items.reduce((sum, it) => sum + Number(it.total), 0);
+    const saleDiscountFactor =
+      saleItemTotal > 0 ? Math.max(0, (saleItemTotal - Number(s.discount)) / saleItemTotal) : 1;
     if (idx !== undefined) {
       days[idx].revenue += Number(s.total);
       days[idx].count += 1;
@@ -427,7 +459,9 @@ export async function overview(
       }
       if (canViewCosts) {
         const key = dayKeyInTz(s.createdAt, timeZone);
-        const profit = Number(it.total) - Number(it.unit?.costPrice ?? 0);
+        const profit =
+          Number(it.total) * saleDiscountFactor -
+          Number(it.unit?.costPrice ?? it.product.costPrice) * it.quantity;
         profitByDay.set(key, (profitByDay.get(key) ?? 0) + profit);
       }
     }
@@ -437,7 +471,8 @@ export async function overview(
 
   const profitTrend: (number | null)[] | null = canViewCosts
     ? days.map((day) => {
-        const dayProfit = profitByDay.get(day.key) ?? 0;
+        const dayProfit =
+          (profitByDay.get(day.key) ?? 0) - (returnProfitByDay.get(day.key) ?? 0);
         return Math.round(dayProfit - (expenseByDay.get(day.key) ?? 0));
       })
     : null;

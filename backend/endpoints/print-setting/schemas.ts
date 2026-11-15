@@ -22,6 +22,7 @@ const docTypes = [
   "SALE_RETURNS",
   "PURCHASE_LIST",
   "PURCHASE_RETURNS",
+  "SOLD_RETURNED_REPORT",
   "LABEL",
 ] as const;
 

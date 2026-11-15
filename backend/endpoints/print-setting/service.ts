@@ -117,6 +117,7 @@ const DEFAULTS: Record<string, { format: string; options: Record<string, boolean
   SALE_RETURNS: { format: "a4", options: {}, qrType: "none", config: { ...DEFAULT_CONFIG } },
   PURCHASE_LIST: { format: "a4", options: {}, qrType: "none", config: { ...DEFAULT_CONFIG } },
   PURCHASE_RETURNS: { format: "a4", options: {}, qrType: "none", config: { ...DEFAULT_CONFIG } },
+  SOLD_RETURNED_REPORT: { format: "a4", options: {}, qrType: "none", config: { ...DEFAULT_CONFIG } },
   LABEL: {
     format: "a4",
     options: {},

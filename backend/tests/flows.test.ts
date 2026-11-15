@@ -249,6 +249,135 @@ describe("returns flow", () => {
     expect(after.body.data.remaining).toBe(1);
   });
 
+  it("reports net sold pieces and profit after a return", async () => {
+    const brand = await prisma.brand.create({ data: { name: "ReportBrand" } });
+    const category = await prisma.category.create({ data: { name: "Report Toys", type: "ACCESSORY" } });
+    const toy = await prisma.product.create({
+      data: {
+        brandId: brand.id,
+        model: "Report Racer",
+        categoryId: category.id,
+        sku: "REP-SKU-1",
+        barcode: "8907999002",
+        sellPrice: 950,
+        costPrice: 600,
+      },
+    });
+
+    await request(app)
+      .post("/api/transaction/purchase")
+      .set(auth(cookie))
+      .send({
+        contactId: vendorId,
+        items: [{ productId: toy.id, quantity: 5, costPrice: 600 }],
+        payments: [{ method: "CASH", amount: 3000 }],
+      });
+
+    const before = await request(app).get("/api/dashboard/overview").set(auth(cookie));
+    expect(before.status).toBe(200);
+
+    const sale = await request(app)
+      .post("/api/transaction/sale")
+      .set(auth(cookie))
+      .send({
+        contactId: customerId,
+        items: [{ productId: toy.id, quantity: 3, unitPrice: 950 }],
+        payments: [{ method: "CASH", amount: 2850 }],
+      });
+    expect(sale.status).toBe(201);
+
+    const ret = await request(app)
+      .post("/api/transaction/sale/returns")
+      .set(auth(cookie))
+      .send({
+        saleId: sale.body.data.id,
+        contactId: customerId,
+        items: [{ productId: toy.id, quantity: 1, refund: 950 }],
+        payments: [{ method: "CASH", amount: 950 }],
+      });
+    expect(ret.status).toBe(201);
+
+    const from = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const to = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+    const report = await request(app)
+      .get(`/api/report/sold-returned?from=${from}&to=${to}`)
+      .set(auth(cookie));
+    expect(report.status).toBe(200);
+    const row = report.body.data.rows.find((r: { productId: string }) => r.productId === toy.id);
+    expect(row).toMatchObject({
+      soldQty: 3,
+      returnedQty: 1,
+      netQty: 2,
+      revenue: 2850,
+      refunds: 950,
+      cost: 1200,
+      profit: 700,
+    });
+
+    const profit = await request(app)
+      .get(`/api/report/profit?from=${from}&to=${to}`)
+      .set(auth(cookie));
+    expect(profit.status).toBe(200);
+    const model = profit.body.data.byModel.find((m: { name: string }) => m.name === "ReportBrand Report Racer");
+    expect(model).toMatchObject({ revenue: 1900, cost: 1200, profit: 700 });
+
+    const after = await request(app).get("/api/dashboard/overview").set(auth(cookie));
+    expect(after.body.data.today.profit - before.body.data.today.profit).toBeCloseTo(700, 2);
+  });
+
+  it("nets the invoice discount out of reported revenue", async () => {
+    const brand = await prisma.brand.create({ data: { name: "DiscountBrand" } });
+    const category = await prisma.category.create({ data: { name: "Discount Toys", type: "ACCESSORY" } });
+    const toy = await prisma.product.create({
+      data: {
+        brandId: brand.id,
+        model: "Discount Dart",
+        categoryId: category.id,
+        sku: "DISC-SKU-1",
+        barcode: "8907999003",
+        sellPrice: 950,
+        costPrice: 600,
+      },
+    });
+
+    await request(app)
+      .post("/api/transaction/purchase")
+      .set(auth(cookie))
+      .send({
+        contactId: vendorId,
+        items: [{ productId: toy.id, quantity: 3, costPrice: 600 }],
+        payments: [{ method: "CASH", amount: 1800 }],
+      });
+
+    const sale = await request(app)
+      .post("/api/transaction/sale")
+      .set(auth(cookie))
+      .send({
+        contactId: customerId,
+        items: [{ productId: toy.id, quantity: 2, unitPrice: 950 }],
+        discount: 100,
+        payments: [{ method: "CASH", amount: 1800 }],
+      });
+    expect(sale.status).toBe(201);
+    expect(Number(sale.body.data.total)).toBe(1800);
+
+    const from = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const to = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+    const report = await request(app)
+      .get(`/api/report/sold-returned?from=${from}&to=${to}`)
+      .set(auth(cookie));
+    const row = report.body.data.rows.find((r: { productId: string }) => r.productId === toy.id);
+    expect(row).toMatchObject({ soldQty: 2, netQty: 2, revenue: 1800, refunds: 0, cost: 1200, profit: 600 });
+
+    const profit = await request(app)
+      .get(`/api/report/profit?from=${from}&to=${to}`)
+      .set(auth(cookie));
+    const model = profit.body.data.byModel.find((m: { name: string }) => m.name === "DiscountBrand Discount Dart");
+    expect(model).toMatchObject({ revenue: 1800, cost: 1200, profit: 600 });
+  });
+
   it("voids a sale return and restores the unit to SOLD", async () => {
     const [unit] = await addStockUnits(productId, 1, 150000, Number(await nextImei()));
     const sale = await request(app)

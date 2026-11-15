@@ -12,6 +12,7 @@ import {
   profitHandler,
   purchasesHandler,
   salesHandler,
+  soldReturnedHandler,
   stockHandler,
   summaryHandler,
   zReportHandler,
@@ -27,6 +28,7 @@ router.get("/purchases", requirePermission(PERMISSIONS.reportView), asyncHandler
 router.get("/profit", requirePermission(PERMISSIONS.reportProfit), asyncHandler(profitHandler));
 router.get("/expenses", requirePermission(PERMISSIONS.reportView), asyncHandler(expensesHandler));
 router.get("/stock", requirePermission(PERMISSIONS.reportStock), asyncHandler(stockHandler));
+router.get("/sold-returned", requirePermission(PERMISSIONS.reportView), asyncHandler(soldReturnedHandler));
 router.get("/payments", requirePermission(PERMISSIONS.reportView), asyncHandler(paymentsHandler));
 router.get("/aging", requirePermission(PERMISSIONS.reportView), asyncHandler(agingHandler));
 router.get("/balances", requirePermission(PERMISSIONS.reportView), asyncHandler(balancesHandler));

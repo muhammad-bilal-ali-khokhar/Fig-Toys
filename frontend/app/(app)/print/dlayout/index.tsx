@@ -1,6 +1,6 @@
 "use client";
 
-import type { BalancesReport, CompanyProfile, ExpenseReport, ProfitReport, PurchaseReport, ReportRange, SalesReport, Transaction } from "@/lib/api-types";
+import type { BalancesReport, CompanyProfile, ExpenseReport, ProfitReport, PurchaseReport, ReportRange, SalesReport, SoldReturnedReport, Transaction } from "@/lib/api-types";
 import { SalesReportA4 } from "./a4/sales-report";
 import { PurchasesReportA4 } from "./a4/purchases-report";
 import { ProfitReportA4 } from "./a4/profit-report";
@@ -11,6 +11,7 @@ import { SalesListA4 } from "./a4/sales-list";
 import { SaleReturnsA4 } from "./a4/sale-returns";
 import { PurchaseListA4 } from "./a4/purchase-list";
 import { PurchaseReturnsA4 } from "./a4/purchase-returns";
+import { SoldReturnedReportA4 } from "./a4/sold-returned-report";
 import { SalesReportT58 } from "./thermal-58/sales-report";
 import { PurchasesReportT58 } from "./thermal-58/purchases-report";
 import { ProfitReportT58 } from "./thermal-58/profit-report";
@@ -21,6 +22,7 @@ import { SalesListT58 } from "./thermal-58/sales-list";
 import { SaleReturnsT58 } from "./thermal-58/sale-returns";
 import { PurchaseListT58 } from "./thermal-58/purchase-list";
 import { PurchaseReturnsT58 } from "./thermal-58/purchase-returns";
+import { SoldReturnedReportT58 } from "./thermal-58/sold-returned-report";
 import { SalesReportT80 } from "./thermal-80/sales-report";
 import { PurchasesReportT80 } from "./thermal-80/purchases-report";
 import { ProfitReportT80 } from "./thermal-80/profit-report";
@@ -31,6 +33,7 @@ import { SalesListT80 } from "./thermal-80/sales-list";
 import { SaleReturnsT80 } from "./thermal-80/sale-returns";
 import { PurchaseListT80 } from "./thermal-80/purchase-list";
 import { PurchaseReturnsT80 } from "./thermal-80/purchase-returns";
+import { SoldReturnedReportT80 } from "./thermal-80/sold-returned-report";
 import type { PrintConfig } from "@/lib/constants";
 import type { DocFormat } from "./shared";
 
@@ -44,14 +47,15 @@ export type ReportDocKind =
   | "SALES_LIST"
   | "SALE_RETURNS"
   | "PURCHASE_LIST"
-  | "PURCHASE_RETURNS";
+  | "PURCHASE_RETURNS"
+  | "SOLD_RETURNED_REPORT";
 
 export type ReportDocProps = {
   format: DocFormat;
   profile: CompanyProfile | null;
   kind: ReportDocKind;
   range?: ReportRange;
-  data?: SalesReport | PurchaseReport | ProfitReport | ExpenseReport | BalancesReport | null;
+  data?: SalesReport | PurchaseReport | ProfitReport | ExpenseReport | BalancesReport | SoldReturnedReport | null;
   rows?: Transaction[];
   config?: PrintConfig;
 };
@@ -80,6 +84,8 @@ export function ReportDoc({ format, profile, kind, range, data, rows, config }: 
           return <PurchaseListT58 profile={profile} rows={rows ?? []} config={config} />;
         case "PURCHASE_RETURNS":
           return <PurchaseReturnsT58 profile={profile} rows={rows ?? []} config={config} />;
+        case "SOLD_RETURNED_REPORT":
+          return <SoldReturnedReportT58 profile={profile} data={data as SoldReturnedReport} config={config} />;
       }
       break;
     case "80":
@@ -104,6 +110,8 @@ export function ReportDoc({ format, profile, kind, range, data, rows, config }: 
           return <PurchaseListT80 profile={profile} rows={rows ?? []} config={config} />;
         case "PURCHASE_RETURNS":
           return <PurchaseReturnsT80 profile={profile} rows={rows ?? []} config={config} />;
+        case "SOLD_RETURNED_REPORT":
+          return <SoldReturnedReportT80 profile={profile} data={data as SoldReturnedReport} config={config} />;
       }
       break;
     default:
@@ -128,6 +136,8 @@ export function ReportDoc({ format, profile, kind, range, data, rows, config }: 
           return <PurchaseListA4 profile={profile} rows={rows ?? []} />;
         case "PURCHASE_RETURNS":
           return <PurchaseReturnsA4 profile={profile} rows={rows ?? []} />;
+        case "SOLD_RETURNED_REPORT":
+          return <SoldReturnedReportA4 profile={profile} data={data as SoldReturnedReport} range={range} />;
       }
   }
   return null;

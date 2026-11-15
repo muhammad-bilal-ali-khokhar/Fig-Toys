@@ -21,6 +21,7 @@ export const REPORT_NAV_GROUPS: { title: string; items: ReportNavItem[] }[] = [
     title: "Lists",
     items: [
        { href: "/reports/inventory-list", label: "Toy inventory list" },
+      { href: "/reports/sold-returned", label: "Sold vs returned" },
       { href: "/reports/sales-list", label: "Sales list" },
       { href: "/reports/purchase-list", label: "Purchase list" },
       { href: "/reports/sale-returns", label: "Sale returns" },

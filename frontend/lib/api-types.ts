@@ -796,6 +796,33 @@ export type ExpenseReport = {
   daily: { date: string; total: number; count: number }[];
 };
 
+export type SoldReturnedReport = {
+  rows: {
+    productId: string;
+    label: string;
+    barcode: string | null;
+    category: string;
+    soldQty: number;
+    returnedQty: number;
+    netQty: number;
+    revenue: number;
+    refunds: number;
+    cost: number | null;
+    profit: number | null;
+  }[];
+  totals: {
+    products: number;
+    soldQty: number;
+    returnedQty: number;
+    netQty: number;
+    revenue: number;
+    refunds: number;
+    cost: number | null;
+    profit: number | null;
+  };
+  costsHidden: boolean;
+};
+
 export type StockReport = {
   units: number;
   costValue: number | null;

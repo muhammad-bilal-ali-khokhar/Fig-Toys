@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiRequest } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth-context";
-import type { BalancesReport, Brand, Category, Color, CompanyProfile, Contact, Expense, ExpenseReport, InventoryData, InventoryProduct, ProfitReport, PurchaseReport, ReportRange, ReservationDetail, SalesReport, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
+import type { BalancesReport, Brand, Category, Color, CompanyProfile, Contact, Expense, ExpenseReport, InventoryData, InventoryProduct, ProfitReport, PurchaseReport, ReportRange, ReservationDetail, SalesReport, SoldReturnedReport, Transaction, TransactionDetail, Unit, Voucher } from "@/lib/api-types";
 import { formatPKR } from "@/lib/money";
 import { toISODate } from "@/lib/dates";
 import { whatsappLink } from "@/lib/whatsapp";
@@ -90,6 +90,7 @@ const TYPE_DOT: Record<string, string> = {
   SALE_RETURNS: "bg-brand-300",
   PURCHASE_LIST: "bg-ink-500",
   PURCHASE_RETURNS: "bg-ink-300",
+  SOLD_RETURNED_REPORT: "bg-brand-400",
 };
 
 type ReportDocType =
@@ -102,7 +103,8 @@ type ReportDocType =
   | "SALES_LIST"
   | "SALE_RETURNS"
   | "PURCHASE_LIST"
-  | "PURCHASE_RETURNS";
+  | "PURCHASE_RETURNS"
+  | "SOLD_RETURNED_REPORT";
 
 const REPORT_DOC_TYPES: { value: ReportDocType; label: string; hint: string }[] = [
   { value: "SALES_REPORT", label: "Sales report", hint: "Revenue and sales breakdowns" },
@@ -115,6 +117,7 @@ const REPORT_DOC_TYPES: { value: ReportDocType; label: string; hint: string }[] 
   { value: "SALE_RETURNS", label: "Sale returns", hint: "Items returned by customers" },
   { value: "PURCHASE_LIST", label: "Purchase list", hint: "Every purchase in the period" },
   { value: "PURCHASE_RETURNS", label: "Purchase returns", hint: "Items returned to suppliers" },
+  { value: "SOLD_RETURNED_REPORT", label: "Sold vs returned", hint: "Pieces sold and taken back, toy by toy" },
 ];
 
 const REPORT_DOC_TYPE_VALUES = REPORT_DOC_TYPES.map((t) => t.value);
@@ -261,6 +264,7 @@ function PrintStudioContent() {
   const [purchasesReport, setPurchasesReport] = useState<PurchaseReport | null>(null);
   const [profitReport, setProfitReport] = useState<ProfitReport | null>(null);
   const [expensesReport, setExpensesReport] = useState<ExpenseReport | null>(null);
+  const [soldReturnedReport, setSoldReturnedReport] = useState<SoldReturnedReport | null>(null);
   const [balancesReport, setBalancesReport] = useState<BalancesReport | null>(null);
   const [purchaseList, setPurchaseList] = useState<Transaction[] | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
@@ -332,11 +336,13 @@ function PrintStudioContent() {
           ? profitReport !== null
           : reportType === "EXPENSES_REPORT"
             ? expensesReport !== null
-            : reportType === "PAYABLES" || reportType === "RECEIVABLES"
-              ? balancesReport !== null
-              : reportType === "SALES_LIST" || reportType === "SALE_RETURNS" || reportType === "PURCHASE_LIST" || reportType === "PURCHASE_RETURNS"
-                ? (purchaseList ?? []).length > 0
-                : false;
+            : reportType === "SOLD_RETURNED_REPORT"
+              ? soldReturnedReport !== null
+              : reportType === "PAYABLES" || reportType === "RECEIVABLES"
+                ? balancesReport !== null
+                : reportType === "SALES_LIST" || reportType === "SALE_RETURNS" || reportType === "PURCHASE_LIST" || reportType === "PURCHASE_RETURNS"
+                  ? (purchaseList ?? []).length > 0
+                  : false;
   const canPrint =
     layoutType === "report"
       ? reportReady
@@ -654,6 +660,9 @@ function PrintStudioContent() {
         } else if (reportType === "EXPENSES_REPORT") {
           const d = await apiRequest<ExpenseReport>(`/report/expenses?${q.toString()}`);
           if (!cancelled) setExpensesReport(d ?? null);
+        } else if (reportType === "SOLD_RETURNED_REPORT") {
+          const d = await apiRequest<SoldReturnedReport>(`/report/sold-returned?${q.toString()}`);
+          if (!cancelled) setSoldReturnedReport(d ?? null);
         } else if (reportType === "PAYABLES" || reportType === "RECEIVABLES") {
           const d = await apiRequest<BalancesReport>("/report/balances");
           if (!cancelled) setBalancesReport(d ?? null);
@@ -693,6 +702,8 @@ function PrintStudioContent() {
         return profitReport ? <ReportDoc format={activeFormat} kind="PROFIT_REPORT" profile={profile} data={profitReport} range={reportRange} config={config} /> : null;
       case "EXPENSES_REPORT":
         return expensesReport ? <ReportDoc format={activeFormat} kind="EXPENSES_REPORT" profile={profile} data={expensesReport} range={reportRange} config={config} /> : null;
+      case "SOLD_RETURNED_REPORT":
+        return soldReturnedReport ? <ReportDoc format={activeFormat} kind="SOLD_RETURNED_REPORT" profile={profile} data={soldReturnedReport} range={reportRange} config={config} /> : null;
       case "PAYABLES":
         return balancesReport ? <ReportDoc format={activeFormat} kind="PAYABLES" profile={profile} data={balancesReport} config={config} /> : null;
       case "RECEIVABLES":

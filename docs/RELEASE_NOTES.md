@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **Profit you can trust, even after returns.** Your profit now takes returns into account, so a toy that comes back no longer counts as sold. Revenue, cost and profit adjust automatically, and the dashboard figure now includes every toy you sell, not just items with serial numbers.
+- **See exactly what sold and what came back.** Meet the new Sold vs returned report. Pick any period and see, toy by toy, how many pieces you sold, how many were returned, what you refunded and the profit you kept. Print it in A4 or thermal with one tap.
+
 ## v0.0.7
 
 - **Scan a toy to return it.** Scan any toy barcode on the Sale Return screen and it lands in the return list right away, with the customer, the original bill and the price they paid filled in for you. No need to type an IMEI or search by hand. If a customer bought two of the same toy, add the second piece by scanning again, and the app always protects you from refunding more pieces than were sold.

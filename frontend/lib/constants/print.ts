@@ -24,6 +24,7 @@ export type PrintDocType =
   | "SALE_RETURNS"
   | "PURCHASE_LIST"
   | "PURCHASE_RETURNS"
+  | "SOLD_RETURNED_REPORT"
   | "LABEL";
 
 export type LabelPresetId = "50x30" | "40x30" | "38x25" | "58x40" | "100x50" | "custom";

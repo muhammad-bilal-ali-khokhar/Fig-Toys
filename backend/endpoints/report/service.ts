@@ -120,21 +120,33 @@ export async function summary(permissions: readonly Permission[], r: Range) {
 
   let profit: number | null = null;
   if (cost) {
-    const items = await prisma.transactionItem.findMany({
-      where: { transaction: { type: "SALE", ...rangeWhere(r) } },
-      select: {
-        quantity: true,
-        total: true,
-        unit: { select: { costPrice: true } },
-        product: { select: { costPrice: true } },
-      },
-    });
-    const revenue = items.reduce((s, i) => s + n(i.total), 0);
-    const costTotal = items.reduce(
-      (s, i) => s + n(i.unit?.costPrice ?? i.product.costPrice) * i.quantity,
+    const itemSelect = {
+      quantity: true,
+      total: true,
+      unit: { select: { costPrice: true } },
+      product: { select: { costPrice: true } },
+    } as const;
+    const [sales, returnItems] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { type: "SALE", ...rangeWhere(r) },
+        select: { discount: true, items: { select: itemSelect } },
+      }),
+      prisma.transactionItem.findMany({
+        where: { transaction: { type: "SALE_RETURN", ...rangeWhere(r) } },
+        select: itemSelect,
+      }),
+    ]);
+    const marginOf = (rows: { quantity: number; total: unknown; unit: { costPrice: unknown } | null; product: { costPrice: unknown } }[]) =>
+      rows.reduce((s, i) => s + n(i.total) - n(i.unit?.costPrice ?? i.product.costPrice) * i.quantity, 0);
+    const revenue = sales.reduce(
+      (s, t) => s + t.items.reduce((sum, i) => sum + n(i.total), 0) - n(t.discount),
       0,
     );
-    profit = round(revenue - costTotal - n(expenseAgg._sum.amount));
+    const costTotal = sales.reduce(
+      (s, t) => s + t.items.reduce((sum, i) => sum + n(i.unit?.costPrice ?? i.product.costPrice) * i.quantity, 0),
+      0,
+    );
+    profit = round(revenue - costTotal - marginOf(returnItems) - n(expenseAgg._sum.amount));
   }
 
   const itemsSold = saleItems.reduce((s, i) => s + i.quantity, 0);
@@ -351,23 +363,27 @@ export async function purchasesReport(r: Range) {
 
 export async function profitReport(r: Range) {
   const catMapData = await loadCategoryMap();
-  const [items, expenseRows] = await Promise.all([
-    prisma.transactionItem.findMany({
-      where: { transaction: { type: "SALE", ...rangeWhere(r) } },
+  const lineSelect = {
+    quantity: true,
+    total: true,
+    unit: { select: { condition: true, costPrice: true } },
+    product: {
       select: {
-        quantity: true,
-        total: true,
-        unit: { select: { condition: true, costPrice: true } },
-        product: {
-          select: {
-            brand: { select: { name: true } },
-            model: true,
-            costPrice: true,
-            category: { select: { id: true, name: true, parentId: true } },
-          },
-        },
-        transaction: { select: { createdAt: true } },
+        brand: { select: { name: true } },
+        model: true,
+        costPrice: true,
+        category: { select: { id: true, name: true, parentId: true } },
       },
+    },
+  } as const;
+  const [sales, returns, expenseRows] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { type: "SALE", ...rangeWhere(r) },
+      select: { discount: true, createdAt: true, items: { select: lineSelect } },
+    }),
+    prisma.transaction.findMany({
+      where: { type: "SALE_RETURN", ...rangeWhere(r) },
+      select: { createdAt: true, items: { select: lineSelect } },
     }),
     prisma.expense.findMany({
       where: { ...rangeWhere(r, "date") },
@@ -375,21 +391,37 @@ export async function profitReport(r: Range) {
     }),
   ]);
 
-  const rows = items.map((i) => {
+  type Line = (typeof sales)[number]["items"][number];
+
+  const toRow = (i: Line, createdAt: Date, sign: number, factor: number) => {
     const path = categoryPath(i.product.category?.id ?? null, catMapData);
     const rootCategory = path[0] ?? i.product.category?.name ?? "Uncategorized";
     const subCategory = path.length > 1 ? { key: path.join(" > "), name: path[path.length - 1], parentName: path.slice(0, -1).join(" > ") } : null;
     return {
-      key: dayKey(i.transaction.createdAt, r),
+      key: dayKey(createdAt, r),
       condition: i.unit?.condition ?? "ACCESSORY",
       brand: i.product.brand.name,
       category: rootCategory,
       subCategory,
       model: `${i.product.brand.name} ${i.product.model}`,
-      revenue: n(i.total),
-      cost: n(i.unit?.costPrice ?? i.product.costPrice) * i.quantity,
+      revenue: sign * n(i.total) * factor,
+      cost: sign * n(i.unit?.costPrice ?? i.product.costPrice) * i.quantity,
     };
-  });
+  };
+
+  const discountFactor = (items: Line[], discount: unknown) => {
+    const sum = items.reduce((s, i) => s + n(i.total), 0);
+    if (sum <= 0) return 1;
+    return Math.max(0, (sum - n(discount)) / sum);
+  };
+
+  const rows = [
+    ...sales.flatMap((t) => {
+      const factor = discountFactor(t.items, t.discount);
+      return t.items.map((i) => toRow(i, t.createdAt, 1, factor));
+    }),
+    ...returns.flatMap((t) => t.items.map((i) => toRow(i, t.createdAt, -1, 1))),
+  ];
 
   const byDay = new Map<string, { key: string; revenue: number; cost: number }>();
   const byBrand = new Map<string, { name: string; revenue: number; cost: number }>();
@@ -432,7 +464,10 @@ export async function profitReport(r: Range) {
     byModel.set(row.model, m);
   }
 
-  const dayList = buildDays(items.map((i) => ({ date: i.transaction.createdAt })), r);
+  const dayList = buildDays(
+    [...sales.map((t) => ({ date: t.createdAt })), ...returns.map((t) => ({ date: t.createdAt }))],
+    r,
+  );
   const expenseByDay = new Map<string, number>();
   for (const e of expenseRows) {
     const key = dayKey(e.date, r);
@@ -473,6 +508,127 @@ export async function profitReport(r: Range) {
     byCategory: withProfit([...byCategory.values()]),
     bySubCategory: withProfit([...bySubCategory.values()]),
     byModel: withProfit([...byModel.values()]).slice(0, 20),
+  };
+}
+
+// ============ SOLD VS RETURNED REPORT ============
+
+export async function soldReturnedReport(permissions: readonly Permission[], r: Range) {
+  const catMapData = await loadCategoryMap();
+  const showCosts = canViewCosts(permissions);
+  const lineSelect = {
+    quantity: true,
+    total: true,
+    unit: { select: { costPrice: true } },
+    product: {
+      select: {
+        id: true,
+        model: true,
+        barcode: true,
+        costPrice: true,
+        brand: { select: { name: true } },
+        category: { select: { id: true, name: true, parentId: true } },
+      },
+    },
+  } as const;
+  const [sales, returns] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { type: "SALE", ...rangeWhere(r) },
+      select: { discount: true, items: { select: lineSelect } },
+    }),
+    prisma.transaction.findMany({
+      where: { type: "SALE_RETURN", ...rangeWhere(r) },
+      select: { items: { select: lineSelect } },
+    }),
+  ]);
+  type Line = (typeof sales)[number]["items"][number];
+  const discountFactor = (lines: Line[], discount: unknown) => {
+    const sum = lines.reduce((s, i) => s + n(i.total), 0);
+    if (sum <= 0) return 1;
+    return Math.max(0, (sum - n(discount)) / sum);
+  };
+
+  const map = new Map<
+    string,
+    {
+      productId: string;
+      label: string;
+      barcode: string | null;
+      category: string;
+      soldQty: number;
+      returnedQty: number;
+      revenue: number;
+      refunds: number;
+      costValue: number;
+    }
+  >();
+
+  const addLine = (item: Line, kind: "SALE" | "SALE_RETURN", valueFactor: number) => {
+    const path = categoryPath(item.product.category?.id ?? null, catMapData);
+    const row = map.get(item.product.id) ?? {
+      productId: item.product.id,
+      label: `${item.product.brand.name} ${item.product.model}`,
+      barcode: item.product.barcode ?? null,
+      category: path[0] ?? item.product.category?.name ?? "Uncategorized",
+      soldQty: 0,
+      returnedQty: 0,
+      revenue: 0,
+      refunds: 0,
+      costValue: 0,
+    };
+    const cost = n(item.unit?.costPrice ?? item.product.costPrice) * item.quantity;
+    if (kind === "SALE_RETURN") {
+      row.returnedQty += item.quantity;
+      row.refunds += n(item.total);
+      row.costValue -= cost;
+    } else {
+      row.soldQty += item.quantity;
+      row.revenue += n(item.total) * valueFactor;
+      row.costValue += cost;
+    }
+    map.set(item.product.id, row);
+  };
+
+  for (const t of sales) {
+    const factor = discountFactor(t.items, t.discount);
+    for (const item of t.items) addLine(item, "SALE", factor);
+  }
+  for (const t of returns) {
+    for (const item of t.items) addLine(item, "SALE_RETURN", 1);
+  }
+
+  const rows = [...map.values()]
+    .map((row) => ({
+      productId: row.productId,
+      label: row.label,
+      barcode: row.barcode,
+      category: row.category,
+      soldQty: row.soldQty,
+      returnedQty: row.returnedQty,
+      netQty: row.soldQty - row.returnedQty,
+      revenue: round(row.revenue),
+      refunds: round(row.refunds),
+      cost: showCosts ? round(row.costValue) : null,
+      profit: showCosts ? round(row.revenue - row.refunds - row.costValue) : null,
+    }))
+    .sort((a, b) => b.soldQty - a.soldQty || a.label.localeCompare(b.label));
+
+  const total = (pick: (row: (typeof rows)[number]) => number | null) =>
+    rows.reduce((sum, row) => sum + (pick(row) ?? 0), 0);
+
+  return {
+    rows,
+    totals: {
+      products: rows.length,
+      soldQty: total((row) => row.soldQty),
+      returnedQty: total((row) => row.returnedQty),
+      netQty: total((row) => row.netQty),
+      revenue: round(total((row) => row.revenue)),
+      refunds: round(total((row) => row.refunds)),
+      cost: showCosts ? round(total((row) => row.cost)) : null,
+      profit: showCosts ? round(total((row) => row.profit)) : null,
+    },
+    costsHidden: !showCosts,
   };
 }
 
