@@ -9,6 +9,7 @@ const app = createApp();
 let cookie = "";
 let vendorId = "";
 let customerId = "";
+let bankId = "";
 let imeiCounter = 900000000000000;
 
 async function toy(sku: string, cost = 900, sell = 1500) {
@@ -24,6 +25,7 @@ describe("purchase return edge cases", () => {
     const s = await seedScenario();
     vendorId = s.vendor.id;
     customerId = s.customer.id;
+    bankId = s.bank.id;
     cookie = (await login(app, "FLOWS_ADMIN")).cookie;
   });
 
@@ -190,5 +192,98 @@ describe("purchase return edge cases", () => {
 
     const after = await request(app).get("/api/product?limit=200").set(auth(cookie));
     expect(after.body.data.find((row: { id: string }) => row.id === p.id).inStock).toBe(0);
+  });
+
+  it("moves cash correctly on returns and never touches money on stock adjustments", async () => {
+    const p = await toy("CASH1");
+    const cash = async () =>
+      Number((await prisma.cashAccount.findUniqueOrThrow({ where: { id: "main" } })).balance);
+    const bank = async () =>
+      Number((await prisma.bankAccount.findUniqueOrThrow({ where: { id: bankId } })).balance);
+    const moneyMoves = () => prisma.moneyMovement.count();
+    const z = async () => {
+      const from = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const to = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      const res = await request(app).get(`/api/report/z?from=${from}&to=${to}`).set(auth(cookie));
+      expect(res.status).toBe(200);
+      return res.body.data as {
+        cashIn: number;
+        cashOut: number;
+        expectedClosing: number;
+        saleCash: number;
+        saleReturnCash: number;
+        purchaseCash: number;
+        purchaseReturnCash: number;
+      };
+    };
+
+    const cashStart = await cash();
+    const bankStart = await bank();
+    const zStart = await z();
+
+    await request(app).post("/api/transaction/purchase").set(auth(cookie)).send({
+      contactId: vendorId,
+      items: [{ productId: p.id, quantity: 5, costPrice: 900 }],
+      payments: [{ method: "CASH", amount: 4500 }],
+    });
+    const sale = await request(app).post("/api/transaction/sale").set(auth(cookie)).send({
+      contactId: customerId,
+      items: [{ productId: p.id, quantity: 2, unitPrice: 1500 }],
+      payments: [{ method: "CASH", amount: 3000 }],
+    });
+    expect(sale.status).toBe(201);
+
+    const saleReturn = await request(app).post("/api/transaction/sale/returns").set(auth(cookie)).send({
+      saleId: sale.body.data.id,
+      contactId: customerId,
+      items: [{ productId: p.id, quantity: 1, refund: 1500 }],
+      payments: [{ method: "CASH", amount: 1500 }],
+    });
+    expect(saleReturn.status).toBe(201);
+
+    const purchaseReturn = await request(app).post("/api/transaction/purchase/returns").set(auth(cookie)).send({
+      purchaseId: "",
+      contactId: vendorId,
+      unitIds: [],
+      items: [{ productId: p.id, quantity: 1, refund: 900 }],
+      payments: [{ method: "CASH", amount: 900 }],
+    });
+    expect(purchaseReturn.status).toBe(201);
+
+    const cashAfterReturns = await cash();
+    expect(cashAfterReturns - cashStart).toBeCloseTo(-4500 + 3000 - 1500 + 900, 2);
+
+    const zAfterReturns = await z();
+    expect(zAfterReturns.saleCash - zStart.saleCash).toBeCloseTo(3000, 2);
+    expect(zAfterReturns.saleReturnCash - zStart.saleReturnCash).toBeCloseTo(1500, 2);
+    expect(zAfterReturns.purchaseCash - zStart.purchaseCash).toBeCloseTo(4500, 2);
+    expect(zAfterReturns.purchaseReturnCash - zStart.purchaseReturnCash).toBeCloseTo(900, 2);
+    expect(zAfterReturns.expectedClosing - zStart.expectedClosing).toBeCloseTo(
+      zAfterReturns.cashIn - zStart.cashIn - (zAfterReturns.cashOut - zStart.cashOut),
+      2,
+    );
+    expect(zAfterReturns.expectedClosing - zStart.expectedClosing).toBeCloseTo(cashAfterReturns - cashStart, 2);
+
+    const bankReturn = await request(app).post("/api/transaction/purchase/returns").set(auth(cookie)).send({
+      purchaseId: "",
+      contactId: vendorId,
+      unitIds: [],
+      items: [{ productId: p.id, quantity: 1, refund: 900 }],
+      payments: [{ method: "BANK_TRANSFER", amount: 900, bankAccountId: bankId }],
+    });
+    expect(bankReturn.status).toBe(201);
+    expect((await bank()) - bankStart).toBeCloseTo(900, 2);
+    expect((await cash()) - cashAfterReturns).toBeCloseTo(0, 2);
+
+    const movesBeforeAdjust = await moneyMoves();
+    const cashBeforeAdjust = await cash();
+    const adjust = await request(app)
+      .post("/api/inventory/adjust")
+      .set(auth(cookie))
+      .send({ productId: p.id, quantity: 5 });
+    expect(adjust.status).toBe(200);
+    expect(await moneyMoves()).toBe(movesBeforeAdjust);
+    expect((await cash()) - cashBeforeAdjust).toBeCloseTo(0, 2);
+    expect(await prisma.moneyMovement.count({ where: { note: { contains: "adjustment" } } })).toBe(0);
   });
 });
