@@ -869,6 +869,10 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
     for (const item of input.items) {
       const product = await tx.product.findUnique({ where: { id: item.productId } });
       if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+      const available = await availableQuantity(tx, item.productId);
+      if (item.quantity > available) {
+        throw new ApiError(400, "stock.insufficient", `Only ${available} in stock for ${product.model}`);
+      }
       const refund = item.refund ?? Number(product.costPrice);
       await tx.stockMovement.create({ data: { productId: item.productId, type: "OUT", qty: item.quantity, note: "Purchase return" } });
       total += refund * item.quantity;
@@ -897,9 +901,17 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
         ? "PAID"
         : "PENDING";
 
-    const fallbackContactId = input.contactId ?? (await tx.contact.findFirst())?.id ?? purchase?.contactId;
-    if (!fallbackContactId) throw new ApiError(400, "contact.not_found", "Contact not found");
-    const resolvedContactId = purchase ? purchase.contactId : fallbackContactId;
+    const resolvedContactId = purchase?.contactId ?? input.contactId?.trim();
+    if (!resolvedContactId) {
+      throw new ApiError(400, "return.contact_required", "Select the supplier for this return");
+    }
+    const composedNote = [
+      input.note,
+      input.reason ? `Reason: ${input.reason}` : null,
+      input.itemCondition ? `Condition: ${input.itemCondition}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const created = await tx.transaction.create({
       data: {
         type: "PURCHASE_RETURN",
@@ -911,7 +923,7 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
         discount: 0,
         total,
         status,
-         note: [input.note, input.reason ? `Reason: ${input.reason}` : null, input.itemCondition ? `Condition: ${input.itemCondition}` : null].filter(Boolean).join(" · ") || `Return for ${purchase.number}`,
+        note: composedNote || (purchase ? `Return for ${purchase.number}` : undefined),
         ...(createdAt ? { createdAt } : {}),
         items: { create: createdItems },
       },
@@ -919,7 +931,7 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
 
     await applyPayments(tx, {
       transactionId: created.id,
-      contactId: purchase.contactId,
+      contactId: resolvedContactId,
       payments,
       sourceType: "PURCHASE_RETURN",
       moneySign: 1,
@@ -935,7 +947,7 @@ export async function createPurchaseReturn(input: PurchaseReturnInput, userId: s
     action: "PURCHASE_RETURN.CREATE",
     entity: "Transaction",
     entityId: transaction.id,
-    details: JSON.stringify({ number, total: Number(transaction.total), of: purchase.number }),
+    details: JSON.stringify({ number, total: Number(transaction.total), of: purchase?.number ?? null }),
   });
 
   return transaction;
@@ -1856,9 +1868,11 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
   if (!existing) throw new ApiError(404, "transaction.not_found", "Transaction not found");
   if (existing.type !== "PURCHASE_RETURN") throw new ApiError(400, "transaction.not_purchase_return", "Only purchase returns can be modified");
 
-  const purchase = await prisma.transaction.findUnique({ where: { id: input.purchaseId } });
-  if (!purchase) throw new ApiError(404, "transaction.not_found", "Original purchase not found");
-  if (purchase.type !== "PURCHASE") throw new ApiError(400, "transaction.not_purchase", "Referenced transaction is not a purchase");
+  const purchase = input.purchaseId
+    ? await prisma.transaction.findUnique({ where: { id: input.purchaseId } })
+    : null;
+  if (input.purchaseId && !purchase) throw new ApiError(404, "transaction.not_found", "Original purchase not found");
+  if (purchase && purchase.type !== "PURCHASE") throw new ApiError(400, "transaction.not_purchase", "Referenced transaction is not a purchase");
 
   const number = input.number ?? existing.number;
   let createdAt: Date | undefined;
@@ -1888,6 +1902,10 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
           });
           await removeMovements(tx, { unitId: item.unitId, type: "OUT", note: "Purchase return" });
         }
+      } else {
+        await tx.stockMovement.create({
+          data: { productId: item.productId, type: "IN", qty: item.quantity, note: "Purchase return edited" },
+        });
       }
     }
 
@@ -1910,17 +1928,19 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
       throw new ApiError(400, "unit.not_found", "One or more units not found");
     }
 
-    const purchaseItems = await tx.transactionItem.findMany({
-      where: { transactionId: input.purchaseId, unitId: { not: null } },
-      select: { unitId: true },
-    });
+    const purchaseItems = purchase
+      ? await tx.transactionItem.findMany({
+          where: { transactionId: purchase.id, unitId: { not: null } },
+          select: { unitId: true },
+        })
+      : [];
     const purchaseUnitIds = new Set(purchaseItems.map((i) => i.unitId));
 
     let total = 0;
     const createdItems: Prisma.TransactionItemUncheckedCreateWithoutTransactionInput[] = [];
 
     for (const unit of units) {
-      if (!purchaseUnitIds.has(unit.id)) {
+      if (purchase && !purchaseUnitIds.has(unit.id)) {
         throw new ApiError(400, "unit.not_from_purchase", `Unit ${unit.imei} does not belong to this purchase`);
       }
       if (unit.status !== "IN_STOCK") {
@@ -1946,6 +1966,24 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
       });
     }
 
+    for (const item of input.items) {
+      const product = await tx.product.findUnique({ where: { id: item.productId } });
+      if (!product) throw new ApiError(404, "product.not_found", "Product not found");
+      const refund = item.refund ?? Number(product.costPrice);
+      await tx.stockMovement.create({
+        data: { productId: item.productId, type: "OUT", qty: item.quantity, note: "Purchase return" },
+      });
+      total += refund * item.quantity;
+      createdItems.push({
+        productId: item.productId,
+        unitId: null,
+        quantity: item.quantity,
+        unitPrice: refund,
+        discount: 0,
+        total: refund * item.quantity,
+      });
+    }
+
     const paidInput = input.payments.reduce((sum, p) => sum + p.amount, 0);
     if (paidInput > total + 0.001) {
       throw new ApiError(400, "payment.overpaid", "Payments exceed the refund total");
@@ -1962,17 +2000,25 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
         ? "PAID"
         : "PENDING";
 
+    const composedNote = [
+      input.note,
+      input.reason ? `Reason: ${input.reason}` : null,
+      input.itemCondition ? `Condition: ${input.itemCondition}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
     await tx.transaction.update({
       where: { id },
       data: {
         number,
-        contactId: purchase.contactId,
+        contactId: purchase?.contactId ?? existing.contactId,
         userId,
         subtotal: total,
         discount: 0,
         total,
         status,
-        note: input.note ?? `Return for ${purchase.number}`,
+        note: composedNote || (purchase ? `Return for ${purchase.number}` : undefined),
         ...(createdAt ? { createdAt } : {}),
       },
     });
@@ -1982,7 +2028,7 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
 
     await applyPayments(tx, {
       transactionId: id,
-      contactId: purchase.contactId,
+      contactId: purchase?.contactId ?? existing.contactId,
       payments,
       sourceType: "PURCHASE_RETURN",
       moneySign: 1,
@@ -1998,7 +2044,7 @@ export async function modifyPurchaseReturn(id: string, input: PurchaseReturnInpu
     action: "PURCHASE_RETURN.MODIFY",
     entity: "Transaction",
     entityId: id,
-    details: JSON.stringify({ number, total: Number(transaction!.total), of: purchase.number }),
+    details: JSON.stringify({ number, total: Number(transaction!.total), of: purchase?.number ?? null }),
   });
 
   return prisma.transaction.findUnique({

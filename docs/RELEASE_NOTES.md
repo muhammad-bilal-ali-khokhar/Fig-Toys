@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **Stock corrections now count everywhere.** When you add or remove pieces with Adjust in Inventory, the corrected quantity now shows in POS, in the barcode dropdown, on the dashboard and when you return stock to a supplier. Before, only the Inventory screen knew about the correction.
+- **Supplier returns that finally work for toys.** Returning stock to a supplier now works for toys you buy by the piece, not just items with serial numbers. Pick the seller, scan the toy, set the quantity, and the refund is calculated from your cost price. Stock goes out, the money comes into your cash drawer, and the credit due to your supplier is updated. Editing an existing supplier return works the same way.
+
 ## v0.0.8
 
 - **Profit you can trust, even after returns.** Your profit now takes returns into account, so a toy that comes back no longer counts as sold. Revenue, cost and profit adjust automatically, and the dashboard figure now includes every toy you sell, not just items with serial numbers.

@@ -87,7 +87,9 @@ export async function listProducts({ q, categoryId }: { q?: string; categoryId?:
 
   return products.map((p) => {
     const isAccessory = p.category.type === "ACCESSORY";
-    const qty = isAccessory ? (qtyByProduct.get(p.id) ?? 0) : p.units.length;
+    const qty = isAccessory
+      ? (qtyByProduct.get(p.id) ?? 0) + (p.stockAdjustment ?? 0)
+      : p.units.length;
     const inStock = isAccessory ? qty : p.units.length;
     return {
       id: p.id,

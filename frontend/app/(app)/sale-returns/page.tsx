@@ -728,11 +728,11 @@ export default function SaleReturnsPage() {
       const match = last.match(/RET-(\d+)$/);
       const next = match ? parseInt(match[1], 10) + 1 : 1;
       setReturnNo(`RET-${String(next).padStart(4, "0")}`);
-      if (!modifyId) {
-        const newest = await apiRequest<TransactionDetail[]>(`/transaction?type=SALE_RETURN&limit=1`);
-        const id = newest?.[0]?.id;
-        if (id) setReceipt(await apiRequest<TransactionDetail>(`/transaction/${id}`));
-      }
+      const newest = modifyId
+        ? null
+        : await apiRequest<TransactionDetail[]>(`/transaction?type=SALE_RETURN&limit=1`);
+      const receiptId = modifyId ?? newest?.[0]?.id;
+      if (receiptId) setReceipt(await apiRequest<TransactionDetail>(`/transaction/${receiptId}`));
     } catch (err) {
       toast(err instanceof Error ? err.message : "Return failed", "error");
     } finally {

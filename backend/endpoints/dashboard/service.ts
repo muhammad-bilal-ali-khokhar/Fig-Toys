@@ -277,6 +277,17 @@ export async function overview(
     agg.qty += sign * item.quantity;
     agg.costTotal += sign * Number(item.total);
   }
+  const adjustedProducts = await prisma.product.findMany({
+    where: { stockAdjustment: { not: 0 }, category: { type: "ACCESSORY" } },
+    select: { id: true, stockAdjustment: true, costPrice: true },
+  });
+  for (const p of adjustedProducts) {
+    const adjustment = p.stockAdjustment ?? 0;
+    const agg = accessoryByProduct.get(p.id) ?? { qty: 0, costTotal: 0 };
+    agg.qty += adjustment;
+    agg.costTotal += Number(p.costPrice ?? 0) * adjustment;
+    accessoryByProduct.set(p.id, agg);
+  }
   for (const [pid, agg] of [...accessoryByProduct.entries()]) {
     if (agg.qty <= 0) accessoryByProduct.delete(pid);
   }

@@ -432,6 +432,73 @@ describe("returns flow", () => {
     const unitAfter = await prisma.unit.findUniqueOrThrow({ where: { id: unit.id } });
     expect(unitAfter.status).toBe("RETURNED");
   });
+
+  it("returns quantity toys to the supplier without a purchase id", async () => {
+    const brand = await prisma.brand.create({ data: { name: "SupplierBrand" } });
+    const category = await prisma.category.create({ data: { name: "Supplier Toys", type: "ACCESSORY" } });
+    const toy = await prisma.product.create({
+      data: {
+        brandId: brand.id,
+        model: "Supplier Scooter",
+        categoryId: category.id,
+        sku: "SUP-SKU-1",
+        barcode: "8907999004",
+        sellPrice: 1500,
+        costPrice: 900,
+      },
+    });
+
+    await request(app)
+      .post("/api/transaction/purchase")
+      .set(auth(cookie))
+      .send({
+        contactId: vendorId,
+        items: [{ productId: toy.id, quantity: 4, costPrice: 900 }],
+        payments: [{ method: "CASH", amount: 3600 }],
+      });
+
+    const cashBefore = await prisma.cashAccount.findUnique({ where: { id: "main" } });
+    const beforeBalance = Number(cashBefore?.balance ?? 0);
+
+    const ret = await request(app)
+      .post("/api/transaction/purchase/returns")
+      .set(auth(cookie))
+      .send({
+        purchaseId: "",
+        contactId: vendorId,
+        unitIds: [],
+        items: [{ productId: toy.id, quantity: 2, refund: 900 }],
+        payments: [{ method: "CASH", amount: 1800 }],
+      });
+    expect(ret.status).toBe(201);
+    expect(Number(ret.body.data.total)).toBe(1800);
+    expect(ret.body.data.contactId).toBe(vendorId);
+
+    const afterCreate = Number((await prisma.cashAccount.findUniqueOrThrow({ where: { id: "main" } })).balance);
+    expect(afterCreate - beforeBalance).toBeCloseTo(1800, 2);
+    expect(await prisma.stockMovement.count({ where: { productId: toy.id, type: "OUT", note: "Purchase return" } })).toBe(1);
+
+    const modified = await request(app)
+      .put(`/api/transaction/${ret.body.data.id}/purchase-return`)
+      .set(auth(cookie))
+      .send({
+        purchaseId: "",
+        unitIds: [],
+        items: [{ productId: toy.id, quantity: 1, refund: 900 }],
+        payments: [{ method: "CASH", amount: 900 }],
+      });
+    expect(modified.status).toBe(200);
+    expect(Number(modified.body.data.total)).toBe(900);
+    const afterModify = Number((await prisma.cashAccount.findUniqueOrThrow({ where: { id: "main" } })).balance);
+    expect(afterModify - beforeBalance).toBeCloseTo(900, 2);
+
+    const updated = await prisma.transaction.findUniqueOrThrow({
+      where: { id: ret.body.data.id },
+      include: { items: true },
+    });
+    expect(updated.items).toHaveLength(1);
+    expect(updated.items[0].quantity).toBe(1);
+  });
 });
 
 describe("financial integrity: payments reconcile to transaction totals", () => {

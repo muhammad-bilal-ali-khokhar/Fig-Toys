@@ -27,11 +27,14 @@ export async function availableQuantity(
   productId: string,
   opts: { units?: boolean } = {},
 ): Promise<number> {
-  const items = await db.transactionItem.findMany({
-    where: { productId, ...(opts.units === false ? { unitId: null } : {}) },
-    select: { quantity: true, transaction: { select: { type: true } } },
-  });
-  let available = 0;
+  const [items, product] = await Promise.all([
+    db.transactionItem.findMany({
+      where: { productId, ...(opts.units === false ? { unitId: null } : {}) },
+      select: { quantity: true, transaction: { select: { type: true } } },
+    }),
+    db.product.findUnique({ where: { id: productId }, select: { stockAdjustment: true } }),
+  ]);
+  let available = product?.stockAdjustment ?? 0;
   for (const si of items) {
     available += quantitySign(si.transaction.type) * si.quantity;
   }
